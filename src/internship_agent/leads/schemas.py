@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -19,6 +19,12 @@ class Round(StrEnum):
     SERIES_A = "series-a"
     SERIES_B = "series-b"
     OTHER = "other"
+
+
+class Segment(StrEnum):
+    EARLY = "early"  # pre-seed / seed startup
+    MID = "mid"  # Series A-D or growth-stage private startup
+    BIG = "big"  # public company, large enterprise, bank, or established private company
 
 
 class EmailStatus(StrEnum):
@@ -54,14 +60,35 @@ class FitAssessment(BaseModel):
     talking_points: list[str] = Field(max_length=5)
 
 
+class FitResult(BaseModel):
+    """Model output for scoring: the fit plus the company's segment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fit: FitAssessment
+    company_segment: Segment
+
+
 class OutreachDraft(BaseModel):
-    """Model output: a message for the user to review and send themselves."""
+    """A message for the user to review, edit, and send with an explicit click."""
 
     model_config = ConfigDict(extra="forbid")
 
     x_dm: str = Field(max_length=1000)
     email_subject: str = Field(max_length=120)
     email_body: str = Field(max_length=3000)
+    linkedin_note: str = Field(default="", max_length=300)
+
+
+class OutreachDraftResult(BaseModel):
+    """Model output for drafting (no defaults, as required by structured outputs)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x_dm: str = Field(max_length=1000)
+    email_subject: str = Field(max_length=120)
+    email_body: str = Field(max_length=3000)
+    linkedin_note: str = Field(max_length=300)
 
 
 class Lead(BaseModel):
@@ -92,9 +119,12 @@ class Lead(BaseModel):
     posting_url: str | None = None
     deadline: date | None = None
 
+    segment: Segment | None = None
     status: LeadStatus = LeadStatus.NEW
     fit: FitAssessment | None = None
     draft: OutreachDraft | None = None
+    sent_at: datetime | None = None
+    sent_to: str | None = None
 
     @field_validator("x_handle")
     @classmethod

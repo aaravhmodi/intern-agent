@@ -3,92 +3,157 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Internship Agent</title>
+<title>Winter 2027 Search</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #ffffff; --text: #16181d; --muted: #5f6673; --line: #e3e6eb;
-    --accent: #2f5bea; --accent-text: #ffffff; --good: #1d7a46; --mid: #a26300; --low: #9b2c2c;
-    --chip: #eef1f6; --warn-bg: #fff4e0; --warn: #8a5300;
+    --paper: #fafaf7; --panel: #ffffff; --ink: #1b1b1a; --muted: #6b6b66; --faint: #9a9a93;
+    --line: #e7e6e1; --hover: #f2f1ec; --select: #ebeae3;
+    --accent: #1f5135; --accent-ink: #ffffff; --accent-soft: #e4eee7;
+    --hi: #1f5135; --mid: #8a6a12; --lo: #9a3b2f; --warn-bg: #fbf1dc; --warn: #7a5410;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #111318; --card: #1a1d24; --text: #e8eaef; --muted: #9aa1ad; --line: #2b303a;
-      --accent: #6d8dff; --accent-text: #0d1020; --good: #5fd08f; --mid: #f0b54a; --low: #f27a7a;
-      --chip: #252a33; --warn-bg: #3a2e14; --warn: #f0c46a;
+      --paper: #121211; --panel: #1a1a19; --ink: #ecebe6; --muted: #a3a29b; --faint: #75746e;
+      --line: #2b2b29; --hover: #222220; --select: #2a2a27;
+      --accent: #7cc49a; --accent-ink: #0f1a13; --accent-soft: #1d2a22;
+      --hi: #7cc49a; --mid: #e0bb5c; --lo: #ec8a7c; --warn-bg: #33291a; --warn: #e8c07a;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
-           border-bottom: 1px solid var(--line); padding: 14px 20px; }
-  .bar { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px;
-         align-items: center; }
-  h1 { font-size: 18px; margin: 0 12px 0 0; }
-  .stats { color: var(--muted); font-size: 13px; margin-right: auto; }
-  .tabs button, .btn { border: 1px solid var(--line); background: var(--card); color: var(--text);
-         border-radius: 8px; padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer;
-         text-decoration: none; display: inline-block; }
-  .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-  .btn:disabled { opacity: .5; cursor: progress; }
-  input[type=search] { border: 1px solid var(--line); background: var(--card); color: var(--text);
-         border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; min-width: 180px; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 60px; display: grid; gap: 12px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-  .card.done { opacity: .62; }
-  .top { display: flex; gap: 14px; align-items: flex-start; }
-  .score { min-width: 54px; text-align: center; border-radius: 10px; padding: 6px 4px;
-           background: var(--chip); font-weight: 700; font-size: 18px; }
-  .score small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
-  .s-strong { color: var(--good); } .s-possible { color: var(--mid); } .s-weak { color: var(--low); }
-  .title { flex: 1; min-width: 0; }
-  .title h2 { margin: 0; font-size: 16px; }
-  .title .sub { color: var(--muted); font-size: 13px; }
-  .chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 1px 8px;
-          font-size: 12px; margin-right: 4px; color: var(--muted); }
-  .chip.status { color: var(--text); }
-  .contact { margin-top: 10px; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
-  .contact a { color: var(--accent); }
-  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 0 6px; font-size: 12px; }
-  .actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-  details { margin-top: 10px; font-size: 13.5px; }
-  summary { cursor: pointer; color: var(--muted); }
-  ul { margin: 6px 0; padding-left: 20px; }
-  pre { white-space: pre-wrap; background: var(--chip); border-radius: 8px; padding: 10px;
-        font: 13px/1.5 ui-monospace, Consolas, monospace; margin: 6px 0; }
-  .empty { color: var(--muted); text-align: center; padding: 40px; }
-  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text);
-           color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: none; }
-  @media (max-width: 640px) { header, main { padding-left: 16px; padding-right: 16px; } .top { gap: 10px; } }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+         font-feature-settings: "tnum" 1; }
+  a { color: inherit; }
+  button, input, textarea { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 210px minmax(0, 1fr) 440px; height: 100vh; }
+
+  /* Sidebar */
+  nav { border-right: 1px solid var(--line); padding: 22px 14px; overflow-y: auto; display: flex; flex-direction: column; }
+  .brand { font-weight: 650; letter-spacing: -.01em; padding: 0 8px 18px; }
+  .brand small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .group { margin-bottom: 18px; }
+  .group h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint);
+              font-weight: 600; margin: 0 0 4px; padding: 0 8px; }
+  .nav-item { display: flex; justify-content: space-between; width: 100%; border: 0; background: none;
+              padding: 5px 8px; border-radius: 6px; cursor: pointer; text-align: left; color: var(--muted); }
+  .nav-item:hover { background: var(--hover); color: var(--ink); }
+  .nav-item.on { background: var(--select); color: var(--ink); font-weight: 550; }
+  .nav-item span:last-child { color: var(--faint); font-size: 12px; }
+  .sender { margin-top: auto; font-size: 12px; color: var(--muted); padding: 10px 8px 0; border-top: 1px solid var(--line); }
+  .sender b { color: var(--ink); font-weight: 550; word-break: break-all; }
+
+  /* List */
+  .list { display: flex; flex-direction: column; min-width: 0; }
+  .list-head { display: flex; align-items: center; gap: 10px; padding: 18px 22px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .list-head h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .list-head .count { color: var(--faint); }
+  .spacer { flex: 1; }
+  .search { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 5px 9px; width: 190px; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 5px 11px;
+         cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn:hover { background: var(--hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { border-color: var(--lo); color: var(--lo); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .rows { overflow-y: auto; flex: 1; }
+  .row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 160px 84px; gap: 14px; align-items: center;
+         padding: 11px 22px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover { background: var(--hover); }
+  .row.on { background: var(--select); }
+  .row.done { color: var(--faint); }
+  .fit { font-weight: 650; font-size: 15px; text-align: right; }
+  .fit.strong { color: var(--hi); } .fit.possible { color: var(--mid); } .fit.weak { color: var(--lo); }
+  .co { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.done .sub { color: var(--faint); }
+  .who { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { font-size: 12px; color: var(--muted); text-align: right; }
+  .status.applied, .status.contacted { color: var(--hi); }
+  .empty { padding: 48px 22px; color: var(--muted); }
+
+  /* Detail */
+  aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; }
+  .detail { padding: 22px 24px 40px; }
+  .detail h2 { margin: 0; font-size: 20px; letter-spacing: -.015em; }
+  .detail .lede { color: var(--muted); margin-top: 2px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+  .links a { color: var(--accent); text-decoration: none; }
+  .links a:hover { text-decoration: underline; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+  section h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); font-weight: 600; }
+  .score-line { display: flex; align-items: baseline; gap: 8px; }
+  .score-line .big { font-size: 26px; font-weight: 650; }
+  ul.plain { margin: 6px 0 0; padding-left: 18px; }
+  ul.plain li { margin: 3px 0; }
+  .k { color: var(--faint); font-size: 12px; margin-top: 10px; }
+  label.field { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input.text, textarea { width: 100%; border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 7px 9px; }
+  textarea { resize: vertical; min-height: 180px; line-height: 1.5; }
+  textarea.short { min-height: 80px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin-top: 10px; }
+  .check input { margin-top: 3px; }
+  .tag { display: inline-block; font-size: 11px; border-radius: 4px; padding: 1px 6px; background: var(--warn-bg); color: var(--warn); margin-left: 6px; }
+  .tag.ok { background: var(--accent-soft); color: var(--hi); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .counter { float: right; color: var(--faint); }
+  .placeholder { padding: 48px 24px; color: var(--muted); }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper);
+           padding: 8px 14px; border-radius: 6px; font-size: 13px; display: none; z-index: 10; max-width: 90vw; }
+
+  @media (max-width: 1100px) {
+    .app { grid-template-columns: 180px minmax(0, 1fr); }
+    aside { position: fixed; inset: 0 0 0 auto; width: min(440px, 100vw); display: none; z-index: 5; box-shadow: -8px 0 24px rgba(0,0,0,.12); }
+    aside.open { display: block; }
+    .close { display: inline-flex !important; }
+  }
+  @media (max-width: 700px) {
+    .app { grid-template-columns: 1fr; height: auto; }
+    nav { border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 16px; }
+    .list-head, .row { padding-left: 16px; padding-right: 16px; }
+    .row { grid-template-columns: 38px minmax(0, 1fr) 70px; }
+    .row .who { display: none; }
+    .search { width: 100%; }
+  }
+  .close { display: none; }
 </style>
 </head>
 <body>
-<header>
-  <div class="bar">
-    <h1>Internship Agent</h1>
-    <span class="stats" id="stats"></span>
-    <input type="search" id="q" placeholder="Filter by company or role">
-    <button class="btn primary" id="more">Find more postings</button>
+<div class="app">
+  <nav id="nav"></nav>
+  <div class="list">
+    <div class="list-head">
+      <h1 id="view-title">Startups</h1><span class="count" id="view-count"></span>
+      <span class="spacer"></span>
+      <input class="search" id="q" type="search" placeholder="Filter">
+      <button class="btn primary" id="find"></button>
+    </div>
+    <div class="rows" id="rows"></div>
   </div>
-  <div class="bar tabs" style="margin-top:10px" id="tabs">
-    <button data-tab="todo" class="on">To do</button>
-    <button data-tab="posting">Postings</button>
-    <button data-tab="founder">Founders</button>
-    <button data-tab="applied">Applied</button>
-    <button data-tab="contacted">Contacted</button>
-    <button data-tab="skipped">Skipped</button>
-    <button data-tab="all">All</button>
-  </div>
-</header>
-<main id="list"><div class="empty">Loading…</div></main>
+  <aside id="aside"><div class="placeholder">Select a company to see details, drafts and actions.</div></aside>
+</div>
 <div id="toast"></div>
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
-let state = { leads: [], tab: "todo", q: "" };
+const VIEWS = {
+  startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
+  early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
+  mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
+  big:      { title: "Big companies", group: "Big companies", label: "Open postings", test: l => !isStartup(l) && !DONE.has(l.status), find: "postings" },
+  applied:  { title: "Applied", group: "Pipeline", label: "Applied", test: l => l.status === "applied" },
+  contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
+  skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
+};
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings" };
+let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null };
 
+function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+const $ = id => document.getElementById(id);
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 4000); }
 async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {});
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
@@ -96,111 +161,185 @@ async function api(path, body) {
 }
 async function load() {
   const data = await api("/api/leads");
-  state.leads = data.leads;
-  document.getElementById("stats").textContent =
-    `${data.open_postings} open postings · ${data.founders} founders · ${data.applied} applied`;
-  render();
+  state.leads = data.leads; state.sender = data.sender;
+  renderNav(); renderRows(); renderDetail();
 }
-function visible(l) {
-  const t = state.tab;
-  if (state.q && !(`${l.company} ${l.posting_title} ${l.contact_name}`.toLowerCase().includes(state.q))) return false;
-  if (t === "all") return true;
-  if (t === "todo") return !DONE.has(l.status);
-  if (t === "posting" || t === "founder") return l.kind === t && !DONE.has(l.status);
-  return l.status === t;
+function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
+function subtitle(l) {
+  if (l.kind === "posting") return l.posting_title;
+  return [l.round.replace("-", " "), money(l.amount_usd), l.announced_on && "raised " + l.announced_on].filter(Boolean).join(" · ");
 }
-function emailLine(l) {
-  if (!l.email) return "";
-  const warn = l.email_status === "pattern" ? ` <span class="warn" title="${esc(l.email_source)}">unverified guess</span>` : "";
-  return `<span>✉ <a href="mailto:${esc(l.email)}">${esc(l.email)}</a>${warn}</span>`;
+
+function renderNav() {
+  let html = `<div class="brand">Winter 2027<small>Internship search</small></div>`;
+  let group = null;
+  for (const [id, v] of Object.entries(VIEWS)) {
+    if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
+    const n = state.leads.filter(v.test).length;
+    html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
+  }
+  html += `</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
+  $("nav").innerHTML = html;
 }
-function card(l) {
-  const fit = l.fit;
-  const verdict = fit ? fit.verdict : "";
-  const title = l.kind === "posting" ? l.posting_title : `${l.round.replace("-", " ")} · raised ${l.announced_on}${l.amount_usd ? " · $" + (l.amount_usd/1e6).toFixed(1) + "M" : ""}`;
-  const who = l.contact_name || l.contact_role
-    ? `<span>👤 ${esc(l.contact_name || "Team")}${l.contact_role ? ", " + esc(l.contact_role) : ""}</span>` : `<span class="chip">no contact found yet</span>`;
+function visible() {
+  const v = VIEWS[state.view];
+  return state.leads.filter(l => v.test(l) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
+}
+function renderRows() {
+  const v = VIEWS[state.view], items = visible();
+  $("view-title").textContent = v.title;
+  $("view-count").textContent = items.length;
+  const find = $("find");
+  find.style.display = v.find ? "" : "none";
+  find.textContent = FIND_LABEL[v.find] || "";
+  $("rows").innerHTML = items.length ? items.map(l => `
+    <div class="row ${state.selected === l.key ? "on" : ""} ${DONE.has(l.status) ? "done" : ""}" data-key="${esc(l.key)}">
+      <div class="fit ${l.fit ? l.fit.verdict : ""}">${l.fit ? l.fit.score : "–"}</div>
+      <div><div class="co">${esc(l.company)}</div><div class="sub">${esc(subtitle(l))}</div></div>
+      <div class="who">${esc(l.contact_name || (l.email ? l.email : "No contact yet"))}</div>
+      <div class="status ${esc(l.status)}">${esc(l.sent_at ? "emailed" : l.status)}</div>
+    </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
+}
+
+function linkedinUrl(l) {
+  if (l.linkedin_url) return l.linkedin_url;
+  const q = [l.contact_name || "", l.company].join(" ").trim();
+  return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(q);
+}
+function renderDetail() {
+  const l = state.leads.find(x => x.key === state.selected);
+  const aside = $("aside");
+  if (!l) { aside.classList.remove("open"); aside.innerHTML = `<div class="placeholder">Select a company to see details, drafts and actions.</div>`; return; }
+  aside.classList.add("open");
+  const fit = l.fit, d = l.draft;
+  const meta = [l.segment ? (l.segment === "big" ? "Big company" : l.segment + "-stage startup") : "Unclassified", l.location, l.kind === "founder" ? "Founder outreach" : "Posting"].filter(Boolean);
   const links = [
-    l.x_url ? `<a href="${esc(l.x_url)}" target="_blank" rel="noopener">X @${esc(l.x_handle)}</a>` : "",
-    l.linkedin_url ? `<a href="${esc(l.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : "",
-    l.company_url ? `<a href="${esc(l.company_url)}" target="_blank" rel="noopener">Website</a>` : "",
+    l.posting_url && `<a href="${esc(l.posting_url)}" target="_blank" rel="noopener">Posting</a>`,
+    l.company_url && `<a href="${esc(l.company_url)}" target="_blank" rel="noopener">Website</a>`,
     `<a href="${esc(l.source_url)}" target="_blank" rel="noopener">Source</a>`,
-  ].filter(Boolean).join(" · ");
-  const draft = l.draft ? `
-    <details><summary>Outreach draft</summary>
-      <div><b>Subject:</b> ${esc(l.draft.email_subject)}</div>
-      <pre>${esc(l.draft.email_body)}</pre>
-      <div><b>X DM</b></div><pre>${esc(l.draft.x_dm)}</pre>
-    </details>` : "";
-  const why = fit ? `
-    <details><summary>Why this fit score</summary>
-      ${fit.reasons.length ? "<b>Reasons</b><ul>" + fit.reasons.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
-      ${fit.concerns.length ? "<b>Concerns</b><ul>" + fit.concerns.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
-      ${fit.talking_points.length ? "<b>Talking points</b><ul>" + fit.talking_points.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
-    </details>` : "";
-  const k = esc(l.key);
-  const actions = [
-    l.posting_url ? `<a class="btn primary" href="${esc(l.posting_url)}" target="_blank" rel="noopener">Apply ↗</a>` : "",
-    l.mailto ? `<a class="btn" href="${esc(l.mailto)}">Email (opens your mail app)</a>` : "",
-    l.draft ? `<button class="btn" data-copy="email" data-key="${k}">Copy email</button>` : "",
-    l.draft && l.x_url ? `<button class="btn" data-copy="dm" data-key="${k}">Copy X DM</button>` : "",
-    `<button class="btn" data-draft="${k}">${l.draft ? "Redraft" : "Draft outreach"}</button>`,
-    l.kind === "posting" && l.status !== "applied" ? `<button class="btn" data-status="applied" data-key="${k}">✓ I applied</button>` : "",
-    l.status !== "contacted" ? `<button class="btn" data-status="contacted" data-key="${k}">I reached out</button>` : "",
-    l.status !== "skipped" ? `<button class="btn" data-status="skipped" data-key="${k}">Skip</button>` : "",
-    DONE.has(l.status) ? `<button class="btn" data-status="scored" data-key="${k}">Undo</button>` : "",
+    l.x_url && `<a href="${esc(l.x_url)}" target="_blank" rel="noopener">X @${esc(l.x_handle)}</a>`,
+    `<a href="${esc(linkedinUrl(l))}" target="_blank" rel="noopener">LinkedIn${l.linkedin_url ? "" : " search"}</a>`,
   ].filter(Boolean).join("");
-  return `<article class="card ${DONE.has(l.status) ? "done" : ""}">
-    <div class="top">
-      <div class="score ${fit ? "s-" + verdict : ""}">${fit ? fit.score : "–"}<small>${fit ? esc(verdict) : "unscored"}</small></div>
-      <div class="title">
-        <h2>${esc(l.company)}</h2>
-        <div class="sub">${esc(title)}</div>
-        <div style="margin-top:4px"><span class="chip">${esc(l.kind)}</span><span class="chip">${esc(l.location || "location n/a")}</span><span class="chip status">${esc(l.status)}</span></div>
+  const list = (title, xs) => xs && xs.length ? `<div class="k">${title}</div><ul class="plain">${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const guessed = l.email && l.email_status === "pattern";
+  const canSend = !!state.sender && !!d;
+  const armed = state.armed === l.key;
+  const emailSection = d ? `
+    <section>
+      <h4>Email</h4>
+      ${l.sent_at ? `<div class="hint"><span class="tag ok">Sent</span> to ${esc(l.sent_to)} on ${esc(l.sent_at.slice(0, 10))}</div>` : ""}
+      <label class="field">To ${guessed ? `<span class="tag" title="${esc(l.email_source)}">Unverified guess</span>` : l.email ? `<span class="tag ok">Published</span>` : ""}</label>
+      <input class="text" id="f-to" value="${esc(l.email || "")}" placeholder="name@company.com">
+      ${guessed ? `<label class="check"><input type="checkbox" id="f-verified"> I've checked this address is correct</label>` : ""}
+      <label class="field">Subject</label>
+      <input class="text" id="f-subject" value="${esc(d.email_subject)}">
+      <label class="field">Message</label>
+      <textarea id="f-body">${esc(d.email_body)}</textarea>
+      <label class="check"><input type="checkbox" id="f-attach" checked> Attach resume (PDF)</label>
+      <div class="actions">
+        <button class="btn ${armed ? "danger" : "primary"}" id="send" ${canSend ? "" : "disabled"}>${armed ? "Click again to send" : l.sent_at ? "Send again" : "Send email"}</button>
+        <button class="btn" data-copy="email">Copy</button>
       </div>
+      ${state.sender ? "" : `<div class="hint">Sending is off until Gmail is set up in .env.</div>`}
+    </section>
+    <section>
+      <h4>LinkedIn</h4>
+      <label class="field">Connection note <span class="counter" id="li-count"></span></label>
+      <textarea class="short" id="f-li" maxlength="300">${esc(d.linkedin_note || "")}</textarea>
+      <div class="actions"><button class="btn" id="li-go">Copy note and open LinkedIn</button></div>
+      <div class="hint">LinkedIn doesn't allow automated invitations. Paste the note and send it yourself.</div>
+    </section>
+    <section>
+      <h4>X direct message</h4>
+      <textarea class="short" id="f-dm">${esc(d.x_dm)}</textarea>
+      <div class="actions"><button class="btn" id="dm-go">${l.x_url ? "Copy and open X profile" : "Copy"}</button></div>
+    </section>` : `
+    <section><h4>Outreach</h4><div class="hint">No draft yet.</div>
+      <div class="actions"><button class="btn primary" data-draft="1">Write draft</button></div></section>`;
+  aside.innerHTML = `<div class="detail">
+    <button class="btn close" id="close" style="float:right">Close</button>
+    <h2>${esc(l.company)}</h2>
+    <div class="lede">${esc(subtitle(l))}</div>
+    <div class="meta">${meta.map(esc).map(m => `<span>${m}</span>`).join("")}</div>
+    <div class="links">${links}</div>
+    ${l.what_they_build ? `<p style="margin:12px 0 0">${esc(l.what_they_build)}</p>` : ""}
+    ${l.contact_name || l.contact_role ? `<p style="margin:10px 0 0"><b>${esc(l.contact_name || "Contact")}</b>${l.contact_role ? ", " + esc(l.contact_role) : ""}</p>` : ""}
+    <div class="actions">
+      ${l.posting_url ? `<a class="btn primary" href="${esc(l.posting_url)}" target="_blank" rel="noopener">Open application</a>` : ""}
+      ${l.kind === "posting" && l.status !== "applied" ? `<button class="btn" data-status="applied">Mark applied</button>` : ""}
+      ${l.status !== "contacted" ? `<button class="btn" data-status="contacted">Mark contacted</button>` : ""}
+      ${l.status !== "skipped" ? `<button class="btn" data-status="skipped">Skip</button>` : ""}
+      ${DONE.has(l.status) ? `<button class="btn" data-status="scored">Move back to to-do</button>` : ""}
     </div>
-    ${l.what_they_build ? `<div style="margin-top:8px">${esc(l.what_they_build)}</div>` : ""}
-    <div class="contact">${who}${emailLine(l)}<span>${links}</span></div>
-    ${why}${draft}
-    <div class="actions">${actions}</div>
-  </article>`;
+    ${fit ? `<section><h4>Fit</h4>
+      <div class="score-line"><span class="big fit ${fit.verdict}">${fit.score}</span><span class="sub">${esc(fit.verdict)} fit</span></div>
+      ${list("Why", fit.reasons)}${list("Concerns", fit.concerns)}${list("Talking points", fit.talking_points)}
+    </section>` : ""}
+    ${emailSection}
+    ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
+  </div>`;
+  const li = $("f-li");
+  if (li) { const upd = () => $("li-count").textContent = `${li.value.length}/300`; li.addEventListener("input", upd); upd(); }
 }
-function render() {
-  const items = state.leads.filter(visible);
-  document.getElementById("list").innerHTML = items.length ? items.map(card).join("") : `<div class="empty">Nothing here.</div>`;
-}
-document.getElementById("tabs").addEventListener("click", e => {
-  const b = e.target.closest("button[data-tab]"); if (!b) return;
-  state.tab = b.dataset.tab;
-  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
-  render();
+
+$("nav").addEventListener("click", e => {
+  const b = e.target.closest("[data-view]"); if (!b) return;
+  state.view = b.dataset.view; renderNav(); renderRows();
 });
-document.getElementById("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); render(); });
-document.getElementById("more").addEventListener("click", async e => {
-  e.target.disabled = true; e.target.textContent = "Searching…";
-  try { const r = await api("/api/find-more", { extra: 5 }); toast(r.added.length ? `Added ${r.added.length} new posting(s)` : "No new matching postings right now"); await load(); }
-  catch (err) { toast("Error: " + err.message); }
-  finally { e.target.disabled = false; e.target.textContent = "Find more postings"; }
+$("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
+$("rows").addEventListener("click", e => {
+  const r = e.target.closest(".row"); if (!r) return;
+  state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
 });
-document.getElementById("list").addEventListener("click", async e => {
-  const b = e.target.closest("button"); if (!b) return;
-  const lead = state.leads.find(l => l.key === b.dataset.key || l.key === b.dataset.draft);
+$("find").addEventListener("click", async e => {
+  const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
+  b.disabled = true; b.textContent = "Searching…";
   try {
-    if (b.dataset.copy) {
-      const text = b.dataset.copy === "dm" ? lead.draft.x_dm : `Subject: ${lead.draft.email_subject}\n\n${lead.draft.email_body}`;
-      await navigator.clipboard.writeText(text); toast("Copied");
-    } else if (b.dataset.status) {
-      b.disabled = true; if (b.dataset.status === "applied") b.textContent = "Saving + finding more…";
-      const r = await api("/api/status", { key: b.dataset.key, status: b.dataset.status });
+    const r = kind === "postings"
+      ? await api("/api/find-more", { extra: 5 })
+      : await api("/api/find-startups", { stages: kind === "startups" ? ["early", "mid"] : [kind], count: 5 });
+    toast(r.added.length ? `Added ${r.added.length}: ${r.added.map(x => x.company).join(", ")}` : "Nothing new found this time.");
+    await load();
+  } catch (err) { toast(err.message); }
+  finally { b.disabled = false; b.textContent = label; }
+});
+$("aside").addEventListener("click", async e => {
+  const l = state.leads.find(x => x.key === state.selected); if (!l) return;
+  const b = e.target.closest("button"); if (!b) return;
+  try {
+    if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+    else if (b.dataset.status) {
+      b.disabled = true;
+      if (b.dataset.status === "applied") b.textContent = "Saving, finding more…";
+      const r = await api("/api/status", { key: l.key, status: b.dataset.status });
       toast(r.added.length ? `Marked ${b.dataset.status}. Added ${r.added.length} new posting(s).` : `Marked ${b.dataset.status}.`);
       await load();
     } else if (b.dataset.draft) {
-      b.disabled = true; b.textContent = "Drafting…";
-      await api("/api/draft", { key: b.dataset.draft }); toast("Draft ready"); await load();
+      b.disabled = true; b.textContent = "Writing…";
+      await api("/api/draft", { key: l.key }); toast("Drafts ready."); await load();
+    } else if (b.dataset.copy) {
+      await navigator.clipboard.writeText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
+    } else if (b.id === "li-go") {
+      await navigator.clipboard.writeText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
+    } else if (b.id === "dm-go") {
+      await navigator.clipboard.writeText($("f-dm").value); if (l.x_url) window.open(l.x_url, "_blank", "noopener"); toast("Message copied.");
+    } else if (b.id === "send") {
+      if (state.armed !== l.key) {
+        state.armed = l.key; b.textContent = "Click again to send"; b.classList.replace("primary", "danger");
+        setTimeout(() => { if (state.armed === l.key) { state.armed = null; b.textContent = "Send email"; b.classList.replace("danger", "primary"); } }, 5000);
+        return;
+      }
+      state.armed = null; b.disabled = true; b.textContent = "Sending…";
+      const verified = $("f-verified");
+      await api("/api/send", {
+        key: l.key, to: $("f-to").value, subject: $("f-subject").value, body: $("f-body").value,
+        attach_resume: $("f-attach").checked, confirm_unverified: verified ? verified.checked : false, resend: !!l.sent_at,
+      });
+      toast(`Sent to ${$("f-to").value}.`); await load();
     }
-  } catch (err) { toast("Error: " + err.message); b.disabled = false; }
+  } catch (err) { toast(err.message); await load().catch(() => {}); }
 });
-load().catch(err => document.getElementById("list").innerHTML = `<div class="empty">Could not load leads: ${esc(err.message)}</div>`);
+load().catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
 </script>
 </body>
 </html>

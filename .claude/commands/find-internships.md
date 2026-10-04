@@ -50,9 +50,14 @@ Append a JSON list to `data/leads-inbox.json` (create it if missing) with object
   "x_handle": null,
   "email": "jane.doe@acme.ai",
   "email_status": "pattern",
-  "email_source": ""
+  "email_source": "",
+  "segment": "big"
 }
 ```
+
+`segment` is `early` (pre-seed/seed startup), `mid` (Series A-D or growth-stage private
+startup) or `big` (public company, bank, large enterprise, or established private company).
+The dashboard shows startups and big companies separately.
 
 Email rules are the same as `/find-founders`: `published` only when seen on a public page
 (record it in `email_source`), `pattern` for a guess built with

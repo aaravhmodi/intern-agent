@@ -12,6 +12,8 @@ from internship_agent.leads.store import LeadStore
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("GMAIL_ADDRESS", "")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "")
     LeadStore(tmp_path / "leads.json").save(
         [
             Lead.model_validate(
@@ -37,15 +39,16 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_index_serves_html(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert "Internship Agent" in response.text
+    assert "Winter 2027 Search" in response.text
 
 
-def test_leads_includes_key_and_encoded_mailto(client: TestClient) -> None:
+def test_leads_includes_key_and_segment(client: TestClient) -> None:
     data = client.get("/api/leads").json()
     lead = data["leads"][0]
     assert lead["key"] == "acme/jane-doe"
-    assert lead["mailto"] == "mailto:jane@acme.com?subject=Winter%202027%20%26%20you&body=Hi%20Jane"
+    assert lead["segment"] is None
     assert data["open_postings"] == 1
+    assert data["sender"] is None
 
 
 def test_marking_applied_triggers_refill(
@@ -63,7 +66,8 @@ def test_marking_applied_triggers_refill(
     assert response.status_code == 200
     assert response.json()["lead"]["status"] == LeadStatus.APPLIED
     assert calls == [15]
-    assert client.get("/api/leads").json()["applied"] == 1
+    statuses = [x["status"] for x in client.get("/api/leads").json()["leads"]]
+    assert statuses == ["applied"]
 
 
 def test_skipping_does_not_refill(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,3 +78,56 @@ def test_skipping_does_not_refill(client: TestClient, monkeypatch: pytest.Monkey
 
 def test_unknown_lead_404(client: TestClient) -> None:
     assert client.post("/api/status", json={"key": "nope", "status": "applied"}).status_code == 404
+
+
+def test_cross_site_post_is_blocked(client: TestClient) -> None:
+    response = client.post(
+        "/api/status",
+        json={"key": "acme/jane-doe", "status": "applied"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert response.status_code == 403
+
+
+def test_foreign_host_is_blocked(client: TestClient) -> None:
+    assert client.get("/api/leads", headers={"Host": "attacker.example"}).status_code == 403
+
+
+def test_send_refused_when_gmail_not_configured(client: TestClient) -> None:
+    response = client.post(
+        "/api/send",
+        json={"key": "acme/jane-doe", "to": "jane@acme.com", "subject": "Hi", "body": "Hello"},
+    )
+    assert response.status_code == 400
+    assert "GMAIL" in response.json()["detail"]
+
+
+def test_send_guess_requires_confirmation_then_records(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from internship_agent import mailer
+
+    monkeypatch.setenv("GMAIL_ADDRESS", "me@gmail.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app-password")
+    sent: list[str] = []
+    monkeypatch.setattr(mailer, "send", lambda message, sender, pw: sent.append(message["To"]))
+    body = {
+        "key": "acme/jane-doe",
+        "to": "jane@acme.com",
+        "subject": "Hi",
+        "body": "Hello",
+        "attach_resume": False,
+    }
+
+    blocked = client.post("/api/send", json=body)
+    assert blocked.status_code == 400 and "guess" in blocked.json()["detail"]
+    assert sent == []
+
+    ok = client.post("/api/send", json={**body, "confirm_unverified": True})
+    assert ok.status_code == 200
+    assert ok.json()["lead"]["status"] == "contacted"
+    assert sent == ["jane@acme.com"]
+
+    again = client.post("/api/send", json={**body, "confirm_unverified": True})
+    assert again.status_code == 400 and "Already emailed" in again.json()["detail"]
+    assert sent == ["jane@acme.com"]

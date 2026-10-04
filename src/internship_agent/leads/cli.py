@@ -7,14 +7,14 @@ from openai import OpenAI
 from rich.console import Console
 from rich.table import Table
 
-from internship_agent.ai import assess_fit, draft_outreach
+from internship_agent.ai import draft_outreach
 from internship_agent.config import Settings, get_settings
 from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
-from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus
+from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Segment
 from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
-from internship_agent.workflows import find_more_postings
+from internship_agent.workflows import find_more_postings, find_startups, score
 
 leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
 console = Console()
@@ -80,15 +80,28 @@ def score_leads(
 ) -> None:
     """Score unscored leads against the resume with OpenAI."""
     settings = get_settings()
-    store, client, resume = _store(settings), _openai(settings), _resume(settings)
-    todo = [lead for lead in store.load() if rescore or lead.fit is None][:limit]
+    _openai(settings)
+    todo = [lead for lead in _store(settings).load() if rescore or lead.fit is None][:limit]
+    score(settings, todo)
     for lead in todo:
-        lead.fit = assess_fit(client, settings.openai_model, resume, lead)
-        if lead.status is LeadStatus.NEW:
-            lead.status = LeadStatus.SCORED
-        store.upsert(lead)
-        console.print(f"{lead.key}: {lead.fit.score} ({lead.fit.verdict.value})")
+        if lead.fit:
+            console.print(f"{lead.key}: {lead.fit.score} ({lead.fit.verdict.value})")
     console.print(f"Scored {len(todo)} lead(s).")
+
+
+@leads_app.command("find-startups")
+def find_startups_cmd(
+    stage: Annotated[
+        list[Segment] | None, typer.Option(help="Startup stages to search (default: early, mid).")
+    ] = None,
+    count: int = typer.Option(5, help="How many startups to ask for."),
+) -> None:
+    """Web-search recently funded startups (OpenAI web search), then store and score them."""
+    added = find_startups(get_settings(), stage or [Segment.EARLY, Segment.MID], count)
+    for lead in added:
+        fit = f"{lead.fit.score}" if lead.fit else "-"
+        console.print(f"+ {lead.company} ({lead.round.value}): {lead.contact_name} (fit {fit})")
+    console.print(f"Added {len(added)} startup(s).")
 
 
 @leads_app.command("show")

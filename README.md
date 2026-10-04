@@ -41,19 +41,30 @@ folder. Run the login step first so it can reuse the cached token.
 uv run internship-agent dashboard        # http://127.0.0.1:8765 (local only)
 ```
 
-Every lead (internship postings and recently funded founders) with its fit score, reasons,
-contact, email (guesses are labelled "unverified guess"), and the drafted email / X DM.
+Two searches, shown separately:
 
-- **Apply** opens the posting; you submit the application yourself.
-- **Email** opens your mail app with the draft prefilled; nothing is sent automatically.
-- **I applied** records it and tops the open list back up to `TARGET_OPEN_POSTINGS` (default 15)
-  with new open Winter 2027 postings from the public
-  [SimplifyJobs off-season list](https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README-Off-Season.md),
-  scored against your resume. Postings you applied to or skipped are never re-added.
-- **Find more postings** adds five more on demand (`leads find-more` does the same from the CLI).
+- **Startups** (early = pre-seed/seed, mid = Series A-D). "Search for startups" uses OpenAI web
+  search for funding rounds announced in the last 60 days. A result is kept only if its cited
+  article loads and names both the company and the founder. Also from the CLI:
+  `leads find-startups --stage early --stage mid --count 8`.
+- **Big companies**: open Winter 2027 postings from the public
+  [SimplifyJobs off-season list](https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README-Off-Season.md).
+  "Mark applied" tops the open list back up to `TARGET_OPEN_POSTINGS` (default 15); postings
+  you applied to or skipped are never re-added.
 
-New postings from SimplifyJobs have no contact yet; run `/find-internships` in Claude Code to
-research hiring managers for them.
+Select a company to see its fit score and reasons, contact, and editable drafts:
+
+- **Send email** sends from Gmail after a second confirming click. Guessed addresses need
+  "I've checked this address" ticked; a lead is never emailed twice unless you choose
+  "Send again". Sends are logged to `data/sent-log.jsonl`. Setup: turn on 2-Step Verification,
+  create an app password at https://myaccount.google.com/apppasswords, and put it in `.env` as
+  `GMAIL_APP_PASSWORD` (with `GMAIL_ADDRESS`). Never use your normal Google password.
+- **LinkedIn**: copies the connection note and opens the profile (or a people search). LinkedIn
+  forbids automated invitations, so you paste and send it.
+- **Open application** opens the posting; applications are submitted by you.
+
+The server only answers requests from localhost and rejects cross-site requests, because it
+can send email.
 
 ## Founder leads (X.com)
 

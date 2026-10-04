@@ -5,7 +5,7 @@ import pytest
 from openai import OpenAI
 
 from internship_agent.ai import assess_fit
-from internship_agent.leads.schemas import FitAssessment, Lead, Verdict
+from internship_agent.leads.schemas import FitAssessment, FitResult, Lead, Segment, Verdict
 
 
 class FakeResponses:
@@ -34,8 +34,11 @@ LEAD = Lead.model_validate(
 
 
 def test_assess_fit_sends_resume_and_lead_and_validates() -> None:
-    expected = FitAssessment(
-        score=80, verdict=Verdict.STRONG, reasons=["r"], concerns=[], talking_points=["t"]
+    expected = FitResult(
+        fit=FitAssessment(
+            score=80, verdict=Verdict.STRONG, reasons=["r"], concerns=[], talking_points=["t"]
+        ),
+        company_segment=Segment.MID,
     )
     client, responses = fake_client(expected)
 
@@ -43,7 +46,7 @@ def test_assess_fit_sends_resume_and_lead_and_validates() -> None:
 
     assert result == expected
     assert responses.kwargs["model"] == "test-model"
-    assert responses.kwargs["text_format"] is FitAssessment
+    assert responses.kwargs["text_format"] is FitResult
     user_message = responses.kwargs["input"][1]["content"]
     assert "Python, FastAPI" in user_message and "Acme" in user_message
 

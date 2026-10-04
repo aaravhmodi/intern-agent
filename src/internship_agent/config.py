@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_NPX = "npx.cmd" if sys.platform == "win32" else "npx"
@@ -21,6 +22,16 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     # Open (not applied/skipped) postings the dashboard keeps topped up.
     target_open_postings: int = 15
+
+    # Gmail sending (dashboard "Send" button). Use a Google app password, never your
+    # account password: https://myaccount.google.com/apppasswords
+    gmail_address: str | None = None
+    gmail_app_password: SecretStr | None = None
+
+    @property
+    def gmail_ready(self) -> bool:
+        password = self.gmail_app_password.get_secret_value() if self.gmail_app_password else ""
+        return bool(self.gmail_address and password.strip())
 
     def outlook_server_args(self, *extra: str) -> list[str]:
         args = ["-y", self.outlook_mcp_package, "--read-only", "--preset", "mail,calendar"]
