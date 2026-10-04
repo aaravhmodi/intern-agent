@@ -1,5 +1,6 @@
 from datetime import date
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from openai import OpenAI
@@ -8,13 +9,15 @@ from rich.table import Table
 
 from internship_agent.ai import assess_fit, draft_outreach
 from internship_agent.config import Settings, get_settings
+from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
-from internship_agent.leads.schemas import LeadStatus
+from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus
 from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
 
-leads_app = typer.Typer(help="Founders who recently raised, scored for internship fit.")
+leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
 console = Console()
+DEFAULT_OUTREACH = Path("data/outreach.md")
 
 
 def _store(settings: Settings) -> LeadStore:
@@ -32,6 +35,12 @@ def _resume(settings: Settings) -> str:
     return load_resume_text(settings.resume_path, settings.data_dir / "resume.txt")
 
 
+def _email_cell(lead: Lead) -> str:
+    if not lead.email:
+        return "-"
+    return f"{lead.email}?" if lead.email_status is EmailStatus.PATTERN else lead.email
+
+
 @leads_app.command("import")
 def import_leads(path: Path) -> None:
     """Import leads from a JSON list (e.g. data/leads-inbox.json written by Claude)."""
@@ -43,20 +52,20 @@ def import_leads(path: Path) -> None:
 
 @leads_app.command("list")
 def list_leads(
-    days: int = typer.Option(90, help="Only raises from the last N days."),
+    days: int = typer.Option(90, help="Only founder raises from the last N days."),
 ) -> None:
-    """Show leads ranked by fit score, then stage, then recency."""
+    """Show open leads ranked by fit. A trailing ? marks an unverified (guessed) email."""
     ranked = rank(_store(get_settings()).load(), date.today(), days)
-    table = Table("Fit", "Round", "Raised", "Founder", "X", "Status")
+    table = Table("Fit", "Kind", "Company", "Contact", "Email", "Status")
     table.add_column("Key", overflow="fold")
     for lead in ranked:
         fit = f"{lead.fit.score} {lead.fit.verdict.value}" if lead.fit else "-"
         table.add_row(
             fit,
-            lead.round.value,
-            lead.announced_on.isoformat(),
-            lead.founder_name,
-            f"@{lead.x_handle}" if lead.x_handle else "-",
+            lead.kind.value,
+            lead.company,
+            lead.contact_name or "-",
+            _email_cell(lead),
             lead.status.value,
             lead.key,
         )
@@ -65,7 +74,7 @@ def list_leads(
 
 @leads_app.command("score")
 def score_leads(
-    limit: int = typer.Option(10, help="Maximum leads to score in this run."),
+    limit: int = typer.Option(50, help="Maximum leads to score in this run."),
     rescore: bool = typer.Option(False, help="Re-score leads that already have a fit."),
 ) -> None:
     """Score unscored leads against the resume with OpenAI."""
@@ -87,18 +96,57 @@ def show_lead(key: str) -> None:
     console.print_json(_store(get_settings()).get(key).model_dump_json())
 
 
+def _draft(settings: Settings, client: OpenAI, resume: str, lead: Lead) -> None:
+    lead.draft = draft_outreach(client, settings.openai_model, resume, lead)
+    if lead.status in (LeadStatus.NEW, LeadStatus.SCORED):
+        lead.status = LeadStatus.DRAFTED
+
+
 @leads_app.command("draft")
 def draft_lead(key: str) -> None:
     """Draft an X DM and email for one lead. Nothing is sent."""
     settings = get_settings()
     store = _store(settings)
     lead = store.get(key)
-    lead.draft = draft_outreach(_openai(settings), settings.openai_model, _resume(settings), lead)
-    if lead.status in (LeadStatus.NEW, LeadStatus.SCORED):
-        lead.status = LeadStatus.DRAFTED
+    _draft(settings, _openai(settings), _resume(settings), lead)
     store.upsert(lead)
-    console.print(f"[bold]X DM to {lead.x_url or lead.founder_name}[/bold]\n{lead.draft.x_dm}\n")
-    console.print(f"[bold]Email: {lead.draft.email_subject}[/bold]\n{lead.draft.email_body}")
+    assert lead.draft is not None
+    console.print(f"[bold]Email: {lead.draft.email_subject}[/bold]\n{lead.draft.email_body}\n")
+    console.print(f"[bold]X DM[/bold]\n{lead.draft.x_dm}")
+
+
+@leads_app.command("draft-all")
+def draft_all(
+    min_score: int = typer.Option(50, help="Only draft leads with at least this fit score."),
+    redraft: bool = typer.Option(False, help="Replace existing drafts."),
+) -> None:
+    """Draft outreach for every scored, open lead above the threshold. Nothing is sent."""
+    settings = get_settings()
+    store, client, resume = _store(settings), _openai(settings), _resume(settings)
+    todo = [
+        lead
+        for lead in rank(store.load(), date.today())
+        if lead.fit
+        and lead.fit.score >= min_score
+        and (redraft or lead.draft is None)
+        and lead.status is not LeadStatus.CONTACTED
+    ]
+    for lead in todo:
+        _draft(settings, client, resume, lead)
+        store.upsert(lead)
+        console.print(f"Drafted {lead.key}")
+    console.print(f"Drafted {len(todo)} lead(s). Run `leads export` to review them.")
+
+
+@leads_app.command("export")
+def export_drafts(
+    out: Annotated[Path, typer.Option(help="Markdown file to write.")] = DEFAULT_OUTREACH,
+) -> None:
+    """Write all drafts, best fit first, to a Markdown file for review."""
+    leads = rank(_store(get_settings()).load(), date.today())
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_outreach(leads), encoding="utf-8")
+    console.print(f"Wrote {sum(1 for x in leads if x.draft)} draft(s) to {out}")
 
 
 @leads_app.command("mark")

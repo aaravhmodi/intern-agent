@@ -2,9 +2,15 @@ import re
 from datetime import date
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
+
+
+class LeadKind(StrEnum):
+    FOUNDER = "founder"  # startup that recently raised; cold outreach to a founder
+    POSTING = "posting"  # published internship posting; outreach to the hiring manager
 
 
 class Round(StrEnum):
@@ -13,6 +19,12 @@ class Round(StrEnum):
     SERIES_A = "series-a"
     SERIES_B = "series-b"
     OTHER = "other"
+
+
+class EmailStatus(StrEnum):
+    PUBLISHED = "published"  # seen on a public page (source in email_source)
+    PATTERN = "pattern"  # unverified guess from the company's email format
+    NONE = "none"
 
 
 class LeadStatus(StrEnum):
@@ -51,19 +63,34 @@ class OutreachDraft(BaseModel):
     email_body: str = Field(max_length=3000)
 
 
-class FounderLead(BaseModel):
-    founder_name: str = Field(min_length=1)
+class Lead(BaseModel):
+    kind: LeadKind = LeadKind.FOUNDER
     company: str = Field(min_length=1)
-    role: str = "Founder"
-    x_handle: str | None = None
     company_url: str | None = None
-    round: Round = Round.OTHER
-    amount_usd: int | None = Field(default=None, ge=0)
-    announced_on: date
-    source_url: str = Field(min_length=1, description="Where the raise was announced.")
     what_they_build: str = ""
     location: str = ""
     hiring_signals: list[str] = Field(default_factory=list)
+    source_url: str = Field(min_length=1, description="Evidence for the raise or the posting.")
+
+    # Who to contact: the founder, or the hiring manager / recruiter for a posting.
+    contact_name: str = ""
+    contact_role: str = ""
+    x_handle: str | None = None
+    linkedin_url: str | None = None
+    email: str | None = None
+    email_status: EmailStatus = EmailStatus.NONE
+    email_source: str = ""
+
+    # Founder leads
+    round: Round = Round.OTHER
+    amount_usd: int | None = Field(default=None, ge=0)
+    announced_on: date | None = None
+
+    # Posting leads
+    posting_title: str = ""
+    posting_url: str | None = None
+    deadline: date | None = None
+
     status: LeadStatus = LeadStatus.NEW
     fit: FitAssessment | None = None
     draft: OutreachDraft | None = None
@@ -81,9 +108,30 @@ class FounderLead(BaseModel):
             raise ValueError(f"invalid X handle: {value!r}")
         return handle
 
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        value = value.strip().lower()
+        if not _EMAIL.match(value):
+            raise ValueError(f"invalid email: {value!r}")
+        return value
+
+    @model_validator(mode="after")
+    def _check_kind_fields(self) -> "Lead":
+        if self.kind is LeadKind.FOUNDER and self.announced_on is None:
+            raise ValueError("founder leads need announced_on")
+        if self.kind is LeadKind.POSTING and not self.posting_url:
+            raise ValueError("posting leads need posting_url")
+        if self.email and self.email_status is EmailStatus.NONE:
+            raise ValueError("email_status must say whether the email is published or a pattern")
+        return self
+
     @property
     def key(self) -> str:
-        return f"{_slug(self.company)}/{_slug(self.founder_name)}"
+        who = self.contact_name or self.posting_title or "team"
+        return f"{_slug(self.company)}/{_slug(who)}"
 
     @property
     def x_url(self) -> str | None:

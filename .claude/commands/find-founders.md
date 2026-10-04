@@ -30,10 +30,15 @@ Write a JSON list to `data/leads-inbox.json` with objects of this shape (see
 
 ```json
 {
-  "founder_name": "Jane Doe",
+  "kind": "founder",
+  "contact_name": "Jane Doe",
   "company": "Acme AI",
-  "role": "Co-founder & CTO",
+  "contact_role": "Co-founder & CTO",
   "x_handle": "janedoe",
+  "linkedin_url": "https://www.linkedin.com/in/janedoe",
+  "email": "jane@acme.ai",
+  "email_status": "pattern",
+  "email_source": "",
   "company_url": "https://acme.ai",
   "round": "seed",
   "amount_usd": 4000000,
@@ -47,12 +52,22 @@ Write a JSON list to `data/leads-inbox.json` with objects of this shape (see
 
 `round` is one of `pre-seed`, `seed`, `series-a`, `series-b`, `other`.
 
+Emails: use `email_status: "published"` (with the page in `email_source`) only for an address
+you actually saw on a public page. Otherwise, if the company's address format is publicly
+evident (another published address at the same domain), build a guess with
+`internship_agent.leads.emails.guess_email` and set `email_status: "pattern"`. Leave `email`
+empty if neither applies. Never present a guess as verified.
+
+LinkedIn: light and read-only. Open at most a few profiles per company, only to confirm a
+name and title, and stop immediately on any warning, login wall or captcha.
+
 Then run:
 
 ```
 uv run internship-agent leads import data/leads-inbox.json
 uv run internship-agent leads score
-uv run internship-agent leads list
+uv run internship-agent leads draft-all
+uv run internship-agent leads export
 ```
 
 Finish with the top leads, their fit verdicts and main concerns, and offer to run

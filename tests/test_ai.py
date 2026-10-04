@@ -5,7 +5,7 @@ import pytest
 from openai import OpenAI
 
 from internship_agent.ai import assess_fit
-from internship_agent.leads.schemas import FitAssessment, FounderLead, Verdict
+from internship_agent.leads.schemas import FitAssessment, Lead, Verdict
 
 
 class FakeResponses:
@@ -23,9 +23,9 @@ def fake_client(parsed: Any) -> tuple[OpenAI, FakeResponses]:
     return cast(OpenAI, SimpleNamespace(responses=responses)), responses
 
 
-LEAD = FounderLead.model_validate(
+LEAD = Lead.model_validate(
     {
-        "founder_name": "Jane",
+        "contact_name": "Jane",
         "company": "Acme",
         "announced_on": "2026-09-20",
         "source_url": "https://example.com",
