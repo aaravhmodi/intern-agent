@@ -14,6 +14,7 @@ from internship_agent.leads.ranking import rank
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus
 from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
+from internship_agent.workflows import find_more_postings
 
 leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
 console = Console()
@@ -147,6 +148,18 @@ def export_drafts(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_outreach(leads), encoding="utf-8")
     console.print(f"Wrote {sum(1 for x in leads if x.draft)} draft(s) to {out}")
+
+
+@leads_app.command("find-more")
+def find_more(
+    target_open: int = typer.Option(15, help="Keep this many open (not applied) postings."),
+) -> None:
+    """Top up open postings from the public SimplifyJobs list and score new ones."""
+    added = find_more_postings(get_settings(), target_open)
+    for lead in added:
+        fit = f"{lead.fit.score}" if lead.fit else "-"
+        console.print(f"+ {lead.company}: {lead.posting_title} (fit {fit})")
+    console.print(f"Added {len(added)} posting(s).")
 
 
 @leads_app.command("mark")

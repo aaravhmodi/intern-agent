@@ -74,6 +74,21 @@ def interviews(days: int = typer.Option(30, help="Days ahead to look.")) -> None
     _run(run())
 
 
+@app.command()
+def dashboard(
+    port: int = typer.Option(8765, help="Local port."),
+    open_browser: bool = typer.Option(True, help="Open the dashboard in your browser."),
+) -> None:
+    """Serve the local dashboard at http://127.0.0.1:<port> (local only)."""
+    import webbrowser
+
+    import uvicorn
+
+    if open_browser:
+        webbrowser.open(f"http://127.0.0.1:{port}")
+    uvicorn.run("internship_agent.dashboard.app:app", host="127.0.0.1", port=port)
+
+
 def _run(coro: Coroutine[Any, Any, None]) -> None:
     try:
         asyncio.run(coro)

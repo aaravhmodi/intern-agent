@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internship Agent</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #16181d; --muted: #5f6673; --line: #e3e6eb;
+    --accent: #2f5bea; --accent-text: #ffffff; --good: #1d7a46; --mid: #a26300; --low: #9b2c2c;
+    --chip: #eef1f6; --warn-bg: #fff4e0; --warn: #8a5300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111318; --card: #1a1d24; --text: #e8eaef; --muted: #9aa1ad; --line: #2b303a;
+      --accent: #6d8dff; --accent-text: #0d1020; --good: #5fd08f; --mid: #f0b54a; --low: #f27a7a;
+      --chip: #252a33; --warn-bg: #3a2e14; --warn: #f0c46a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
+           border-bottom: 1px solid var(--line); padding: 14px 20px; }
+  .bar { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px;
+         align-items: center; }
+  h1 { font-size: 18px; margin: 0 12px 0 0; }
+  .stats { color: var(--muted); font-size: 13px; margin-right: auto; }
+  .tabs button, .btn { border: 1px solid var(--line); background: var(--card); color: var(--text);
+         border-radius: 8px; padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer;
+         text-decoration: none; display: inline-block; }
+  .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: progress; }
+  input[type=search] { border: 1px solid var(--line); background: var(--card); color: var(--text);
+         border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; min-width: 180px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 60px; display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card.done { opacity: .62; }
+  .top { display: flex; gap: 14px; align-items: flex-start; }
+  .score { min-width: 54px; text-align: center; border-radius: 10px; padding: 6px 4px;
+           background: var(--chip); font-weight: 700; font-size: 18px; }
+  .score small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .s-strong { color: var(--good); } .s-possible { color: var(--mid); } .s-weak { color: var(--low); }
+  .title { flex: 1; min-width: 0; }
+  .title h2 { margin: 0; font-size: 16px; }
+  .title .sub { color: var(--muted); font-size: 13px; }
+  .chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 1px 8px;
+          font-size: 12px; margin-right: 4px; color: var(--muted); }
+  .chip.status { color: var(--text); }
+  .contact { margin-top: 10px; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .contact a { color: var(--accent); }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 0 6px; font-size: 12px; }
+  .actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  details { margin-top: 10px; font-size: 13.5px; }
+  summary { cursor: pointer; color: var(--muted); }
+  ul { margin: 6px 0; padding-left: 20px; }
+  pre { white-space: pre-wrap; background: var(--chip); border-radius: 8px; padding: 10px;
+        font: 13px/1.5 ui-monospace, Consolas, monospace; margin: 6px 0; }
+  .empty { color: var(--muted); text-align: center; padding: 40px; }
+  #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text);
+           color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: none; }
+  @media (max-width: 640px) { header, main { padding-left: 16px; padding-right: 16px; } .top { gap: 10px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Internship Agent</h1>
+    <span class="stats" id="stats"></span>
+    <input type="search" id="q" placeholder="Filter by company or role">
+    <button class="btn primary" id="more">Find more postings</button>
+  </div>
+  <div class="bar tabs" style="margin-top:10px" id="tabs">
+    <button data-tab="todo" class="on">To do</button>
+    <button data-tab="posting">Postings</button>
+    <button data-tab="founder">Founders</button>
+    <button data-tab="applied">Applied</button>
+    <button data-tab="contacted">Contacted</button>
+    <button data-tab="skipped">Skipped</button>
+    <button data-tab="all">All</button>
+  </div>
+</header>
+<main id="list"><div class="empty">Loading…</div></main>
+<div id="toast"></div>
+<script>
+const DONE = new Set(["applied", "contacted", "skipped"]);
+let state = { leads: [], tab: "todo", q: "" };
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {});
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+async function load() {
+  const data = await api("/api/leads");
+  state.leads = data.leads;
+  document.getElementById("stats").textContent =
+    `${data.open_postings} open postings · ${data.founders} founders · ${data.applied} applied`;
+  render();
+}
+function visible(l) {
+  const t = state.tab;
+  if (state.q && !(`${l.company} ${l.posting_title} ${l.contact_name}`.toLowerCase().includes(state.q))) return false;
+  if (t === "all") return true;
+  if (t === "todo") return !DONE.has(l.status);
+  if (t === "posting" || t === "founder") return l.kind === t && !DONE.has(l.status);
+  return l.status === t;
+}
+function emailLine(l) {
+  if (!l.email) return "";
+  const warn = l.email_status === "pattern" ? ` <span class="warn" title="${esc(l.email_source)}">unverified guess</span>` : "";
+  return `<span>✉ <a href="mailto:${esc(l.email)}">${esc(l.email)}</a>${warn}</span>`;
+}
+function card(l) {
+  const fit = l.fit;
+  const verdict = fit ? fit.verdict : "";
+  const title = l.kind === "posting" ? l.posting_title : `${l.round.replace("-", " ")} · raised ${l.announced_on}${l.amount_usd ? " · $" + (l.amount_usd/1e6).toFixed(1) + "M" : ""}`;
+  const who = l.contact_name || l.contact_role
+    ? `<span>👤 ${esc(l.contact_name || "Team")}${l.contact_role ? ", " + esc(l.contact_role) : ""}</span>` : `<span class="chip">no contact found yet</span>`;
+  const links = [
+    l.x_url ? `<a href="${esc(l.x_url)}" target="_blank" rel="noopener">X @${esc(l.x_handle)}</a>` : "",
+    l.linkedin_url ? `<a href="${esc(l.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : "",
+    l.company_url ? `<a href="${esc(l.company_url)}" target="_blank" rel="noopener">Website</a>` : "",
+    `<a href="${esc(l.source_url)}" target="_blank" rel="noopener">Source</a>`,
+  ].filter(Boolean).join(" · ");
+  const draft = l.draft ? `
+    <details><summary>Outreach draft</summary>
+      <div><b>Subject:</b> ${esc(l.draft.email_subject)}</div>
+      <pre>${esc(l.draft.email_body)}</pre>
+      <div><b>X DM</b></div><pre>${esc(l.draft.x_dm)}</pre>
+    </details>` : "";
+  const why = fit ? `
+    <details><summary>Why this fit score</summary>
+      ${fit.reasons.length ? "<b>Reasons</b><ul>" + fit.reasons.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
+      ${fit.concerns.length ? "<b>Concerns</b><ul>" + fit.concerns.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
+      ${fit.talking_points.length ? "<b>Talking points</b><ul>" + fit.talking_points.map(r => `<li>${esc(r)}</li>`).join("") + "</ul>" : ""}
+    </details>` : "";
+  const k = esc(l.key);
+  const actions = [
+    l.posting_url ? `<a class="btn primary" href="${esc(l.posting_url)}" target="_blank" rel="noopener">Apply ↗</a>` : "",
+    l.mailto ? `<a class="btn" href="${esc(l.mailto)}">Email (opens your mail app)</a>` : "",
+    l.draft ? `<button class="btn" data-copy="email" data-key="${k}">Copy email</button>` : "",
+    l.draft && l.x_url ? `<button class="btn" data-copy="dm" data-key="${k}">Copy X DM</button>` : "",
+    `<button class="btn" data-draft="${k}">${l.draft ? "Redraft" : "Draft outreach"}</button>`,
+    l.kind === "posting" && l.status !== "applied" ? `<button class="btn" data-status="applied" data-key="${k}">✓ I applied</button>` : "",
+    l.status !== "contacted" ? `<button class="btn" data-status="contacted" data-key="${k}">I reached out</button>` : "",
+    l.status !== "skipped" ? `<button class="btn" data-status="skipped" data-key="${k}">Skip</button>` : "",
+    DONE.has(l.status) ? `<button class="btn" data-status="scored" data-key="${k}">Undo</button>` : "",
+  ].filter(Boolean).join("");
+  return `<article class="card ${DONE.has(l.status) ? "done" : ""}">
+    <div class="top">
+      <div class="score ${fit ? "s-" + verdict : ""}">${fit ? fit.score : "–"}<small>${fit ? esc(verdict) : "unscored"}</small></div>
+      <div class="title">
+        <h2>${esc(l.company)}</h2>
+        <div class="sub">${esc(title)}</div>
+        <div style="margin-top:4px"><span class="chip">${esc(l.kind)}</span><span class="chip">${esc(l.location || "location n/a")}</span><span class="chip status">${esc(l.status)}</span></div>
+      </div>
+    </div>
+    ${l.what_they_build ? `<div style="margin-top:8px">${esc(l.what_they_build)}</div>` : ""}
+    <div class="contact">${who}${emailLine(l)}<span>${links}</span></div>
+    ${why}${draft}
+    <div class="actions">${actions}</div>
+  </article>`;
+}
+function render() {
+  const items = state.leads.filter(visible);
+  document.getElementById("list").innerHTML = items.length ? items.map(card).join("") : `<div class="empty">Nothing here.</div>`;
+}
+document.getElementById("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  state.tab = b.dataset.tab;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  render();
+});
+document.getElementById("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); render(); });
+document.getElementById("more").addEventListener("click", async e => {
+  e.target.disabled = true; e.target.textContent = "Searching…";
+  try { const r = await api("/api/find-more", { extra: 5 }); toast(r.added.length ? `Added ${r.added.length} new posting(s)` : "No new matching postings right now"); await load(); }
+  catch (err) { toast("Error: " + err.message); }
+  finally { e.target.disabled = false; e.target.textContent = "Find more postings"; }
+});
+document.getElementById("list").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const lead = state.leads.find(l => l.key === b.dataset.key || l.key === b.dataset.draft);
+  try {
+    if (b.dataset.copy) {
+      const text = b.dataset.copy === "dm" ? lead.draft.x_dm : `Subject: ${lead.draft.email_subject}\n\n${lead.draft.email_body}`;
+      await navigator.clipboard.writeText(text); toast("Copied");
+    } else if (b.dataset.status) {
+      b.disabled = true; if (b.dataset.status === "applied") b.textContent = "Saving + finding more…";
+      const r = await api("/api/status", { key: b.dataset.key, status: b.dataset.status });
+      toast(r.added.length ? `Marked ${b.dataset.status}. Added ${r.added.length} new posting(s).` : `Marked ${b.dataset.status}.`);
+      await load();
+    } else if (b.dataset.draft) {
+      b.disabled = true; b.textContent = "Drafting…";
+      await api("/api/draft", { key: b.dataset.draft }); toast("Draft ready"); await load();
+    }
+  } catch (err) { toast("Error: " + err.message); b.disabled = false; }
+});
+load().catch(err => document.getElementById("list").innerHTML = `<div class="empty">Could not load leads: ${esc(err.message)}</div>`);
+</script>
+</body>
+</html>

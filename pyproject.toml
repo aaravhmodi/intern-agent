@@ -9,6 +9,7 @@ description = "Local-first agent for tracking Winter 2027 software-engineering i
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "fastapi>=0.116,<1",
   "mcp>=1.12,<2",
   "openai>=2,<3",
   "pydantic>=2.11,<3",
@@ -16,6 +17,7 @@ dependencies = [
   "pypdf>=5,<7",
   "rich>=14,<15",
   "typer>=0.16,<1",
+  "uvicorn>=0.35,<1",
 ]
 
 [project.scripts]
@@ -23,6 +25,7 @@ internship-agent = "internship_agent.cli:app"
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28,<1",
   "mypy>=1.17,<2",
   "pytest>=8.4,<9",
   "pytest-asyncio>=1.1,<2",

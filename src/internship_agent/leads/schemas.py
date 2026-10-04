@@ -31,6 +31,7 @@ class LeadStatus(StrEnum):
     NEW = "new"
     SCORED = "scored"
     DRAFTED = "drafted"
+    APPLIED = "applied"
     CONTACTED = "contacted"
     SKIPPED = "skipped"
 

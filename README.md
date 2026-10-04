@@ -35,6 +35,26 @@ uv run internship-agent interviews --days 30
 `.mcp.json` registers the same read-only server for Claude Code sessions opened in this
 folder. Run the login step first so it can reuse the cached token.
 
+## Dashboard
+
+```text
+uv run internship-agent dashboard        # http://127.0.0.1:8765 (local only)
+```
+
+Every lead (internship postings and recently funded founders) with its fit score, reasons,
+contact, email (guesses are labelled "unverified guess"), and the drafted email / X DM.
+
+- **Apply** opens the posting; you submit the application yourself.
+- **Email** opens your mail app with the draft prefilled; nothing is sent automatically.
+- **I applied** records it and tops the open list back up to `TARGET_OPEN_POSTINGS` (default 15)
+  with new open Winter 2027 postings from the public
+  [SimplifyJobs off-season list](https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README-Off-Season.md),
+  scored against your resume. Postings you applied to or skipped are never re-added.
+- **Find more postings** adds five more on demand (`leads find-more` does the same from the CLI).
+
+New postings from SimplifyJobs have no contact yet; run `/find-internships` in Claude Code to
+research hiring managers for them.
+
 ## Founder leads (X.com)
 
 Find founders who recently raised (pre-seed to Series A) and might take a Winter 2027 intern:

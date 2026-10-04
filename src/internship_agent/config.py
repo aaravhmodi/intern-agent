@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-6.1-sol"
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
     data_dir: Path = Path("data")
+    # Open (not applied/skipped) postings the dashboard keeps topped up.
+    target_open_postings: int = 15
 
     def outlook_server_args(self, *extra: str) -> list[str]:
         args = ["-y", self.outlook_mcp_package, "--read-only", "--preset", "mail,calendar"]
