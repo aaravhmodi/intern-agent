@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "outlook": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@softeria/ms-365-mcp-server@0.158.0",
+        "--read-only",
+        "--preset",
+        "mail,calendar"
+      ]
+    }
+  }
+}
