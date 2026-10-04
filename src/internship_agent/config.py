@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     # Set true for Microsoft 365 work/school accounts (e.g. a uwaterloo.ca mailbox).
     outlook_org_mode: bool = False
     timezone: str = "America/Toronto"
+
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-6.1-sol"
+    resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
+    data_dir: Path = Path("data")
 
     def outlook_server_args(self, *extra: str) -> list[str]:
         args = ["-y", self.outlook_mcp_package, "--read-only", "--preset", "mail,calendar"]

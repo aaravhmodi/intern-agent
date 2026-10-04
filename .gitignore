@@ -6,3 +6,6 @@ __pycache__/
 .env
 data/*.db
 data/downloads/
+data/leads.json
+data/leads-inbox*.json
+data/resume.txt
