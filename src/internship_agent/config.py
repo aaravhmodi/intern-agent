@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     # Open (not applied/skipped) postings the dashboard keeps topped up.
     target_open_postings: int = 15
+    # Grok is used only for searching X posts (x_search), kept cheap and capped.
+    xai_api_key: str | None = None
+    xai_model: str = "grok-4.20-0309-non-reasoning"
+    xai_max_calls_per_run: int = 3
+
     # Where to look for startups and postings: canada, usa, europe.
     search_regions: list[str] = ["canada", "usa", "europe"]
 

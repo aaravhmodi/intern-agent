@@ -9,6 +9,11 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel
 
 _INTERN = re.compile(r"\b(intern|interns|internship|co-?op|student)\b", re.I)
+_ENGINEERING = re.compile(
+    r"\b(software|engineer\w*|developer|data|machine learning|ml|ai|platform|backend|"
+    r"front-?end|full[- ]?stack|infrastructure|research|robotics)\b",
+    re.I,
+)
 
 
 class OpenRole(BaseModel):
@@ -34,7 +39,7 @@ def board_slugs(company: str, company_url: str | None) -> list[str]:
             slugs.append(stem)
     name = re.sub(r"\b(inc|ltd|labs?|ai|technologies|corp)\b\.?", "", company.lower())
     for slug in (re.sub(r"[^a-z0-9]", "", name), re.sub(r"[^a-z0-9]+", "-", name).strip("-")):
-        if len(slug) >= 4 and slug not in slugs:
+        if len(slug) >= 3 and slug not in slugs:
             slugs.append(slug)
     return slugs
 
@@ -75,7 +80,7 @@ def _lever(slug: str) -> list[OpenRole]:
 
 
 def intern_roles(roles: list[OpenRole]) -> list[OpenRole]:
-    return [r for r in roles if _INTERN.search(r.title)]
+    return [r for r in roles if _INTERN.search(r.title) and _ENGINEERING.search(r.title)]
 
 
 def find_intern_roles(company: str, company_url: str | None) -> list[OpenRole]:

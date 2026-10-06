@@ -13,3 +13,4 @@ data/outreach.md
 data/sent-log.jsonl
 data/preferences.json
 data/answer-bank.json
+data/xai-usage.jsonl

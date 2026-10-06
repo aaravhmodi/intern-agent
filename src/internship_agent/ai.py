@@ -1,7 +1,8 @@
 """OpenAI calls. All output is parsed into Pydantic models before use."""
 
+import warnings
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict
@@ -29,9 +30,12 @@ Score 0-100; verdict strong >= 75, possible 50-74, weak < 50.
 Also classify company_segment: early = pre-seed/seed startup; mid = Series A-D or growth-stage
 private startup; big = public company, large enterprise, bank, or established private company.
 The candidate strongly prioritizes startups (early and mid stage) over big companies: when the
-fit is otherwise comparable, score startups clearly higher. Roles in the USA or Europe may need
-a visa or work permit for a Canadian student; list that as a concern unless the role is remote
-from Canada, but do not lower the score for it alone.
+fit is otherwise comparable, score startups clearly higher. USA roles: the candidate can work in
+the US on a J-1 through University of Waterloo co-op's partner sponsors (Cultural Vistas,
+Intrax); it takes about 2-4 weeks, but the employer must complete a host application and
+training plan and usually pays roughly US$1,100-1,700 in fees. Treat that as a small concern
+(mainly for very small startups), not a blocker. Europe roles need a local work permit, which is
+harder; note it as a concern. Do not lower the score for visa needs alone.
 The candidate's own preferences are listed below with ids. Apply them: lower the score for
 'downrank' rules, raise it for 'boost' rules, and list in violated_preference_ids every 'skip'
 or 'downrank' rule this lead clearly breaks, based only on evidence in the input (for example,
@@ -87,6 +91,11 @@ SUPPORTING PROOF (pick at most one that matches the company):
   building a personal job-search agent that connects to Outlook through an MCP server, uses
   OpenAI structured outputs and web search with source verification, and runs a FastAPI
   dashboard he uses for his own internship search. Call it a personal project; no other users.
+
+US COMPANIES (lead region "usa"): add one short line that the US is not a hassle: as a
+University of Waterloo co-op student he can work in the US on a J-1 visa through Waterloo's
+partner sponsors, which takes about 2-4 weeks and Waterloo's co-op team helps with the
+paperwork. Keep it to one sentence and never imply there is no cost or effort for the employer.
 
 ANGLE BY AUDIENCE (use the lead's segment and posting_title):
 - early/mid startups and founders: ownership and speed. Show you ship end to end for real users
@@ -302,39 +311,54 @@ def search_startups(
     channel: str,
     exclude: list[str],
     count: int,
-) -> list[StartupFinding]:
-    """One search pass for a region and channel ("news", "x" or "linkedin")."""
+    tools: list[dict[str, Any]] | None = None,
+) -> tuple[list[StartupFinding], dict[str, int]]:
+    """One search pass for a region and channel ("news", "x" or "linkedin").
+
+    `tools` overrides the default OpenAI web search, e.g. Grok's x_search for the X channel.
+    Returns the findings and the token usage.
+    """
     stage_text = ", ".join(
         "pre-seed or seed" if s is Segment.EARLY else "Series A to D" for s in stages
     )
     country, city, region_text = REGIONS[region]
-    response = client.responses.parse(
-        model=model,
-        tools=[
-            {
-                "type": "web_search",
-                "user_location": {"type": "approximate", "country": country, "city": city},
-            }
-        ],
-        input=[
-            {
-                "role": "system",
-                "content": STARTUP_SEARCH_INSTRUCTIONS.format(
-                    start=start,
-                    end=end,
-                    region_text=region_text,
-                    stages=stage_text,
-                    channel_text=CHANNELS[channel],
-                    exclude=", ".join(exclude) or "none",
-                ),
-            },
-            {"role": "user", "content": f"Find up to {count} startups."},
-        ],
-        text_format=StartupFindings,
-    )
+    default_tools: list[dict[str, Any]] = [
+        {
+            "type": "web_search",
+            "user_location": {"type": "approximate", "country": country, "city": city},
+        }
+    ]
+    with warnings.catch_warnings():
+        # The OpenAI SDK warns when serializing tools it doesn't know (Grok's x_search).
+        warnings.simplefilter("ignore")
+        response = client.responses.parse(
+            model=model,
+            tools=tools or default_tools,  # type: ignore[arg-type]
+            input=[
+                {
+                    "role": "system",
+                    "content": STARTUP_SEARCH_INSTRUCTIONS.format(
+                        start=start,
+                        end=end,
+                        region_text=region_text,
+                        stages=stage_text,
+                        channel_text=CHANNELS[channel],
+                        exclude=", ".join(exclude) or "none",
+                    ),
+                },
+                {"role": "user", "content": f"Find up to {count} startups."},
+            ],
+            text_format=StartupFindings,
+        )
+    usage = response.usage
+    tokens = {
+        "input_tokens": usage.input_tokens if usage else 0,
+        "output_tokens": usage.output_tokens if usage else 0,
+    }
     if response.output_parsed is None:
-        return []
-    return StartupFindings.model_validate(response.output_parsed.model_dump()).startups
+        return [], tokens
+    parsed = StartupFindings.model_validate(response.output_parsed.model_dump())
+    return parsed.startups, tokens
 
 
 def interpret_note(

@@ -187,5 +187,6 @@ def test_board_slugs_and_intern_filter() -> None:
         OpenRole(title="Software Engineering Intern", url="u1", location="", board="ashby"),
         OpenRole(title="Senior Engineer", url="u2", location="", board="ashby"),
         OpenRole(title="Co-op, Platform", url="u3", location="", board="ashby"),
+        OpenRole(title="Law School Student Ambassador", url="u4", location="", board="ashby"),
     ]
     assert [r.url for r in intern_roles(roles)] == ["u1", "u3"]

@@ -137,6 +137,16 @@ def find_more_postings(settings: Settings, target_open: int) -> list[Lead]:
 
 
 CHANNELS = ("news", "x", "linkedin")
+XAI_BASE_URL = "https://api.x.ai/v1"
+
+
+def _log_xai(settings: Settings, region: Region, usage: dict[str, int]) -> None:
+    """Record each Grok call's token usage so spending on the xAI credit is visible."""
+    log = settings.data_dir / "xai-usage.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    record = {"at": datetime.now(UTC).isoformat(), "region": region.value, **usage}
+    with log.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
 
 
 def startup_postings(founder: Lead) -> list[Lead]:
@@ -179,22 +189,45 @@ def find_startups(
     """
     store = lead_store(settings)
     client = _openai(settings)
+    xai = (
+        OpenAI(api_key=settings.xai_api_key, base_url=XAI_BASE_URL)
+        if settings.xai_api_key
+        else None
+    )
+    xai_calls = 0
     today = date.today()
+    start = today - timedelta(days=max_age_days)
     before = len(store.load())
     for region in regions or [Region(r) for r in settings.search_regions]:
         for channel in channels:
             existing = store.load()
-            findings = search_startups(
-                client,
-                settings.openai_model,
-                today - timedelta(days=max_age_days),
+            use_grok = (
+                channel == "x" and xai is not None and xai_calls < settings.xai_max_calls_per_run
+            )
+            if use_grok:
+                assert xai is not None
+                xai_calls += 1
+                tools = [
+                    {"type": "x_search", "from_date": str(start), "to_date": str(today)},
+                    {"type": "web_search"},
+                ]
+                pass_client, pass_model = xai, settings.xai_model
+            else:
+                tools, pass_client, pass_model = None, client, settings.openai_model
+            findings, usage = search_startups(
+                pass_client,
+                pass_model,
+                start,
                 today,
                 stages,
                 region,
                 channel,
                 sorted({lead.company for lead in existing}),
                 count,
+                tools=tools,
             )
+            if use_grok:
+                _log_xai(settings, region, usage)
             found = startups.to_leads(findings, today, max_age_days, stages, region=region)
             leads, added = merge(existing, found)
             new_founders = leads[len(existing) :]
