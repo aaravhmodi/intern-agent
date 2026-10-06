@@ -1,6 +1,7 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -31,6 +32,7 @@ from internship_agent.leads.schemas import (
     LeadStatus,
     Note,
     Preference,
+    Region,
     Segment,
 )
 from internship_agent.leads.sending import check_send
@@ -39,6 +41,7 @@ from internship_agent.resume import load_resume_text
 from internship_agent.sources import simplify, startups
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.posting_text import fetch_posting_text
+from internship_agent.sources.startup_jobs import find_intern_roles
 
 
 def lead_store(settings: Settings) -> LeadStore:
@@ -124,32 +127,83 @@ def handle_note(settings: Settings, message: str, key: str | None) -> NoteOutcom
 def find_more_postings(settings: Settings, target_open: int) -> list[Lead]:
     """Top up open postings from the public SimplifyJobs list and score the new ones."""
     store = lead_store(settings)
-    candidates = [simplify.to_lead(p) for p in simplify.matching(simplify.parse(simplify.fetch()))]
+    regions = {Region(r) for r in settings.search_regions}
+    postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
+    candidates = [simplify.to_lead(p) for p in postings]
     leads, added = refill(store.load(), candidates, target_open)
     store.save(leads)
     score(settings, added)
     return added
 
 
+CHANNELS = ("news", "x", "linkedin")
+
+
+def startup_postings(founder: Lead) -> list[Lead]:
+    """Open intern/co-op roles on a startup's public job board, as posting leads."""
+    leads: list[Lead] = []
+    for role in find_intern_roles(founder.company, founder.company_url):
+        leads.append(
+            Lead(
+                kind=LeadKind.POSTING,
+                company=founder.company,
+                company_url=founder.company_url,
+                posting_title=role.title,
+                posting_url=role.url,
+                source_url=role.url,
+                location=role.location,
+                what_they_build=founder.what_they_build,
+                segment=founder.segment,
+                region=founder.region,
+                contact_name=founder.contact_name,
+                contact_role=founder.contact_role,
+                x_handle=founder.x_handle,
+                hiring_signals=[f"Open role on their {role.board} job board; raised recently"],
+            )
+        )
+    return leads
+
+
 def find_startups(
-    settings: Settings, stages: list[Segment], count: int = 5, max_age_days: int = 60
+    settings: Settings,
+    stages: list[Segment],
+    count: int = 5,
+    max_age_days: int = 60,
+    regions: list[Region] | None = None,
+    channels: tuple[str, ...] = CHANNELS,
+    progress: Callable[[str], None] | None = None,
 ) -> list[Lead]:
-    """Web-search recent funding rounds, keep verifiable ones, store and score them."""
+    """Search every region x channel for recent raises, verify, check their job boards, score.
+
+    Each pass excludes companies already known, so later passes surface new ones.
+    """
     store = lead_store(settings)
-    existing = store.load()
+    client = _openai(settings)
     today = date.today()
-    findings = search_startups(
-        _openai(settings),
-        settings.openai_model,
-        today - timedelta(days=max_age_days),
-        today,
-        stages,
-        sorted({lead.company for lead in existing}),
-        count,
-    )
-    leads, _ = merge(existing, startups.to_leads(findings, today, max_age_days, stages))
-    store.save(leads)
-    new = leads[len(existing) :]
+    before = len(store.load())
+    for region in regions or [Region(r) for r in settings.search_regions]:
+        for channel in channels:
+            existing = store.load()
+            findings = search_startups(
+                client,
+                settings.openai_model,
+                today - timedelta(days=max_age_days),
+                today,
+                stages,
+                region,
+                channel,
+                sorted({lead.company for lead in existing}),
+                count,
+            )
+            found = startups.to_leads(findings, today, max_age_days, stages, region=region)
+            leads, added = merge(existing, found)
+            new_founders = leads[len(existing) :]
+            roles = [p for f in new_founders for p in startup_postings(f)]
+            leads, _ = merge(leads, roles)
+            store.save(leads)
+            if progress:
+                progress(f"{region.value}/{channel}: +{added} startups, +{len(roles)} open roles")
+    new = store.load()[before:]
     score(settings, new)
     return new
 

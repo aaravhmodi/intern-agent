@@ -6,8 +6,9 @@ from html.parser import HTMLParser
 
 from pydantic import BaseModel
 
-from internship_agent.leads.schemas import Lead, LeadKind
+from internship_agent.leads.schemas import Lead, LeadKind, Region
 from internship_agent.leads.store import normalize_url
+from internship_agent.sources.regions import region_from_text, regions_of
 
 OFF_SEASON_URL = (
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md"
@@ -116,15 +117,22 @@ def matching(
     postings: list[Posting],
     term: str = "Winter 2027",
     locations: tuple[str, ...] = DEFAULT_LOCATIONS,
+    regions: set[Region] | None = None,
 ) -> list[Posting]:
-    """Open postings for the term, in SWE/AI sections and preferred locations, newest first."""
+    """Open postings for the term, in SWE/AI sections and preferred places, newest first.
+
+    A posting matches if its location names one of `locations` or falls in one of `regions`.
+    """
     found = [
         p
         for p in postings
         if term in p.terms
         and not p.closed
         and any(s in p.section for s in SWE_SECTIONS)
-        and any(loc in p.location for loc in locations)
+        and (
+            any(loc in p.location for loc in locations)
+            or bool(regions and regions_of(p.location) & regions)
+        )
         and not any(marker in p.role for marker in EXCLUDED_MARKERS)
     ]
     return sorted(found, key=lambda p: p.age_days)
@@ -138,6 +146,7 @@ def to_lead(posting: Posting) -> Lead:
         posting_url=normalize_url(posting.url),
         source_url=OFF_SEASON_URL,
         location=posting.location,
+        region=region_from_text(posting.location),
     )
 
 

@@ -36,6 +36,8 @@ def finding(**overrides: Any) -> StartupFinding:
         "company_url": None,
         "what_they_build": "Tools.",
         "location": "Toronto",
+        "social_url": None,
+        "x_handle": None,
     }
     return StartupFinding.model_validate({**data, **overrides})
 
@@ -137,3 +139,53 @@ def test_linkedin_note_never_exceeds_200_chars() -> None:
     assert len(long_note) > 200
     draft = OutreachDraft(x_dm="d", email_subject="s", email_body="b", linkedin_note=long_note)
     assert len(draft.linkedin_note) <= 200
+
+
+def test_to_leads_sets_region_and_drops_bad_handle() -> None:
+    from internship_agent.leads.schemas import Region
+
+    found = [
+        finding(
+            company="Berlinco",
+            location="Berlin, Germany",
+            x_handle="not a handle!",
+            social_url="https://x.com/jane/status/1",
+        ),
+        finding(company="Nowhere", location="Remote"),
+    ]
+    leads = to_leads(found, TODAY, 60, [Segment.EARLY], confirm=lambda f: True, region=Region.USA)
+    assert [(x.company, x.region, x.x_handle) for x in leads] == [
+        ("Berlinco", Region.EUROPE, None),
+        ("Nowhere", Region.USA, None),
+    ]
+    assert leads[0].hiring_signals == ["Announcement post: https://x.com/jane/status/1"]
+
+
+@pytest.mark.parametrize(
+    ("location", "expected"),
+    [
+        ("Toronto, ON, Canada", {"canada"}),
+        ("San Francisco, CA", {"usa"}),
+        ("Remote in USA", {"usa"}),
+        ("London, UK", {"europe"}),
+        ("Toronto, ON / New York, NY", {"canada", "usa"}),
+        ("Remote", set()),
+    ],
+)
+def test_regions_of(location: str, expected: set[str]) -> None:
+    from internship_agent.sources.regions import regions_of
+
+    assert {r.value for r in regions_of(location)} == expected
+
+
+def test_board_slugs_and_intern_filter() -> None:
+    from internship_agent.sources.startup_jobs import OpenRole, board_slugs, intern_roles
+
+    assert board_slugs("Peripheral Labs", "https://www.peripheral.space") == ["peripheral"]
+    assert board_slugs("Blair Health Inc.", None) == ["blairhealth", "blair-health"]
+    roles = [
+        OpenRole(title="Software Engineering Intern", url="u1", location="", board="ashby"),
+        OpenRole(title="Senior Engineer", url="u2", location="", board="ashby"),
+        OpenRole(title="Co-op, Platform", url="u3", location="", board="ashby"),
+    ]
+    assert [r.url for r in intern_roles(roles)] == ["u1", "u3"]

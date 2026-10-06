@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     # Open (not applied/skipped) postings the dashboard keeps topped up.
     target_open_postings: int = 15
+    # Where to look for startups and postings: canada, usa, europe.
+    search_regions: list[str] = ["canada", "usa", "europe"]
 
     # Gmail sending (dashboard "Send" button). Use a Google app password, never your
     # account password: https://myaccount.google.com/apppasswords

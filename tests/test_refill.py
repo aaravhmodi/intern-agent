@@ -127,3 +127,29 @@ def test_refill_tops_up_and_never_readds_applied_or_skipped() -> None:
 def test_refill_noop_when_enough_open() -> None:
     leads = [posting("Open", "https://o.com/1")]
     assert refill(leads, [posting("New", "https://n.com/1")], target_open=1) == (leads, [])
+
+
+def test_matching_by_region_includes_us_and_europe() -> None:
+    from internship_agent.leads.schemas import Region
+
+    rows = [
+        simplify.Posting(
+            section="Software Engineering",
+            company=c,
+            role="SWE Intern",
+            location=loc,
+            terms="Winter 2027",
+            url=f"https://{c}.com/1",
+            closed=False,
+            age="1d",
+        )
+        for c, loc in [
+            ("us", "Austin, TX"),
+            ("eu", "London, UK"),
+            ("ca", "Toronto, ON"),
+            ("asia", "Tokyo, Japan"),
+        ]
+    ]
+    found = simplify.matching(rows, locations=(), regions={Region.USA, Region.EUROPE})
+    assert sorted(p.company for p in found) == ["eu", "us"]
+    assert simplify.to_lead(found[0]).region in {Region.USA, Region.EUROPE}

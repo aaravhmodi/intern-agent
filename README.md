@@ -43,8 +43,10 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765 (local only)
 
 Two searches, shown separately:
 
-- **Startups** (early = pre-seed/seed, mid = Series A-D). "Search for startups" uses OpenAI web
-  search for funding rounds announced in the last 60 days. A result is kept only if its cited
+- **Startups** (early = pre-seed/seed, mid = Series A-D) are the priority. "Search for startups"
+  runs OpenAI web search for funding rounds from the last 60 days in Canada, the USA and Europe
+  (`SEARCH_REGIONS`), each through funding news, X posts and LinkedIn posts. Each new startup's
+  public job board (Ashby, Greenhouse, Lever) is checked for open intern/co-op roles. A result is kept only if its cited
   article loads and names both the company and the founder. Also from the CLI:
   `leads find-startups --stage early --stage mid --count 8`.
 - **Big companies**: open Winter 2027 postings from the public

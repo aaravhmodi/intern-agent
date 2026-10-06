@@ -14,6 +14,7 @@ from internship_agent.leads.schemas import (
     OutreachDraftResult,
     Preference,
     PreferenceEffect,
+    Region,
     Segment,
 )
 
@@ -27,6 +28,10 @@ a different season, and missing information. Never invent facts that are not in 
 Score 0-100; verdict strong >= 75, possible 50-74, weak < 50.
 Also classify company_segment: early = pre-seed/seed startup; mid = Series A-D or growth-stage
 private startup; big = public company, large enterprise, bank, or established private company.
+The candidate strongly prioritizes startups (early and mid stage) over big companies: when the
+fit is otherwise comparable, score startups clearly higher. Roles in the USA or Europe may need
+a visa or work permit for a Canadian student; list that as a concern unless the role is remote
+from Canada, but do not lower the score for it alone.
 The candidate's own preferences are listed below with ids. Apply them: lower the score for
 'downrank' rules, raise it for 'boost' rules, and list in violated_preference_ids every 'skip'
 or 'downrank' rule this lead clearly breaks, based only on evidence in the input (for example,
@@ -144,12 +149,50 @@ FOCUS NOTES:
 
 STARTUP_SEARCH_INSTRUCTIONS = """\
 Use web search to find startups that publicly announced a funding round between {start} and
-{end}. Prefer software/AI companies based in Canada (especially Toronto and Waterloo) or
-hiring remotely in Canada, at stage: {stages}. For each, report only facts stated in the source
-article: company, a named founder (prefer the CTO or technical co-founder) and their title,
-round, amount in USD if stated, announcement date, the article URL, the company website if
-stated, one factual sentence on what they build, and location. Skip any company where you
-cannot cite a specific article. Exclude these already-known companies: {exclude}."""
+{end}, based in {region_text}, at stage: {stages}. Prefer software and AI companies that could
+use a software-engineering intern. {channel_text}
+For each startup, report only facts stated in your sources: company, a named founder (prefer
+the CTO or a technical co-founder) and their title, round, amount in USD if stated,
+announcement date, source_url (a news article, press release, or the company's own blog or
+announcement page that names the company and the founder), social_url (the founder's or
+company's X or LinkedIn announcement post if you saw one, else null), x_handle (only if shown
+in a source, else null), the company website if stated, one factual sentence on what they
+build, and location. Skip any company you cannot back with a specific source_url. Exclude these
+already-known companies: {exclude}."""
+
+REGIONS: dict[Region, tuple[str, str, str]] = {
+    # region: (country code, city, description with useful sources)
+    Region.CANADA: (
+        "CA",
+        "Toronto",
+        "Canada (especially Toronto, Waterloo, Montreal, Vancouver); good sources include "
+        "BetaKit, The Logic, TechCrunch and company newsrooms",
+    ),
+    Region.USA: (
+        "US",
+        "San Francisco",
+        "the United States (especially San Francisco, New York, Boston, Seattle, Austin); good "
+        "sources include TechCrunch, Axios Pro Rata, Crunchbase News, Business Wire, PR Newswire "
+        "and Y Combinator launches",
+    ),
+    Region.EUROPE: (
+        "GB",
+        "London",
+        "Europe (UK, Germany, France, Netherlands, Nordics, Switzerland, Spain, Poland and "
+        "elsewhere); good sources include Sifted, EU-Startups, Tech.eu, TechCrunch and company "
+        "newsrooms",
+    ),
+}
+
+CHANNELS: dict[str, str] = {
+    "news": "Search startup funding news and press releases.",
+    "x": "Search X (x.com) for founders' and companies' posts announcing a raise (for example "
+    "'we raised', 'excited to announce our seed'), then find a news article, press release or "
+    "company blog post confirming it to use as source_url.",
+    "linkedin": "Search LinkedIn posts by founders announcing a raise or hiring their first "
+    "engineers, then find a news article, press release or company blog post confirming the "
+    "raise to use as source_url.",
+}
 
 
 class StartupFinding(BaseModel):
@@ -165,6 +208,8 @@ class StartupFinding(BaseModel):
     company_url: str | None
     what_they_build: str
     location: str
+    social_url: str | None
+    x_handle: str | None
 
 
 class StartupFindings(BaseModel):
@@ -253,25 +298,34 @@ def search_startups(
     start: date,
     end: date,
     stages: list[Segment],
+    region: Region,
+    channel: str,
     exclude: list[str],
     count: int,
 ) -> list[StartupFinding]:
+    """One search pass for a region and channel ("news", "x" or "linkedin")."""
     stage_text = ", ".join(
         "pre-seed or seed" if s is Segment.EARLY else "Series A to D" for s in stages
     )
+    country, city, region_text = REGIONS[region]
     response = client.responses.parse(
         model=model,
         tools=[
             {
                 "type": "web_search",
-                "user_location": {"type": "approximate", "country": "CA", "city": "Toronto"},
+                "user_location": {"type": "approximate", "country": country, "city": city},
             }
         ],
         input=[
             {
                 "role": "system",
                 "content": STARTUP_SEARCH_INSTRUCTIONS.format(
-                    start=start, end=end, stages=stage_text, exclude=", ".join(exclude) or "none"
+                    start=start,
+                    end=end,
+                    region_text=region_text,
+                    stages=stage_text,
+                    channel_text=CHANNELS[channel],
+                    exclude=", ".join(exclude) or "none",
                 ),
             },
             {"role": "user", "content": f"Find up to {count} startups."},

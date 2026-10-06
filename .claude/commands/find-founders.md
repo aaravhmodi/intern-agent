@@ -14,12 +14,14 @@ take a Winter 2027 (Jan–Apr) software-engineering intern. Arguments: $ARGUMENT
 - Every lead needs a `source_url` for the raise: the founder's announcement post on X, a
   press release, or a news article. Do not guess rounds, amounts, dates, or handles. Leave a
   field empty if you could not confirm it.
-- Prefer pre-seed, seed and Series A, software-heavy companies, and teams in Canada, the US, or remote.
+- Startups are the priority. Search Canada, the USA and Europe: pre-seed, seed and Series A/B,
+  software-heavy teams. Note that US/European roles may need a visa for a Canadian student.
 
 ## Where to look
 1. X search (Latest tab), e.g. `"we raised" seed`, `"excited to announce" "pre-seed"`,
    `"Series A" "we're hiring" engineers`, limited to the last 60 days.
-2. Funding news (TechCrunch, BetaKit for Canadian startups, company blogs). From each article,
+2. Funding news: BetaKit and The Logic (Canada); TechCrunch, Axios Pro Rata, Crunchbase News and
+   YC launches (USA); Sifted, EU-Startups and Tech.eu (Europe); plus company blogs. From each article,
    find the founder's X profile.
 3. On each founder's profile and company site, note what they build, location, and hiring
    signals (careers page, "we're hiring" posts, intern mentions).

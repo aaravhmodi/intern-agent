@@ -7,9 +7,12 @@ import urllib.request
 from collections.abc import Callable
 from datetime import date, timedelta
 
+from pydantic import ValidationError
+
 from internship_agent.ai import StartupFinding
-from internship_agent.leads.schemas import Lead, LeadKind, Segment
+from internship_agent.leads.schemas import Lead, LeadKind, Region, Segment
 from internship_agent.leads.segments import ROUND_SEGMENT, parse_round
+from internship_agent.sources.regions import region_from_text
 
 
 def _fold(text: str) -> str:
@@ -50,6 +53,7 @@ def to_leads(
     max_age_days: int,
     stages: list[Segment],
     confirm: Callable[[StartupFinding], bool] = source_confirms,
+    region: Region | None = None,
 ) -> list[Lead]:
     leads: list[Lead] = []
     for f in findings:
@@ -61,20 +65,25 @@ def to_leads(
             continue
         if not confirm(f):
             continue
-        leads.append(
-            Lead(
-                kind=LeadKind.FOUNDER,
-                company=f.company,
-                company_url=f.company_url,
-                contact_name=f.founder_name,
-                contact_role=f.founder_role,
-                round=round_,
-                amount_usd=f.amount_usd,
-                announced_on=f.announced_on,
-                source_url=f.source_url,
-                what_they_build=f.what_they_build,
-                location=f.location,
-                segment=segment,
-            )
-        )
+        data = {
+            "kind": LeadKind.FOUNDER,
+            "company": f.company,
+            "company_url": f.company_url,
+            "contact_name": f.founder_name,
+            "contact_role": f.founder_role,
+            "round": round_,
+            "amount_usd": f.amount_usd,
+            "announced_on": f.announced_on,
+            "source_url": f.source_url,
+            "what_they_build": f.what_they_build,
+            "location": f.location,
+            "segment": segment,
+            "region": region_from_text(f.location) or region,
+            "hiring_signals": [f"Announcement post: {f.social_url}"] if f.social_url else [],
+        }
+        try:
+            lead = Lead.model_validate({**data, "x_handle": f.x_handle})
+        except ValidationError:
+            lead = Lead.model_validate(data)  # drop an unusable X handle, keep the lead
+        leads.append(lead)
     return leads

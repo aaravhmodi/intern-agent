@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from internship_agent.ai import draft_outreach
 from internship_agent.config import get_settings
 from internship_agent.leads.refill import DONE, open_postings
-from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Segment
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Region, Segment
 from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import SendBlocked
 from internship_agent.mailer import MailError
@@ -65,6 +65,7 @@ class FindMoreRequest(BaseModel):
 
 class FindStartupsRequest(BaseModel):
     stages: list[Segment] = [Segment.EARLY, Segment.MID]
+    regions: list[Region] | None = None
     count: int = 5
 
 
@@ -159,7 +160,9 @@ def find_more(request: FindMoreRequest) -> dict[str, Any]:
 @app.post("/api/find-startups")
 def find_more_startups(request: FindStartupsRequest) -> dict[str, Any]:
     try:
-        added = find_startups(get_settings(), request.stages, request.count)
+        added = find_startups(
+            get_settings(), request.stages, request.count, regions=request.regions
+        )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"added": [_view(x) for x in added]}

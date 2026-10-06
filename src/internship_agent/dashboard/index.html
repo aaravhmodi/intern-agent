@@ -155,6 +155,10 @@
     <div class="list-head">
       <h1 id="view-title">Startups</h1><span class="count" id="view-count"></span>
       <span class="spacer"></span>
+      <select class="search" id="region" style="width:auto">
+        <option value="">All regions</option><option value="canada">Canada</option>
+        <option value="usa">USA</option><option value="europe">Europe</option>
+      </select>
       <input class="search" id="q" type="search" placeholder="Filter">
       <button class="btn primary" id="find"></button>
     </div>
@@ -186,7 +190,7 @@ const VIEWS = {
   rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
 };
 const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads" };
-let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [] };
+let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -221,7 +225,7 @@ function renderNav() {
 }
 function visible() {
   const v = VIEWS[state.view];
-  return state.leads.filter(l => v.test(l) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
+  return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
 }
 function renderRules() {
   $("view-count").textContent = state.prefs.length;
@@ -288,7 +292,7 @@ function renderDetail() {
   if (!l) { aside.classList.remove("open"); detail.innerHTML = `<div class="placeholder">Select a company to see details, drafts and actions.</div>`; return; }
   aside.classList.add("open");
   const fit = l.fit, d = l.draft;
-  const meta = [l.segment ? (l.segment === "big" ? "Big company" : l.segment + "-stage startup") : "Unclassified", l.location, l.kind === "founder" ? "Founder outreach" : "Posting"].filter(Boolean);
+  const meta = [l.segment ? (l.segment === "big" ? "Big company" : l.segment + "-stage startup") : "Unclassified", l.region ? ({canada: "Canada", usa: "USA", europe: "Europe"})[l.region] : "", l.location, l.kind === "founder" ? "Founder outreach" : "Posting"].filter(Boolean);
   const links = [
     l.posting_url && `<a href="${esc(l.posting_url)}" target="_blank" rel="noopener">Posting</a>`,
     l.company_url && `<a href="${esc(l.company_url)}" target="_blank" rel="noopener">Website</a>`,
@@ -366,6 +370,7 @@ $("nav").addEventListener("click", e => {
   state.view = b.dataset.view; renderNav(); renderRows();
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
+$("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
 $("rows").addEventListener("click", async e => {
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
@@ -374,7 +379,7 @@ $("rows").addEventListener("click", async e => {
 });
 $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
-  b.disabled = true; b.textContent = "Searching…";
+  b.disabled = true; b.textContent = kind === "postings" ? "Searching…" : "Searching news, X and LinkedIn… (a few minutes)";
   try {
     if (kind === "rescore") {
       b.textContent = "Checking every to-do lead...";
@@ -383,7 +388,7 @@ $("find").addEventListener("click", async e => {
     } else {
       const r = kind === "postings"
         ? await api("/api/find-more", { extra: 5 })
-        : await api("/api/find-startups", { stages: kind === "startups" ? ["early", "mid"] : [kind], count: 5 });
+        : await api("/api/find-startups", { stages: kind === "startups" ? ["early", "mid"] : [kind], count: 5, regions: state.region ? [state.region] : null });
       toast(r.added.length ? `Added ${r.added.length}: ${r.added.map(x => x.company).join(", ")}` : "Nothing new found this time.");
     }
     await load();

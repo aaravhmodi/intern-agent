@@ -29,6 +29,12 @@ class Segment(StrEnum):
     BIG = "big"  # public company, large enterprise, bank, or established private company
 
 
+class Region(StrEnum):
+    CANADA = "canada"
+    USA = "usa"
+    EUROPE = "europe"
+
+
 class EmailStatus(StrEnum):
     PUBLISHED = "published"  # seen on a public page (source in email_source)
     PATTERN = "pattern"  # unverified guess from the company's email format
@@ -182,6 +188,7 @@ class Lead(BaseModel):
     deadline: date | None = None
 
     segment: Segment | None = None
+    region: Region | None = None
     status: LeadStatus = LeadStatus.NEW
     fit: FitAssessment | None = None
     draft: OutreachDraft | None = None

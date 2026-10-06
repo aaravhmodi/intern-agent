@@ -11,10 +11,11 @@ from internship_agent.ai import draft_outreach
 from internship_agent.config import Settings, get_settings
 from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
-from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Segment
+from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Region, Segment
 from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
+    CHANNELS,
     find_more_postings,
     find_startups,
     prepare_application,
@@ -99,14 +100,30 @@ def find_startups_cmd(
     stage: Annotated[
         list[Segment] | None, typer.Option(help="Startup stages to search (default: early, mid).")
     ] = None,
-    count: int = typer.Option(5, help="How many startups to ask for."),
+    count: int = typer.Option(6, help="Startups to ask for per search pass."),
+    region: Annotated[
+        list[Region] | None,
+        typer.Option(help="Regions to search (default: SEARCH_REGIONS, all three)."),
+    ] = None,
+    channel: Annotated[
+        list[str] | None, typer.Option(help="Channels: news, x, linkedin (default: all).")
+    ] = None,
 ) -> None:
-    """Web-search recently funded startups (OpenAI web search), then store and score them."""
-    added = find_startups(get_settings(), stage or [Segment.EARLY, Segment.MID], count)
+    """Search recent raises across regions and channels, check their job boards, score."""
+    added = find_startups(
+        get_settings(),
+        stage or [Segment.EARLY, Segment.MID],
+        count,
+        regions=region,
+        channels=tuple(channel) if channel else CHANNELS,
+        progress=console.print,
+    )
     for lead in added:
         fit = f"{lead.fit.score}" if lead.fit else "-"
-        console.print(f"+ {lead.company} ({lead.round.value}): {lead.contact_name} (fit {fit})")
-    console.print(f"Added {len(added)} startup(s).")
+        what = lead.posting_title if lead.kind.value == "posting" else lead.round.value
+        where = lead.region.value if lead.region else "?"
+        console.print(f"+ [{where}] {lead.company} ({what}): {lead.contact_name} (fit {fit})")
+    console.print(f"Added {len(added)} lead(s).")
 
 
 @leads_app.command("show")
