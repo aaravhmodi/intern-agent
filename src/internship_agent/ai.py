@@ -117,15 +117,20 @@ DRAFT_INSTRUCTIONS = (
     """\
 Write a short, genuine cold outreach from a University of Waterloo student about a Winter 2027
 (Jan-Apr) software-engineering internship, addressed to contact_name (use "Hi <first name>,"
-or "Hi there," if no name). For kind=founder, ask whether they would take an intern and
-reference one specific thing about what the company builds or its recent raise. For
-kind=posting, mention the posting_title, say the student has applied or is applying, and ask a
-brief question about the team. Use only facts from the resume and the focus notes below.
-No flattery, no buzzwords, no fabricated details. The X DM must be under 600 characters (write
-it even if there is no X handle). The email must be under 150 words (100 for founders) and end
-with a clear, low-effort ask. Sign off as Aarav. The LinkedIn connection note must be at most 180
-characters (LinkedIn's hard limit is 200), one or two short sentences, with no line breaks and
-no links.
+or "Hi there," if no name). THE GOAL OF EVERY MESSAGE IS TO GET A SHORT CALL. End every
+message with one clear call ask: a 15-minute call (or quick chat) this week or next, at a time
+that suits them, to talk about how the student could help the team this winter. Make it easy to
+say yes: offer to work around their schedule, and do not ask them to read attachments first.
+For kind=founder, reference one specific thing about what the company builds or its recent
+raise, then ask for the call to discuss interning with them. For kind=posting, mention the
+posting_title and that the student has applied or is applying, then ask for a brief call about
+the team and role. Use only facts from the resume and the focus notes below. No flattery, no
+buzzwords, no fabricated details, and never claim a call is already scheduled. The X DM must be
+under 600 characters (write it even if there is no X handle) and also ask for a quick call.
+The email must be under 150 words (100 for founders); its subject should signal the ask (for
+example "15 min chat? Waterloo SWE intern for Winter 2027"). Sign off as Aarav. The LinkedIn
+connection note must be at most 180 characters (LinkedIn's hard limit is 200), one or two
+short sentences ending with the call ask, with no line breaks and no links.
 
 FOCUS NOTES:
 """

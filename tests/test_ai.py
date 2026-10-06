@@ -72,5 +72,6 @@ def test_draft_prompt_leads_with_upside_impact() -> None:
     assert "Next.js" in system and "forward-deployed" in system
     assert "end to end" in system and "MCP server" in system
     assert "operations team and executives" in system
+    assert "15-minute call" in system
     assert "Never cite endpoint or module counts" in system
     assert draft.linkedin_note == "n"
