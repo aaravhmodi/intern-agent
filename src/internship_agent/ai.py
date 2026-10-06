@@ -31,10 +31,11 @@ private startup; big = public company, large enterprise, bank, or established pr
 OUTREACH_FOCUS = """\
 CORE STORY (always lead with this):
 At Upside Robotics (SWE intern, Jan-Aug 2026), Aarav built a production operations dashboard
-(Next.js/React frontend; FastAPI backend on AWS ECS with RDS PostgreSQL, Redis caching and
-Redshift) that 35+ employees and executive stakeholders use. It cut operational metric
-retrieval from weeks to minutes. Describe it as shipped and used by real people, in first
-person ("I built"), with the outcome before the stack.
+on his own, end to end: the Next.js/React frontend and the FastAPI backend on AWS ECS with RDS
+PostgreSQL, Redis caching and Redshift. 35+ employees and executive stakeholders use it, and it
+cut operational metric retrieval from weeks to minutes. Say "I built and own(ed) it end to
+end" or "I built it solo, from frontend to AWS deployment"; describe it as shipped and used by
+real people, with the outcome before the stack.
 
 SUPPORTING PROOF (pick at most one that matches the company):
 - Data/infra: PostgreSQL-to-Redshift ETL loading 500K+ rows daily, 80% faster warehouse loads.
@@ -44,6 +45,10 @@ SUPPORTING PROOF (pick at most one that matches the company):
   owning architecture for a 4-person team and deploying a pilot in Mississauga.
 - AI in production (good for AI / forward-deployed roles): integrated ML anomaly detection
   through FastAPI at CIBC; shipped CRai, a CNN audio classifier served on Modal.
+- AI agents and integrations (good for AI, agent, and forward-deployed roles): currently
+  building a personal job-search agent that connects to Outlook through an MCP server, uses
+  OpenAI structured outputs and web search with source verification, and runs a FastAPI
+  dashboard he uses for his own internship search. Call it a personal project; no other users.
 
 ANGLE BY AUDIENCE (use the lead's segment and posting_title):
 - early/mid startups and founders: ownership and speed. Show you ship end to end for real users
@@ -55,8 +60,9 @@ ANGLE BY AUDIENCE (use the lead's segment and posting_title):
 - big companies: name the posting, then the core story and one proof point mapped to the team.
 
 RULES: Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or
-banking role. Do not claim sole ownership, customer interviews, or anything not stated here or
-in the resume. End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
+banking role. Sole ownership applies only to the Upside dashboard. Do not claim customer
+interviews, requirements gathering, or anything not stated here or in the resume.
+End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
 
 DRAFT_INSTRUCTIONS = (
     """\

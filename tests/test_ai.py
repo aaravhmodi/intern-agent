@@ -69,5 +69,6 @@ def test_draft_prompt_leads_with_upside_impact() -> None:
     system = responses.kwargs["input"][0]["content"]
     assert "Upside Robotics" in system and "weeks to minutes" in system
     assert "Next.js" in system and "forward-deployed" in system
+    assert "end to end" in system and "MCP server" in system
     assert "Never cite endpoint or module counts" in system
     assert draft.linkedin_note == "n"
