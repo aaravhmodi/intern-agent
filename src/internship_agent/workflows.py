@@ -1,19 +1,22 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
 import json
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from openai import OpenAI
 
 from internship_agent import mailer
-from internship_agent.ai import assess_fit, search_startups
+from internship_agent.ai import STATUS_FROM_NOTE, assess_fit, interpret_note, search_startups
 from internship_agent.config import Settings
-from internship_agent.leads.refill import refill
-from internship_agent.leads.schemas import Lead, LeadStatus, Segment
+from internship_agent.leads.preferences import PreferenceStore, apply_violations
+from internship_agent.leads.refill import DONE, refill
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note, Preference, Segment
 from internship_agent.leads.sending import check_send
 from internship_agent.leads.store import LeadStore, merge
 from internship_agent.resume import load_resume_text
 from internship_agent.sources import simplify, startups
+from internship_agent.sources.posting_text import fetch_posting_text
 
 
 def lead_store(settings: Settings) -> LeadStore:
@@ -30,18 +33,70 @@ def resume_text(settings: Settings) -> str:
     return load_resume_text(settings.resume_path, settings.data_dir / "resume.txt")
 
 
-def score(settings: Settings, leads: list[Lead]) -> None:
-    """Score leads in place and store them; keeps a researched segment if one is set."""
+def preference_store(settings: Settings) -> PreferenceStore:
+    return PreferenceStore(settings.data_dir / "preferences.json")
+
+
+def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
+    """Score leads in place and store them, applying learned preferences.
+
+    Fetches each posting's description first so rules like "requires French" can be
+    checked. Returns the leads that were auto-skipped by a 'skip' rule.
+    """
     if not leads or not settings.openai_api_key:
-        return
+        return []
     client, resume, store = _openai(settings), resume_text(settings), lead_store(settings)
+    prefs = preference_store(settings).load()
+    skipped: list[Lead] = []
     for lead in leads:
-        result = assess_fit(client, settings.openai_model, resume, lead)
+        if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
+            lead.posting_text = fetch_posting_text(lead.posting_url)
+        result = assess_fit(client, settings.openai_model, resume, lead, prefs)
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
             lead.status = LeadStatus.SCORED
+        if apply_violations(lead, prefs, result.violated_preference_ids):
+            skipped.append(lead)
         store.upsert(lead)
+    return skipped
+
+
+def rescore_open(settings: Settings) -> tuple[int, list[Lead]]:
+    """Re-score every lead still in to-do against the current preferences."""
+    todo = [lead for lead in lead_store(settings).load() if lead.status not in DONE]
+    return len(todo), score(settings, todo)
+
+
+@dataclass
+class NoteOutcome:
+    reply: str
+    learned: list[Preference]
+    status_changed: str | None
+    lead: Lead | None
+
+
+def handle_note(settings: Settings, message: str, key: str | None) -> NoteOutcome:
+    """Interpret a note: save it on the lead, update status, and learn new preferences."""
+    store, prefs_store = lead_store(settings), preference_store(settings)
+    lead = store.get(key) if key else None
+    result = interpret_note(
+        _openai(settings), settings.openai_model, message, lead, prefs_store.load()
+    )
+    learned: list[Preference] = []
+    for draft in result.new_preferences:
+        pref = prefs_store.add(draft.rule, draft.effect, source_note=message)
+        if pref is not None:
+            learned.append(pref)
+    status_changed = None
+    if lead is not None:
+        lead.notes.append(Note(at=datetime.now(UTC), text=result.lead_note or message))
+        new_status = STATUS_FROM_NOTE.get(result.status_change)
+        if new_status is not None and lead.status is not new_status:
+            lead.status = new_status
+            status_changed = new_status.value
+        store.upsert(lead)
+    return NoteOutcome(result.reply, learned, status_changed, lead)
 
 
 def find_more_postings(settings: Settings, target_open: int) -> list[Lead]:

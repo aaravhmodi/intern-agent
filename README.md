@@ -63,6 +63,15 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   forbids automated invitations, so you paste and send it.
 - **Open application** opens the posting; applications are submitted by you.
 
+**Notes (bottom of the side panel).** Type why you're skipping something or what you want
+more of, e.g. "this one needs French, not applying". With a company selected, the note is saved
+on it and its status is updated if you say you skipped, applied, or reached out. The AI also
+turns reusable notes into rules ("Skip roles that require French", "Prefer early-stage AI
+startups"), listed under **Learned > Your rules**, where you can forget them. Rules are applied
+whenever leads are scored: scoring reads each posting's description, lowers or raises scores
+for downrank/boost rules, and auto-skips leads that clearly break a skip rule (company-wide
+boilerplate does not count). "Re-check to-do leads" re-scores everything against your rules.
+
 The server only answers requests from localhost and rejects cross-site requests, because it
 can send email.
 

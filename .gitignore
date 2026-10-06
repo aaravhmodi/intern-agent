@@ -11,3 +11,4 @@ data/leads-inbox*.json
 data/resume.txt
 data/outreach.md
 data/sent-log.jsonl
+data/preferences.json

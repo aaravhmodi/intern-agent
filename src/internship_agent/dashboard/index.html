@@ -74,7 +74,25 @@
   .empty { padding: 48px 22px; color: var(--muted); }
 
   /* Detail */
-  aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; }
+  aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  #detail { flex: 1; overflow-y: auto; min-height: 0; }
+  .chat { border-top: 1px solid var(--line); padding: 12px 16px 14px; background: var(--paper); }
+  .chat-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .chat-head b { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); font-weight: 600; }
+  .chat-head span { font-size: 12px; color: var(--muted); }
+  .chat-log { max-height: 150px; overflow-y: auto; margin: 6px 0 8px; font-size: 13px; }
+  .msg { margin: 6px 0; }
+  .msg.me { color: var(--ink); }
+  .msg.ai { color: var(--muted); }
+  .msg.ai b { color: var(--hi); font-weight: 550; }
+  .chat-row { display: flex; gap: 6px; align-items: flex-end; }
+  .chat-row textarea { min-height: 40px; height: 40px; resize: none; background: var(--panel); }
+  .note-list { list-style: none; padding: 0; margin: 6px 0 0; }
+  .note-list li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .note-list time { color: var(--faint); font-size: 12px; margin-right: 6px; }
+  .rule { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+  .effect { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .effect.skip { color: var(--lo); } .effect.downrank { color: var(--mid); } .effect.boost { color: var(--hi); }
   .detail { padding: 22px 24px 40px; }
   .detail h2 { margin: 0; font-size: 20px; letter-spacing: -.015em; }
   .detail .lede { color: var(--muted); margin-top: 2px; }
@@ -133,7 +151,17 @@
     </div>
     <div class="rows" id="rows"></div>
   </div>
-  <aside id="aside"><div class="placeholder">Select a company to see details, drafts and actions.</div></aside>
+  <aside id="aside">
+    <div id="detail"><div class="placeholder">Select a company to see details, drafts and actions.</div></div>
+    <div class="chat">
+      <div class="chat-head"><b>Notes</b><span id="chat-ctx">General</span></div>
+      <div class="chat-log" id="chat-log"><div class="msg ai">Tell me why you're skipping something, what you liked, or what to avoid ("this one needs French"). I'll save it and learn from it.</div></div>
+      <div class="chat-row">
+        <textarea id="chat-in" placeholder="Add a note..." maxlength="2000"></textarea>
+        <button class="btn primary" id="chat-send">Save</button>
+      </div>
+    </div>
+  </aside>
 </div>
 <div id="toast"></div>
 <script>
@@ -146,9 +174,10 @@ const VIEWS = {
   applied:  { title: "Applied", group: "Pipeline", label: "Applied", test: l => l.status === "applied" },
   contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
   skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
+  rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
 };
-const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings" };
-let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null };
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads" };
+let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [] };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -161,7 +190,7 @@ async function api(path, body) {
 }
 async function load() {
   const data = await api("/api/leads");
-  state.leads = data.leads; state.sender = data.sender;
+  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences;
   renderNav(); renderRows(); renderDetail();
 }
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
@@ -175,7 +204,7 @@ function renderNav() {
   let group = null;
   for (const [id, v] of Object.entries(VIEWS)) {
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = state.leads.filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : state.leads.filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -185,13 +214,24 @@ function visible() {
   const v = VIEWS[state.view];
   return state.leads.filter(l => v.test(l) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
 }
+function renderRules() {
+  $("view-count").textContent = state.prefs.length;
+  $("rows").innerHTML = state.prefs.length ? state.prefs.map(p => `
+    <div class="rule">
+      <div class="effect ${esc(p.effect)}">${esc(p.effect)}</div>
+      <div><div class="co" style="white-space:normal">${esc(p.rule)}</div><div class="sub">From your note: "${esc(p.source_note)}"</div></div>
+      <button class="btn" data-del-pref="${esc(p.id)}">Forget</button>
+    </div>`).join("") : `<div class="empty">No rules yet. Add notes about companies (why you skipped one, what you want more of) and I'll learn from them.</div>`;
+}
 function renderRows() {
-  const v = VIEWS[state.view], items = visible();
+  const v = VIEWS[state.view];
   $("view-title").textContent = v.title;
-  $("view-count").textContent = items.length;
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
+  if (state.view === "rules") return renderRules();
+  const items = visible();
+  $("view-count").textContent = items.length;
   $("rows").innerHTML = items.length ? items.map(l => `
     <div class="row ${state.selected === l.key ? "on" : ""} ${DONE.has(l.status) ? "done" : ""}" data-key="${esc(l.key)}">
       <div class="fit ${l.fit ? l.fit.verdict : ""}">${l.fit ? l.fit.score : "–"}</div>
@@ -208,8 +248,9 @@ function linkedinUrl(l) {
 }
 function renderDetail() {
   const l = state.leads.find(x => x.key === state.selected);
-  const aside = $("aside");
-  if (!l) { aside.classList.remove("open"); aside.innerHTML = `<div class="placeholder">Select a company to see details, drafts and actions.</div>`; return; }
+  const aside = $("aside"), detail = $("detail");
+  $("chat-ctx").textContent = l ? `About ${l.company}` : "General";
+  if (!l) { aside.classList.remove("open"); detail.innerHTML = `<div class="placeholder">Select a company to see details, drafts and actions.</div>`; return; }
   aside.classList.add("open");
   const fit = l.fit, d = l.draft;
   const meta = [l.segment ? (l.segment === "big" ? "Big company" : l.segment + "-stage startup") : "Unclassified", l.location, l.kind === "founder" ? "Founder outreach" : "Posting"].filter(Boolean);
@@ -256,7 +297,8 @@ function renderDetail() {
     </section>` : `
     <section><h4>Outreach</h4><div class="hint">No draft yet.</div>
       <div class="actions"><button class="btn primary" data-draft="1">Write draft</button></div></section>`;
-  aside.innerHTML = `<div class="detail">
+  const notes = (l.notes || []).slice().reverse();
+  detail.innerHTML = `<div class="detail">
     <button class="btn close" id="close" style="float:right">Close</button>
     <h2>${esc(l.company)}</h2>
     <div class="lede">${esc(subtitle(l))}</div>
@@ -275,6 +317,7 @@ function renderDetail() {
       <div class="score-line"><span class="big fit ${fit.verdict}">${fit.score}</span><span class="sub">${esc(fit.verdict)} fit</span></div>
       ${list("Why", fit.reasons)}${list("Concerns", fit.concerns)}${list("Talking points", fit.talking_points)}
     </section>` : ""}
+    ${notes.length ? `<section><h4>Your notes</h4><ul class="note-list">${notes.map(n => `<li><time>${esc(n.at.slice(0, 10))}</time>${esc(n.text)}</li>`).join("")}</ul></section>` : ""}
     ${emailSection}
     ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
   </div>`;
@@ -287,7 +330,9 @@ $("nav").addEventListener("click", e => {
   state.view = b.dataset.view; renderNav(); renderRows();
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
-$("rows").addEventListener("click", e => {
+$("rows").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del-pref]");
+  if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
   const r = e.target.closest(".row"); if (!r) return;
   state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
 });
@@ -295,15 +340,21 @@ $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
   b.disabled = true; b.textContent = "Searching…";
   try {
-    const r = kind === "postings"
-      ? await api("/api/find-more", { extra: 5 })
-      : await api("/api/find-startups", { stages: kind === "startups" ? ["early", "mid"] : [kind], count: 5 });
-    toast(r.added.length ? `Added ${r.added.length}: ${r.added.map(x => x.company).join(", ")}` : "Nothing new found this time.");
+    if (kind === "rescore") {
+      b.textContent = "Checking every to-do lead...";
+      const r = await api("/api/rescore", {});
+      toast(`Checked ${r.checked} leads. ${r.skipped.length ? "Skipped by your rules: " + r.skipped.map(x => x.company).join(", ") : "None broke a skip rule."}`);
+    } else {
+      const r = kind === "postings"
+        ? await api("/api/find-more", { extra: 5 })
+        : await api("/api/find-startups", { stages: kind === "startups" ? ["early", "mid"] : [kind], count: 5 });
+      toast(r.added.length ? `Added ${r.added.length}: ${r.added.map(x => x.company).join(", ")}` : "Nothing new found this time.");
+    }
     await load();
   } catch (err) { toast(err.message); }
   finally { b.disabled = false; b.textContent = label; }
 });
-$("aside").addEventListener("click", async e => {
+$("detail").addEventListener("click", async e => {
   const l = state.leads.find(x => x.key === state.selected); if (!l) return;
   const b = e.target.closest("button"); if (!b) return;
   try {
@@ -339,6 +390,27 @@ $("aside").addEventListener("click", async e => {
     }
   } catch (err) { toast(err.message); await load().catch(() => {}); }
 });
+function chatLine(cls, html) {
+  const log = $("chat-log"); const d = document.createElement("div");
+  d.className = "msg " + cls; d.innerHTML = html; log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+async function sendNote() {
+  const box = $("chat-in"), text = box.value.trim(); if (!text) return;
+  const btn = $("chat-send"); btn.disabled = true; box.value = "";
+  const lead = state.leads.find(x => x.key === state.selected);
+  chatLine("me", (lead ? `<b>${esc(lead.company)}:</b> ` : "") + esc(text));
+  try {
+    const r = await api("/api/note", { message: text, key: lead ? lead.key : null });
+    let extra = "";
+    if (r.status_changed) extra += ` Marked ${esc(r.status_changed)}.`;
+    if (r.learned.length) extra += ` <b>Learned:</b> ${r.learned.map(p => esc(p.rule)).join("; ")}.`;
+    chatLine("ai", esc(r.reply) + extra);
+    await load();
+  } catch (err) { chatLine("ai", "Couldn't save that: " + esc(err.message)); box.value = text; }
+  finally { btn.disabled = false; box.focus(); }
+}
+$("chat-send").addEventListener("click", sendNote);
+$("chat-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendNote(); } });
 load().catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
 </script>
 </body>

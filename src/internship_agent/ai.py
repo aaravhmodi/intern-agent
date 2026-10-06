@@ -1,6 +1,7 @@
 """OpenAI calls. All output is parsed into Pydantic models before use."""
 
 from datetime import date
+from typing import Literal
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict
@@ -8,8 +9,11 @@ from pydantic import BaseModel, ConfigDict
 from internship_agent.leads.schemas import (
     FitResult,
     Lead,
+    LeadStatus,
     OutreachDraft,
     OutreachDraftResult,
+    Preference,
+    PreferenceEffect,
     Segment,
 )
 
@@ -22,7 +26,34 @@ Penalize weak overlap with the candidate's skills, roles that clearly need senio
 a different season, and missing information. Never invent facts that are not in the input.
 Score 0-100; verdict strong >= 75, possible 50-74, weak < 50.
 Also classify company_segment: early = pre-seed/seed startup; mid = Series A-D or growth-stage
-private startup; big = public company, large enterprise, bank, or established private company."""
+private startup; big = public company, large enterprise, bank, or established private company.
+The candidate's own preferences are listed below with ids. Apply them: lower the score for
+'downrank' rules, raise it for 'boost' rules, and list in violated_preference_ids every 'skip'
+or 'downrank' rule this lead clearly breaks, based only on evidence in the input (for example,
+the posting text says French is required). A requirement must be stated as required for this
+role; company-wide boilerplate (e.g. "we may ask you to take a French proficiency test") does
+not count. Do not guess; leave the list empty when unsure.
+
+CANDIDATE PREFERENCES:
+{preferences}"""
+
+NOTE_INSTRUCTIONS = """\
+You are the notes assistant in a candidate's internship-search dashboard. The candidate writes
+short notes, optionally about the currently selected lead. Decide:
+- lead_note: a concise, factual note to save on the selected lead, or null if no lead is
+  selected or the message is not about it.
+- status_change: "skipped" if they say they will not apply or are not interested; "applied"
+  if they say they applied; "contacted" if they say they reached out; otherwise "none".
+  Only change status when they clearly say so, and only when a lead is selected.
+- new_preferences: general rules worth remembering for future leads, phrased as a rule
+  ("Skip roles that require French", "Prefer early-stage AI startups"), with effect
+  skip | downrank | boost. Only when the note implies a reusable preference. Do not duplicate
+  existing preferences.
+- reply: one or two short sentences telling the candidate what you saved or learned.
+Never invent facts about the company.
+
+EXISTING PREFERENCES:
+{preferences}"""
 
 # How the candidate wants to be pitched. Edit this to change every new draft.
 # Based on what startup founders and forward-deployed-engineering (FDE) teams screen for:
@@ -117,6 +148,28 @@ class StartupFindings(BaseModel):
     startups: list[StartupFinding]
 
 
+class PreferenceDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rule: str
+    effect: PreferenceEffect
+
+
+class NoteResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lead_note: str | None
+    status_change: Literal["none", "skipped", "applied", "contacted"]
+    new_preferences: list[PreferenceDraft]
+    reply: str
+
+
+def format_preferences(prefs: list[Preference]) -> str:
+    if not prefs:
+        return "none yet"
+    return "\n".join(f"- [{p.id}] ({p.effect.value}) {p.rule}" for p in prefs)
+
+
 def _lead_context(lead: Lead) -> str:
     return lead.model_dump_json(
         exclude={
@@ -126,7 +179,6 @@ def _lead_context(lead: Lead) -> str:
             "email",
             "email_status",
             "email_source",
-            "segment",
             "sent_at",
             "sent_to",
         },
@@ -134,11 +186,14 @@ def _lead_context(lead: Lead) -> str:
     )
 
 
-def assess_fit(client: OpenAI, model: str, resume: str, lead: Lead) -> FitResult:
+def assess_fit(
+    client: OpenAI, model: str, resume: str, lead: Lead, prefs: list[Preference] | None = None
+) -> FitResult:
+    instructions = FIT_INSTRUCTIONS.format(preferences=format_preferences(prefs or []))
     response = client.responses.parse(
         model=model,
         input=[
-            {"role": "system", "content": FIT_INSTRUCTIONS},
+            {"role": "system", "content": instructions},
             {"role": "user", "content": f"RESUME:\n{resume}\n\nLEAD:\n{_lead_context(lead)}"},
         ],
         text_format=FitResult,
@@ -200,3 +255,34 @@ def search_startups(
     if response.output_parsed is None:
         return []
     return StartupFindings.model_validate(response.output_parsed.model_dump()).startups
+
+
+def interpret_note(
+    client: OpenAI, model: str, message: str, lead: Lead | None, prefs: list[Preference]
+) -> NoteResult:
+    context = _lead_context(lead) if lead else "No lead selected."
+    status = lead.status.value if lead else "n/a"
+    response = client.responses.parse(
+        model=model,
+        input=[
+            {
+                "role": "system",
+                "content": NOTE_INSTRUCTIONS.format(preferences=format_preferences(prefs)),
+            },
+            {
+                "role": "user",
+                "content": f"SELECTED LEAD (status {status}):\n{context}\n\nNOTE:\n{message}",
+            },
+        ],
+        text_format=NoteResult,
+    )
+    if response.output_parsed is None:
+        raise ValueError("Model returned no interpretation")
+    return NoteResult.model_validate(response.output_parsed.model_dump())
+
+
+STATUS_FROM_NOTE = {
+    "skipped": LeadStatus.SKIPPED,
+    "applied": LeadStatus.APPLIED,
+    "contacted": LeadStatus.CONTACTED,
+}

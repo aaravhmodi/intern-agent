@@ -39,6 +39,7 @@ def test_assess_fit_sends_resume_and_lead_and_validates() -> None:
             score=80, verdict=Verdict.STRONG, reasons=["r"], concerns=[], talking_points=["t"]
         ),
         company_segment=Segment.MID,
+        violated_preference_ids=[],
     )
     client, responses = fake_client(expected)
 

@@ -19,7 +19,10 @@ from internship_agent.mailer import MailError
 from internship_agent.workflows import (
     find_more_postings,
     find_startups,
+    handle_note,
     lead_store,
+    preference_store,
+    rescore_open,
     resume_text,
     send_email,
 )
@@ -61,6 +64,15 @@ class FindMoreRequest(BaseModel):
 class FindStartupsRequest(BaseModel):
     stages: list[Segment] = [Segment.EARLY, Segment.MID]
     count: int = 5
+
+
+class NoteRequest(BaseModel):
+    message: str
+    key: str | None = None
+
+
+class PreferenceDelete(BaseModel):
+    id: str
 
 
 class SendRequest(BaseModel):
@@ -107,6 +119,7 @@ def leads() -> dict[str, Any]:
         "leads": [_view(lead) for lead in sorted(all_leads, key=_sort_key)],
         "open_postings": len(open_postings(all_leads)),
         "sender": settings.gmail_address if settings.gmail_ready else None,
+        "preferences": [p.model_dump(mode="json") for p in preference_store(settings).load()],
     }
 
 
@@ -172,3 +185,40 @@ def send(request: SendRequest) -> dict[str, Any]:
     except (SendBlocked, MailError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}
+
+
+@app.post("/api/note")
+def note(request: NoteRequest) -> dict[str, Any]:
+    """Interpret a note with AI: save it on the lead, update status, learn preferences."""
+    message = request.message.strip()
+    if not message:
+        raise HTTPException(400, "Write a note first")
+    if request.key:
+        _get(request.key)
+    try:
+        result = handle_note(get_settings(), message[:2000], request.key)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {
+        "reply": result.reply,
+        "status_changed": result.status_changed,
+        "learned": [p.model_dump(mode="json") for p in result.learned],
+        "lead": _view(result.lead) if result.lead else None,
+    }
+
+
+@app.post("/api/preferences/delete")
+def delete_preference(request: PreferenceDelete) -> dict[str, Any]:
+    if not preference_store(get_settings()).remove(request.id):
+        raise HTTPException(404, "Preference not found")
+    return {"ok": True}
+
+
+@app.post("/api/rescore")
+def rescore() -> dict[str, Any]:
+    """Re-score all to-do leads against the current preferences (uses OpenAI)."""
+    try:
+        checked, skipped = rescore_open(get_settings())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"checked": checked, "skipped": [_view(x) for x in skipped]}

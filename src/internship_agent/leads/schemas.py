@@ -61,12 +61,34 @@ class FitAssessment(BaseModel):
 
 
 class FitResult(BaseModel):
-    """Model output for scoring: the fit plus the company's segment."""
+    """Model output for scoring: the fit, the company's segment, and broken preferences."""
 
     model_config = ConfigDict(extra="forbid")
 
     fit: FitAssessment
     company_segment: Segment
+    violated_preference_ids: list[str]
+
+
+class PreferenceEffect(StrEnum):
+    SKIP = "skip"  # never pursue leads that break this rule
+    DOWNRANK = "downrank"  # lower the fit score
+    BOOST = "boost"  # raise the fit score
+
+
+class Preference(BaseModel):
+    """A rule learned from the user's notes, e.g. 'Skip roles that require French'."""
+
+    id: str
+    rule: str = Field(min_length=3, max_length=200)
+    effect: PreferenceEffect
+    created_at: datetime
+    source_note: str = ""
+
+
+class Note(BaseModel):
+    at: datetime
+    text: str = Field(min_length=1, max_length=2000)
 
 
 class OutreachDraft(BaseModel):
@@ -125,6 +147,9 @@ class Lead(BaseModel):
     draft: OutreachDraft | None = None
     sent_at: datetime | None = None
     sent_to: str | None = None
+    notes: list[Note] = Field(default_factory=list)
+    # Posting description fetched for scoring (truncated); empty for founder leads.
+    posting_text: str = ""
 
     @field_validator("x_handle")
     @classmethod
