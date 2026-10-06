@@ -91,6 +91,15 @@
   .note-list li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .note-list time { color: var(--faint); font-size: 12px; margin-right: 6px; }
   .rule { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+  .qa { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .qa:last-child { border-bottom: 0; }
+  .qa-label { font-size: 13px; font-weight: 550; display: flex; gap: 6px; align-items: baseline; justify-content: space-between; }
+  .qa-label span { flex: 1; }
+  .qa textarea { min-height: 38px; margin-top: 6px; font-size: 13px; }
+  .qa textarea.long { min-height: 150px; }
+  .qa .hint { margin-top: 4px; }
+  .req { color: var(--lo); font-weight: 600; }
+  .copy-a { font-size: 12px; padding: 2px 8px; }
   .effect { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
   .effect.skip { color: var(--lo); } .effect.downrank { color: var(--mid); } .effect.boost { color: var(--hi); }
   .detail { padding: 22px 24px 40px; }
@@ -246,6 +255,32 @@ function linkedinUrl(l) {
   const q = [l.contact_name || "", l.company].join(" ").trim();
   return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(q);
 }
+function applicationSection(l) {
+  const app = l.application;
+  if (!app) return `<section><h4>Application answers</h4>
+    <div class="hint">I'll read this posting's application questions and draft answers from the job requirements and your impact. Nothing is submitted.</div>
+    <div class="actions"><button class="btn primary" id="prep">Prepare answers</button></div></section>`;
+  const need = app.answers.filter(a => a.needs_user_input && a.question.kind !== "file").length;
+  const origin = app.source === "form" ? "From this posting's real application form." : "This site only shows its form after you sign in, so these are answers to the usual questions.";
+  const items = app.answers.map((a, i) => {
+    const q = a.question;
+    if (q.kind === "file") return `<div class="qa"><div class="qa-label"><span>${esc(q.label)}${q.required ? ' <span class="req">*</span>' : ""}</span></div><div class="hint">${esc(a.note)}</div></div>`;
+    const badge = a.needs_user_input ? `<span class="tag">${a.note.startsWith("Optional") ? "Optional" : "Needs you"}</span>`
+      : a.note === "From your saved answers." ? `<span class="tag ok">Saved answer</span>` : "";
+    const opts = q.options.length ? `<div class="hint">Options: ${q.options.map(esc).join(" · ")}</div>` : "";
+    const note = a.note && a.note !== "From your saved answers." && !a.needs_user_input ? `<div class="hint">${esc(a.note)}</div>` : (a.needs_user_input && a.note ? `<div class="hint">${esc(a.note)}</div>` : "");
+    return `<div class="qa">
+      <div class="qa-label"><span>${esc(q.label)}${q.required ? ' <span class="req">*</span>' : ""}</span>${badge}<button class="btn copy-a" data-copy-a="${i}">Copy</button></div>
+      <textarea class="${q.kind === "long_text" ? "long" : ""}" data-ans="${i}">${esc(a.answer)}</textarea>
+      ${opts}${note}
+    </div>`;
+  }).join("");
+  return `<section><h4>Application answers</h4>
+    <div class="hint">${origin} ${need ? `<b>${need}</b> need your input; what you type there is remembered for future applications.` : "Everything is filled in."} Nothing is submitted for you.</div>
+    ${items}
+    <div class="actions"><button class="btn primary" id="save-ans">Save answers</button><button class="btn" id="prep">Re-read questions and redo</button></div>
+  </section>`;
+}
 function renderDetail() {
   const l = state.leads.find(x => x.key === state.selected);
   const aside = $("aside"), detail = $("detail");
@@ -318,6 +353,7 @@ function renderDetail() {
       ${list("Why", fit.reasons)}${list("Concerns", fit.concerns)}${list("Talking points", fit.talking_points)}
     </section>` : ""}
     ${notes.length ? `<section><h4>Your notes</h4><ul class="note-list">${notes.map(n => `<li><time>${esc(n.at.slice(0, 10))}</time>${esc(n.text)}</li>`).join("")}</ul></section>` : ""}
+    ${l.kind === "posting" ? applicationSection(l) : ""}
     ${emailSection}
     ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
   </div>`;
@@ -370,6 +406,16 @@ $("detail").addEventListener("click", async e => {
       await api("/api/draft", { key: l.key }); toast("Drafts ready."); await load();
     } else if (b.dataset.copy) {
       await navigator.clipboard.writeText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
+    } else if (b.id === "prep") {
+      b.disabled = true; b.textContent = "Reading the application...";
+      await api("/api/application/prepare", { key: l.key }); toast("Answers ready. Review the ones marked Needs you."); await load();
+    } else if (b.id === "save-ans") {
+      const answers = [...document.querySelectorAll("[data-ans]")].map(t => ({ index: Number(t.dataset.ans), answer: t.value }));
+      b.disabled = true;
+      await api("/api/application/save", { key: l.key, answers }); toast("Saved. Personal answers will be reused next time."); await load();
+    } else if (b.dataset.copyA !== undefined) {
+      const t = document.querySelector(`[data-ans="${b.dataset.copyA}"]`);
+      await navigator.clipboard.writeText(t ? t.value : ""); toast("Copied.");
     } else if (b.id === "li-go") {
       await navigator.clipboard.writeText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
     } else if (b.id === "dm-go") {

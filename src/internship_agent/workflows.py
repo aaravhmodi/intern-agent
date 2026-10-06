@@ -7,15 +7,37 @@ from datetime import UTC, date, datetime, timedelta
 from openai import OpenAI
 
 from internship_agent import mailer
-from internship_agent.ai import STATUS_FROM_NOTE, assess_fit, interpret_note, search_startups
+from internship_agent.ai import (
+    STATUS_FROM_NOTE,
+    assess_fit,
+    interpret_note,
+    prepare_answers,
+    search_startups,
+)
 from internship_agent.config import Settings
+from internship_agent.leads.answers import (
+    AnswerBank,
+    common_questions,
+    normalize,
+    prefill,
+    validate,
+)
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import DONE, refill
-from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note, Preference, Segment
+from internship_agent.leads.schemas import (
+    ApplicationPrep,
+    Lead,
+    LeadKind,
+    LeadStatus,
+    Note,
+    Preference,
+    Segment,
+)
 from internship_agent.leads.sending import check_send
 from internship_agent.leads.store import LeadStore, merge
 from internship_agent.resume import load_resume_text
 from internship_agent.sources import simplify, startups
+from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.posting_text import fetch_posting_text
 
 
@@ -165,4 +187,73 @@ def send_email(
         at = lead.sent_at.isoformat()
         record = {"at": at, "key": key, "to": lead.sent_to, "subject": subject}
         f.write(json.dumps(record) + "\n")
+    return lead
+
+
+def answer_bank(settings: Settings) -> AnswerBank:
+    return AnswerBank(settings.data_dir / "answer-bank.json")
+
+
+def prepare_application(settings: Settings, key: str) -> Lead:
+    """Read the posting's application questions and prepare answers. Never submits anything."""
+    store = lead_store(settings)
+    lead = store.get(key)
+    if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
+        lead.posting_text = fetch_posting_text(lead.posting_url)
+    questions = fetch_questions(lead.posting_url) if lead.posting_url else []
+    source = "form" if questions else "common"
+    if not questions:
+        questions = common_questions(lead.company)
+    prepared = prefill(questions, answer_bank(settings))
+    todo = [(i, p) for i, p in enumerate(prepared) if p.note == "ai"]
+    if todo:
+        listing = [
+            (
+                i,
+                f"{p.question.label} (type: {p.question.kind.value}"
+                + (f"; options: {' | '.join(p.question.options)}" if p.question.options else "")
+                + ")",
+            )
+            for i, p in todo
+        ]
+        drafts = {
+            d.index: d
+            for d in prepare_answers(
+                _openai(settings), settings.openai_model, resume_text(settings), lead, listing
+            )
+        }
+        for i, item in todo:
+            draft = drafts.get(i)
+            cleaned = validate(item.question, draft.answer) if draft else None
+            if draft is None or draft.needs_user_input or cleaned is None:
+                item.answer, item.needs_user_input = "", True
+                item.note = draft.note if draft and draft.note else "Fill this in yourself."
+            else:
+                item.answer, item.needs_user_input, item.note = cleaned, False, draft.note
+    lead.application = ApplicationPrep(
+        prepared_at=datetime.now(UTC), source=source, answers=prepared
+    )
+    store.upsert(lead)
+    return lead
+
+
+def save_answers(settings: Settings, key: str, edits: dict[int, str]) -> Lead:
+    """Save edited answers. Personal answers the user fills in are remembered for next time."""
+    store, bank = lead_store(settings), answer_bank(settings)
+    lead = store.get(key)
+    if lead.application is None:
+        raise ValueError("Prepare answers first")
+    for index, text in edits.items():
+        if not 0 <= index < len(lead.application.answers):
+            continue
+        item = lead.application.answers[index]
+        was_personal = item.needs_user_input or item.note == "From your saved answers."
+        item.answer = text.strip()
+        if item.answer:
+            company_specific = normalize(lead.company) in normalize(item.question.label)
+            reusable = "Optional; your choice." not in item.note and not company_specific
+            if was_personal and reusable:
+                bank.remember(item.question.label, item.answer)
+            item.needs_user_input = False
+    store.upsert(lead)
     return lead

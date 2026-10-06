@@ -117,6 +117,30 @@ FOCUS NOTES:
     + OUTREACH_FOCUS
 )
 
+ANSWER_INSTRUCTIONS = (
+    """\
+You prepare answers to a job application's questions for a University of Waterloo student
+applying to a Winter 2027 (January-April, 4-month) software-engineering internship. Use only
+facts from the resume and the focus notes; map them to the requirements in the posting text.
+For each question index, return:
+- answer: for long-text questions, 80-180 words, first person, concrete, leading with the
+  impact story from the focus notes and tying it to this role's requirements; for short text,
+  a brief direct answer; for single-select, exactly one option text copied verbatim; for
+  multi-select, option texts copied verbatim and separated by "; "; for yes/no, "Yes" or "No";
+  for dates, the format the question asks for (e.g. MM/DD/YYYY), otherwise YYYY-MM.
+- needs_user_input: true when the resume and focus notes do not contain the answer (for
+  example a LinkedIn or GitHub URL, or any personal fact), with answer left empty.
+- note: at most one short sentence on what the answer draws on, or what the candidate must
+  check.
+Facts you may use: University of Waterloo, BASc Systems Design Engineering, expected
+graduation May 2029; prior internships: CIBC (Aug-Dec 2025) and Upside Robotics (Jan-Aug 2026),
+so the last internship was Upside Robotics; portfolio aaravmodi.ca. Never invent anything else.
+
+FOCUS NOTES:
+"""
+    + OUTREACH_FOCUS
+)
+
 STARTUP_SEARCH_INSTRUCTIONS = """\
 Use web search to find startups that publicly announced a funding round between {start} and
 {end}. Prefer software/AI companies based in Canada (especially Toronto and Waterloo) or
@@ -181,6 +205,7 @@ def _lead_context(lead: Lead) -> str:
             "email_source",
             "sent_at",
             "sent_to",
+            "application",
         },
         indent=2,
     )
@@ -286,3 +311,40 @@ STATUS_FROM_NOTE = {
     "applied": LeadStatus.APPLIED,
     "contacted": LeadStatus.CONTACTED,
 }
+
+
+class AnswerDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    index: int
+    answer: str
+    needs_user_input: bool
+    note: str
+
+
+class AnswerDrafts(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answers: list[AnswerDraft]
+
+
+def prepare_answers(
+    client: OpenAI, model: str, resume: str, lead: Lead, questions: list[tuple[int, str]]
+) -> list[AnswerDraft]:
+    """Draft answers for (index, question description) pairs."""
+    listing = "\n".join(f"[{i}] {text}" for i, text in questions)
+    response = client.responses.parse(
+        model=model,
+        input=[
+            {"role": "system", "content": ANSWER_INSTRUCTIONS},
+            {
+                "role": "user",
+                "content": f"RESUME:\n{resume}\n\nPOSTING:\n{_lead_context(lead)}"
+                f"\n\nQUESTIONS:\n{listing}",
+            },
+        ],
+        text_format=AnswerDrafts,
+    )
+    if response.output_parsed is None:
+        raise ValueError("Model returned no answers")
+    return AnswerDrafts.model_validate(response.output_parsed.model_dump()).answers

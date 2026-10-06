@@ -22,8 +22,10 @@ from internship_agent.workflows import (
     handle_note,
     lead_store,
     preference_store,
+    prepare_application,
     rescore_open,
     resume_text,
+    save_answers,
     send_email,
 )
 
@@ -69,6 +71,16 @@ class FindStartupsRequest(BaseModel):
 class NoteRequest(BaseModel):
     message: str
     key: str | None = None
+
+
+class AnswerEdit(BaseModel):
+    index: int
+    answer: str
+
+
+class SaveAnswersRequest(BaseModel):
+    key: str
+    answers: list[AnswerEdit]
 
 
 class PreferenceDelete(BaseModel):
@@ -222,3 +234,25 @@ def rescore() -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"checked": checked, "skipped": [_view(x) for x in skipped]}
+
+
+@app.post("/api/application/prepare")
+def prepare(request: KeyRequest) -> dict[str, Any]:
+    """Read the posting's application questions and prepare answers (nothing is submitted)."""
+    _get(request.key)
+    try:
+        lead = prepare_application(get_settings(), request.key)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
+
+
+@app.post("/api/application/save")
+def save(request: SaveAnswersRequest) -> dict[str, Any]:
+    _get(request.key)
+    edits = {e.index: e.answer[:5000] for e in request.answers}
+    try:
+        lead = save_answers(get_settings(), request.key, edits)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}

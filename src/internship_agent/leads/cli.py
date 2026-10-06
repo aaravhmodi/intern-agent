@@ -14,7 +14,12 @@ from internship_agent.leads.ranking import rank
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Segment
 from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
-from internship_agent.workflows import find_more_postings, find_startups, score
+from internship_agent.workflows import (
+    find_more_postings,
+    find_startups,
+    prepare_application,
+    score,
+)
 
 leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
 console = Console()
@@ -173,6 +178,36 @@ def find_more(
         fit = f"{lead.fit.score}" if lead.fit else "-"
         console.print(f"+ {lead.company}: {lead.posting_title} (fit {fit})")
     console.print(f"Added {len(added)} posting(s).")
+
+
+@leads_app.command("prepare")
+def prepare_cmd(key: str) -> None:
+    """Prepare answers to a posting's application questions. Nothing is submitted."""
+    lead = prepare_application(get_settings(), key)
+    assert lead.application is not None
+    console.print(f"[bold]{lead.company}[/bold] ({lead.application.source} questions)")
+    for item in lead.application.answers:
+        flag = "[yellow]needs you[/yellow] " if item.needs_user_input else ""
+        console.print(f"- {flag}{item.question.label}\n  {item.answer or item.note}")
+
+
+@leads_app.command("prepare-all")
+def prepare_all_cmd() -> None:
+    """Prepare application answers for every open posting that has none yet."""
+    settings = get_settings()
+    todo = [
+        lead.key
+        for lead in _store(settings).load()
+        if lead.kind.value == "posting"
+        and lead.application is None
+        and lead.status.value not in ("applied", "contacted", "skipped")
+    ]
+    for key in todo:
+        lead = prepare_application(settings, key)
+        assert lead.application is not None
+        missing = sum(1 for a in lead.application.answers if a.needs_user_input)
+        console.print(f"{key}: {len(lead.application.answers)} questions, {missing} need you")
+    console.print(f"Prepared {len(todo)} application(s).")
 
 
 @leads_app.command("mark")
