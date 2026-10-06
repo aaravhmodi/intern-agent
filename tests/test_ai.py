@@ -55,3 +55,18 @@ def test_assess_fit_raises_when_model_returns_nothing() -> None:
     client, _ = fake_client(None)
     with pytest.raises(ValueError):
         assess_fit(client, "m", "resume", LEAD)
+
+
+def test_draft_prompt_leads_with_upside_impact() -> None:
+    from internship_agent.ai import draft_outreach
+    from internship_agent.leads.schemas import OutreachDraftResult
+
+    result = OutreachDraftResult(x_dm="dm", email_subject="s", email_body="b", linkedin_note="n")
+    client, responses = fake_client(result)
+
+    draft = draft_outreach(client, "m", "resume", LEAD)
+
+    system = responses.kwargs["input"][0]["content"]
+    assert "Upside Robotics" in system and "weeks to minutes" in system
+    assert "Do not cite counts of endpoints" in system
+    assert draft.linkedin_note == "n"

@@ -24,17 +24,35 @@ Score 0-100; verdict strong >= 75, possible 50-74, weak < 50.
 Also classify company_segment: early = pre-seed/seed startup; mid = Series A-D or growth-stage
 private startup; big = public company, large enterprise, bank, or established private company."""
 
+# How the candidate wants to be pitched. Edit this to change every new draft.
+OUTREACH_FOCUS = """\
+Lead with the Upside Robotics internship (Jan-Aug 2026). Frame it as impact, not size:
+- Built a production-grade operations dashboard and its backend (FastAPI, PostgreSQL on AWS RDS,
+  Redis caching, Redshift, deployed on AWS ECS) that cut operational metric retrieval from
+  weeks to minutes for 35+ employees and executive stakeholders.
+- Supporting impact, pick at most one: a PostgreSQL-to-Redshift ETL pipeline loading 500K+
+  rows daily with 80% faster warehouse loads; real-time robot telemetry moved to WebSockets and
+  Zenoh with 50% lower latency; production data services alerting on failures in under
+  5 minutes.
+Do not cite counts of endpoints or modules. Mention CIBC only briefly as a secondary point, and
+only when it is clearly the most relevant experience (for example, a CIBC or banking role).
+Enerzen (founding engineer) or a project may be used only if it fits the company better than
+the Upside work."""
+
 DRAFT_INSTRUCTIONS = """\
 Write a short, genuine cold outreach from a University of Waterloo student about a Winter 2027
 (Jan-Apr) software-engineering internship, addressed to contact_name (use "Hi <first name>,"
 or "Hi there," if no name). For kind=founder, ask whether they would take an intern and
 reference one specific thing about what the company builds or its recent raise. For
 kind=posting, mention the posting_title, say the student has applied or is applying, and ask a
-brief question about the team. Use one or two concrete, relevant resume items. No flattery, no
-buzzwords, no fabricated details. The X DM must be under 600 characters (write it even if
-there is no X handle). The email must be under 150 words and end with a clear, low-effort ask.
-Sign off as Aarav. The LinkedIn connection note must be under 280 characters, with no
-greeting line breaks and no links."""
+brief question about the team. Use only facts from the resume and the focus notes below.
+No flattery, no buzzwords, no fabricated details. The X DM must be under 600 characters (write
+it even if there is no X handle). The email must be under 150 words and end with a clear,
+low-effort ask. Sign off as Aarav. The LinkedIn connection note must be under 280 characters,
+with no greeting line breaks and no links.
+
+FOCUS NOTES:
+""" + OUTREACH_FOCUS
 
 STARTUP_SEARCH_INSTRUCTIONS = """\
 Use web search to find startups that publicly announced a funding round between {start} and
