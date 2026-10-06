@@ -175,7 +175,7 @@ def draft(request: KeyRequest) -> dict[str, Any]:
         raise HTTPException(400, "OPENAI_API_KEY is not set")
     lead = _get(request.key)
     client = OpenAI(api_key=settings.openai_api_key)
-    lead.draft = draft_outreach(client, settings.openai_model, resume_text(settings), lead)
+    lead.draft = draft_outreach(client, settings.openai_writing_model, resume_text(settings), lead)
     if lead.status in (LeadStatus.NEW, LeadStatus.SCORED):
         lead.status = LeadStatus.DRAFTED
     lead_store(settings).upsert(lead)

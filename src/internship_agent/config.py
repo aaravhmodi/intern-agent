@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-6.1-sol"
+    # Most capable model, used only for text you send: outreach drafts and application answers.
+    openai_writing_model: str = "gpt-6-astra"
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
     data_dir: Path = Path("data")
     # Open (not applied/skipped) postings the dashboard keeps topped up.

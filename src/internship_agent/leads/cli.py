@@ -133,7 +133,7 @@ def show_lead(key: str) -> None:
 
 
 def _draft(settings: Settings, client: OpenAI, resume: str, lead: Lead) -> None:
-    lead.draft = draft_outreach(client, settings.openai_model, resume, lead)
+    lead.draft = draft_outreach(client, settings.openai_writing_model, resume, lead)
     if lead.status in (LeadStatus.NEW, LeadStatus.SCORED):
         lead.status = LeadStatus.DRAFTED
 

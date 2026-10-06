@@ -306,7 +306,11 @@ def prepare_application(settings: Settings, key: str) -> Lead:
         drafts = {
             d.index: d
             for d in prepare_answers(
-                _openai(settings), settings.openai_model, resume_text(settings), lead, listing
+                _openai(settings),
+                settings.openai_writing_model,
+                resume_text(settings),
+                lead,
+                listing,
             )
         }
         for i, item in todo:
