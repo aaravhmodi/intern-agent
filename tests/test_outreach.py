@@ -113,3 +113,27 @@ def test_mentions_requires_company_and_founder_ignoring_accents() -> None:
     page = "<p>Montreal-based Axya, led by CEO F&eacute;lix Bélisle, raised...</p>"
     assert mentions(page, finding(company="Axya Inc", founder_name="Felix Belisle"))
     assert not mentions(page, finding(company="Axya", founder_name="Jane Doe"))
+
+
+def test_fit_to_limit_prefers_sentence_then_word_boundary() -> None:
+    from internship_agent.leads.limits import fit_to_limit
+
+    assert fit_to_limit("Short note.", 200) == "Short note."
+    two = "I built a production dashboard used by 35+ people. " + "x" * 200
+    assert fit_to_limit(two, 200) == "I built a production dashboard used by 35+ people."
+    words = "word " * 60
+    cut = fit_to_limit(words, 200)
+    assert len(cut) <= 200 and cut.endswith("…") and not cut[:-1].endswith(" ")
+
+
+def test_linkedin_note_never_exceeds_200_chars() -> None:
+    from internship_agent.leads.schemas import OutreachDraft
+
+    long_note = (
+        "Hi Jane, I built an ops dashboard at Upside Robotics that cut metric retrieval "
+        "from weeks to minutes for 35+ people. I'm applying for your Winter 2027 internship "
+        "and would love to connect and hear what the team is building next. Thanks, Aarav"
+    )
+    assert len(long_note) > 200
+    draft = OutreachDraft(x_dm="d", email_subject="s", email_body="b", linkedin_note=long_note)
+    assert len(draft.linkedin_note) <= 200

@@ -321,7 +321,7 @@ function renderDetail() {
     <section>
       <h4>LinkedIn</h4>
       <label class="field">Connection note <span class="counter" id="li-count"></span></label>
-      <textarea class="short" id="f-li" maxlength="300">${esc(d.linkedin_note || "")}</textarea>
+      <textarea class="short" id="f-li" maxlength="200">${esc(d.linkedin_note || "")}</textarea>
       <div class="actions"><button class="btn" id="li-go">Copy note and open LinkedIn</button></div>
       <div class="hint">LinkedIn doesn't allow automated invitations. Paste the note and send it yourself.</div>
     </section>
@@ -358,7 +358,7 @@ function renderDetail() {
     ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
   </div>`;
   const li = $("f-li");
-  if (li) { const upd = () => $("li-count").textContent = `${li.value.length}/300`; li.addEventListener("input", upd); upd(); }
+  if (li) { const upd = () => $("li-count").textContent = `${li.value.length}/200`; li.addEventListener("input", upd); upd(); }
 }
 
 $("nav").addEventListener("click", e => {

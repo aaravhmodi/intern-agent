@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from internship_agent.leads.limits import LINKEDIN_NOTE_LIMIT, fit_to_limit
+
 _HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
@@ -99,7 +101,12 @@ class OutreachDraft(BaseModel):
     x_dm: str = Field(max_length=1000)
     email_subject: str = Field(max_length=120)
     email_body: str = Field(max_length=3000)
-    linkedin_note: str = Field(default="", max_length=300)
+    linkedin_note: str = Field(default="", max_length=LINKEDIN_NOTE_LIMIT)
+
+    @field_validator("linkedin_note", mode="before")
+    @classmethod
+    def _fit_linkedin_note(cls, value: object) -> object:
+        return fit_to_limit(value, LINKEDIN_NOTE_LIMIT) if isinstance(value, str) else value
 
 
 class OutreachDraftResult(BaseModel):
@@ -110,7 +117,8 @@ class OutreachDraftResult(BaseModel):
     x_dm: str = Field(max_length=1000)
     email_subject: str = Field(max_length=120)
     email_body: str = Field(max_length=3000)
-    linkedin_note: str = Field(max_length=300)
+    # Not length-limited here: OutreachDraft shortens it to LinkedIn's limit.
+    linkedin_note: str
 
 
 class QuestionKind(StrEnum):

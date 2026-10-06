@@ -109,8 +109,9 @@ kind=posting, mention the posting_title, say the student has applied or is apply
 brief question about the team. Use only facts from the resume and the focus notes below.
 No flattery, no buzzwords, no fabricated details. The X DM must be under 600 characters (write
 it even if there is no X handle). The email must be under 150 words (100 for founders) and end
-with a clear, low-effort ask. Sign off as Aarav. The LinkedIn connection note must be under 280
-characters, with no greeting line breaks and no links.
+with a clear, low-effort ask. Sign off as Aarav. The LinkedIn connection note must be at most 180
+characters (LinkedIn's hard limit is 200), one or two short sentences, with no line breaks and
+no links.
 
 FOCUS NOTES:
 """
