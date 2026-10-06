@@ -153,3 +153,25 @@ def test_matching_by_region_includes_us_and_europe() -> None:
     found = simplify.matching(rows, locations=(), regions={Region.USA, Region.EUROPE})
     assert sorted(p.company for p in found) == ["eu", "us"]
     assert simplify.to_lead(found[0]).region in {Region.USA, Region.EUROPE}
+
+
+def test_software_role_filter_and_company_cap() -> None:
+    assert simplify.is_software_role("Software Engineer Intern - AI Tooling")
+    assert simplify.is_software_role("Machine Learning Engineering Co-op")
+    assert not simplify.is_software_role("Solar Hardware Engineer Intern")
+    assert not simplify.is_software_role("GIS Intern - Fire Department")
+    assert not simplify.is_software_role("Technology Co-op - Northeastern University")
+    rows = [
+        simplify.Posting(
+            section="Software Engineering",
+            company="T",
+            role=f"SWE Intern {i}",
+            location="Palo Alto, CA",
+            terms="Winter 2027",
+            url=f"https://t.com/{i}",
+            closed=False,
+            age=f"{i}d",
+        )
+        for i in range(5)
+    ]
+    assert len(simplify.cap_per_company(rows, per_company=3)) == 3

@@ -113,6 +113,40 @@ def parse(markdown: str) -> list[Posting]:
     return postings
 
 
+_SOFTWARE_ROLE = re.compile(
+    r"software|\bswe\b|developer|engineer|machine learning|\bml\b|\bai\b|data engineer|"
+    r"full[- ]?stack|back[- ]?end|front[- ]?end|platform|infrastructure|devops|mobile|"
+    r"automation developer|tooling",
+    re.I,
+)
+_NOT_SOFTWARE = re.compile(
+    r"hardware|solar|firmware integration|mechanical|electrical|manufacturing engineer|"
+    r"biometrics|gis\b|assurance|audit|marketing|sales|analyst\b|accounting",
+    re.I,
+)
+# Roles reserved for students of a specific school, e.g. "Co-op - Northeastern University".
+_OTHER_SCHOOL = re.compile(r"\b(northeastern|drexel|georgia tech|purdue|rit)\b", re.I)
+
+
+def is_software_role(role: str) -> bool:
+    return bool(
+        _SOFTWARE_ROLE.search(role)
+        and not _NOT_SOFTWARE.search(role)
+        and not _OTHER_SCHOOL.search(role)
+    )
+
+
+def cap_per_company(postings: list["Posting"], per_company: int) -> list["Posting"]:
+    """Keep at most `per_company` postings per company, preserving order."""
+    seen: dict[str, int] = {}
+    kept: list[Posting] = []
+    for p in postings:
+        if seen.get(p.company, 0) < per_company:
+            seen[p.company] = seen.get(p.company, 0) + 1
+            kept.append(p)
+    return kept
+
+
 def matching(
     postings: list[Posting],
     term: str = "Winter 2027",
@@ -134,8 +168,9 @@ def matching(
             or bool(regions and regions_of(p.location) & regions)
         )
         and not any(marker in p.role for marker in EXCLUDED_MARKERS)
+        and is_software_role(p.role)
     ]
-    return sorted(found, key=lambda p: p.age_days)
+    return cap_per_company(sorted(found, key=lambda p: p.age_days), per_company=3)
 
 
 def to_lead(posting: Posting) -> Lead:
