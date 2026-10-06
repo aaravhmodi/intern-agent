@@ -33,8 +33,10 @@ CORE STORY (always lead with this):
 At Upside Robotics (SWE intern, Jan-Aug 2026), Aarav built a production operations dashboard
 on his own, end to end: the Next.js/React frontend and the FastAPI backend on AWS ECS with RDS
 PostgreSQL, Redis caching and Redshift. 35+ employees and executive stakeholders use it, and it
-cut operational metric retrieval from weeks to minutes. Say "I built and own(ed) it end to
-end" or "I built it solo, from frontend to AWS deployment"; describe it as shipped and used by
+cut operational metric retrieval from weeks to minutes. He gathered the requirements himself,
+working directly with the operations team and executives to decide what to build, then
+shipped it. Say "I built and own(ed) it end to end" or "I built it solo, from gathering
+requirements with ops and leadership to AWS deployment"; describe it as shipped and used by
 real people, with the outcome before the stack.
 
 SUPPORTING PROOF (pick at most one that matches the company):
@@ -55,13 +57,15 @@ ANGLE BY AUDIENCE (use the lead's segment and posting_title):
   and can work without much direction. Under 100 words. Tie the core story to one specific
   thing the company builds.
 - forward-deployed, solutions, or applied-AI roles (title or company mentions them): show
-  turning a messy business need into a deployed tool non-technical people rely on (ops staff
-  and executives at Upside), full-stack Python + TypeScript, and AI in production.
+  sitting with non-technical stakeholders (ops staff and executives at Upside) to turn a messy
+  business need into requirements, then shipping a tool they rely on; full-stack Python +
+  TypeScript; and AI in production.
 - big companies: name the posting, then the core story and one proof point mapped to the team.
 
 RULES: Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or
-banking role. Sole ownership applies only to the Upside dashboard. Do not claim customer
-interviews, requirements gathering, or anything not stated here or in the resume.
+banking role. Sole ownership and stakeholder requirements work apply only to the Upside
+dashboard. Do not claim external customer interviews or anything not stated here or in the
+resume.
 End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
 
 DRAFT_INSTRUCTIONS = (
