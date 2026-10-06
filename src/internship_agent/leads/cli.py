@@ -122,7 +122,7 @@ def find_startups_cmd(
         fit = f"{lead.fit.score}" if lead.fit else "-"
         what = lead.posting_title if lead.kind.value == "posting" else lead.round.value
         where = lead.region.value if lead.region else "?"
-        console.print(f"+ [{where}] {lead.company} ({what}): {lead.contact_name} (fit {fit})")
+        console.print(f"+ ({where}) {lead.company} ({what}): {lead.contact_name} (fit {fit})")
     console.print(f"Added {len(added)} lead(s).")
 
 
