@@ -25,21 +25,41 @@ Also classify company_segment: early = pre-seed/seed startup; mid = Series A-D o
 private startup; big = public company, large enterprise, bank, or established private company."""
 
 # How the candidate wants to be pitched. Edit this to change every new draft.
+# Based on what startup founders and forward-deployed-engineering (FDE) teams screen for:
+# ownership, shipping to real users, measurable impact, working directly with
+# non-technical stakeholders, and proof of work.
 OUTREACH_FOCUS = """\
-Lead with the Upside Robotics internship (Jan-Aug 2026). Frame it as impact, not size:
-- Built a production-grade operations dashboard and its backend (FastAPI, PostgreSQL on AWS RDS,
-  Redis caching, Redshift, deployed on AWS ECS) that cut operational metric retrieval from
-  weeks to minutes for 35+ employees and executive stakeholders.
-- Supporting impact, pick at most one: a PostgreSQL-to-Redshift ETL pipeline loading 500K+
-  rows daily with 80% faster warehouse loads; real-time robot telemetry moved to WebSockets and
-  Zenoh with 50% lower latency; production data services alerting on failures in under
-  5 minutes.
-Do not cite counts of endpoints or modules. Mention CIBC only briefly as a secondary point, and
-only when it is clearly the most relevant experience (for example, a CIBC or banking role).
-Enerzen (founding engineer) or a project may be used only if it fits the company better than
-the Upside work."""
+CORE STORY (always lead with this):
+At Upside Robotics (SWE intern, Jan-Aug 2026), Aarav built a production operations dashboard
+(Next.js/React frontend; FastAPI backend on AWS ECS with RDS PostgreSQL, Redis caching and
+Redshift) that 35+ employees and executive stakeholders use. It cut operational metric
+retrieval from weeks to minutes. Describe it as shipped and used by real people, in first
+person ("I built"), with the outcome before the stack.
 
-DRAFT_INSTRUCTIONS = """\
+SUPPORTING PROOF (pick at most one that matches the company):
+- Data/infra: PostgreSQL-to-Redshift ETL loading 500K+ rows daily, 80% faster warehouse loads.
+- Real-time/robotics: telemetry moved from polling to WebSockets and Zenoh, 50% lower latency.
+- Reliability: production data services with failure alerts in under 5 minutes.
+- Zero-to-one ownership (good for early-stage founders): founding software engineer at Enerzen,
+  owning architecture for a 4-person team and deploying a pilot in Mississauga.
+- AI in production (good for AI / forward-deployed roles): integrated ML anomaly detection
+  through FastAPI at CIBC; shipped CRai, a CNN audio classifier served on Modal.
+
+ANGLE BY AUDIENCE (use the lead's segment and posting_title):
+- early/mid startups and founders: ownership and speed. Show you ship end to end for real users
+  and can work without much direction. Under 100 words. Tie the core story to one specific
+  thing the company builds.
+- forward-deployed, solutions, or applied-AI roles (title or company mentions them): show
+  turning a messy business need into a deployed tool non-technical people rely on (ops staff
+  and executives at Upside), full-stack Python + TypeScript, and AI in production.
+- big companies: name the posting, then the core story and one proof point mapped to the team.
+
+RULES: Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or
+banking role. Do not claim sole ownership, customer interviews, or anything not stated here or
+in the resume. End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
+
+DRAFT_INSTRUCTIONS = (
+    """\
 Write a short, genuine cold outreach from a University of Waterloo student about a Winter 2027
 (Jan-Apr) software-engineering internship, addressed to contact_name (use "Hi <first name>,"
 or "Hi there," if no name). For kind=founder, ask whether they would take an intern and
@@ -47,12 +67,14 @@ reference one specific thing about what the company builds or its recent raise. 
 kind=posting, mention the posting_title, say the student has applied or is applying, and ask a
 brief question about the team. Use only facts from the resume and the focus notes below.
 No flattery, no buzzwords, no fabricated details. The X DM must be under 600 characters (write
-it even if there is no X handle). The email must be under 150 words and end with a clear,
-low-effort ask. Sign off as Aarav. The LinkedIn connection note must be under 280 characters,
-with no greeting line breaks and no links.
+it even if there is no X handle). The email must be under 150 words (100 for founders) and end
+with a clear, low-effort ask. Sign off as Aarav. The LinkedIn connection note must be under 280
+characters, with no greeting line breaks and no links.
 
 FOCUS NOTES:
-""" + OUTREACH_FOCUS
+"""
+    + OUTREACH_FOCUS
+)
 
 STARTUP_SEARCH_INSTRUCTIONS = """\
 Use web search to find startups that publicly announced a funding round between {start} and
