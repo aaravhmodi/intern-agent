@@ -1,0 +1,15 @@
+# Runs the dashboard on a home server, reachable only over Tailscale.
+# Set TAILSCALE_IP in .env (e.g. TAILSCALE_IP=100.76.57.23) and put your resume PDF in data/.
+services:
+  dashboard:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+      RESUME_PATH: /app/data/resume.pdf
+      DASHBOARD_ALLOWED_HOSTS: '["${TAILSCALE_IP}"]'
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${TAILSCALE_IP}:8765:8765"

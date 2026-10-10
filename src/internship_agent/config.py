@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     gmail_address: str | None = None
     gmail_app_password: SecretStr | None = None
 
+    # Extra hostnames the dashboard answers to, e.g. a Tailscale IP when run on another machine.
+    dashboard_allowed_hosts: list[str] = []
+
     @property
     def gmail_ready(self) -> bool:
         password = self.gmail_app_password.get_secret_value() if self.gmail_app_password else ""

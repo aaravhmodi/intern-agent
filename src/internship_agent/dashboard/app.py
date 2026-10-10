@@ -32,6 +32,7 @@ from internship_agent.workflows import (
 app = FastAPI(title="Internship Agent", version="0.2.0")
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "testserver"}
+_ALLOWED_HOSTS = _LOCAL_HOSTS | set(get_settings().dashboard_allowed_hosts)
 
 
 @app.middleware("http")
@@ -40,12 +41,12 @@ async def local_only(
 ) -> Response:
     """Block DNS rebinding and cross-site requests: this server can send email."""
     host = (request.headers.get("host") or "").rsplit(":", 1)[0]
-    if host not in _LOCAL_HOSTS:
+    if host not in _ALLOWED_HOSTS:
         return JSONResponse({"detail": "Forbidden host"}, status_code=403)
     origin = request.headers.get("origin")
     if request.method != "GET" and origin is not None:
         origin_host = urlsplit(origin).hostname or ""
-        if origin_host not in _LOCAL_HOSTS:
+        if origin_host not in _ALLOWED_HOSTS:
             return JSONResponse({"detail": "Cross-site request blocked"}, status_code=403)
     return await call_next(request)
 
