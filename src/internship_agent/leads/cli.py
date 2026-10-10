@@ -16,6 +16,7 @@ from internship_agent.leads.store import LeadStore, load_inbox, merge
 from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
     CHANNELS,
+    daily,
     find_more_postings,
     find_startups,
     prepare_application,
@@ -195,6 +196,19 @@ def find_more(
         fit = f"{lead.fit.score}" if lead.fit else "-"
         console.print(f"+ {lead.company}: {lead.posting_title} (fit {fit})")
     console.print(f"Added {len(added)} posting(s).")
+
+
+@leads_app.command("daily")
+def daily_cmd() -> None:
+    """Daily run: new postings, scores, prepared answers, and a phone push. Never submits."""
+    report = daily(get_settings(), log=console.print)
+    for lead in report.prepared:
+        fit = lead.fit.score if lead.fit else "-"
+        console.print(f"ready: {lead.company}: {lead.posting_title} (fit {fit})")
+    console.print(
+        f"{len(report.new)} new, {len(report.skipped)} skipped by your rules, "
+        f"{len(report.prepared)} prepared, {report.pushed} push(es) sent."
+    )
 
 
 @leads_app.command("prepare")

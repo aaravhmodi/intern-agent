@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from openai import OpenAI
 
-from internship_agent import mailer
+from internship_agent import mailer, notify
 from internship_agent.ai import (
     STATUS_FROM_NOTE,
     assess_fit,
@@ -24,7 +24,7 @@ from internship_agent.leads.answers import (
     validate,
 )
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
-from internship_agent.leads.refill import DONE, refill
+from internship_agent.leads.refill import DONE, open_postings, refill
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     Lead,
@@ -348,3 +348,58 @@ def save_answers(settings: Settings, key: str, edits: dict[int, str]) -> Lead:
             item.needs_user_input = False
     store.upsert(lead)
     return lead
+
+
+@dataclass
+class DailyReport:
+    new: list[Lead]
+    skipped: list[Lead]
+    prepared: list[Lead]
+    pushed: int
+
+
+def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> DailyReport:
+    """Find new postings (startup job boards and SimplifyJobs), score them, prepare answers
+    for the best, and push each to your phone. Nothing is ever submitted."""
+    store = lead_store(settings)
+    leads = store.load()
+    founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
+    candidates: list[Lead] = []
+    for founder in founders:
+        try:
+            candidates.extend(startup_postings(founder))
+        except Exception as error:  # one broken job board must not stop the run
+            log(f"{founder.company}: {error}")
+    log(f"{len(candidates)} startup job-board role(s) across {len(founders)} startup(s)")
+    regions = {Region(r) for r in settings.search_regions}
+    simplify_postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
+    candidates.extend(simplify.to_lead(p) for p in simplify_postings)
+
+    target = len(open_postings(leads)) + settings.daily_new_postings
+    leads, new = refill(leads, candidates, target)
+    store.save(leads)
+    log(f"{len(new)} new posting(s)")
+    skipped = score(settings, new)
+    kept = [lead for lead in new if lead not in skipped and lead.fit is not None]
+    best = sorted(
+        (lead for lead in kept if lead.fit and lead.fit.score >= settings.daily_min_score),
+        key=lambda lead: -(lead.fit.score if lead.fit else 0),
+    )[: settings.daily_prepare]
+    prepared: list[Lead] = []
+    for lead in best:
+        try:
+            prepared.append(prepare_application(settings, lead.key))
+        except Exception as error:
+            log(f"{lead.key}: could not prepare answers: {error}")
+
+    pushed = 0
+    if settings.ntfy_topic and new:
+        pushes = [notify.summary_push(new, prepared, settings.dashboard_url)]
+        pushes += [notify.posting_push(lead) for lead in prepared]
+        for push in pushes:
+            try:
+                notify.send(settings.ntfy_server, settings.ntfy_topic, push)
+                pushed += 1
+            except Exception as error:
+                log(f"push failed: {error}")
+    return DailyReport(new=new, skipped=skipped, prepared=prepared, pushed=pushed)

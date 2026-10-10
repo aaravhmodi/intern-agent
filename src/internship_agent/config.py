@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     gmail_address: str | None = None
     gmail_app_password: SecretStr | None = None
 
+    # Daily run (`leads daily`): new postings to add, how many get answers, and the
+    # ntfy topic your phone subscribes to (https://ntfy.sh). No topic means no push.
+    daily_new_postings: int = 10
+    daily_prepare: int = 6
+    daily_min_score: int = 60
+    ntfy_server: str = "https://ntfy.sh"
+    ntfy_topic: str | None = None
+    dashboard_url: str | None = None
+
     # Extra hostnames the dashboard answers to, e.g. a Tailscale IP when run on another machine.
     dashboard_allowed_hosts: list[str] = []
 
