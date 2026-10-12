@@ -18,6 +18,8 @@ def build_message(
     subject: str,
     body: str,
     attachment: Path | None = None,
+    in_reply_to: str | None = None,
+    references: str | None = None,
 ) -> EmailMessage:
     if not to or "@" not in to:
         raise MailError("A recipient address is required")
@@ -27,6 +29,10 @@ def build_message(
     message["From"] = sender
     message["To"] = to
     message["Subject"] = subject.strip()
+    # A reply in the same thread as the email it follows up.
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to
+        message["References"] = " ".join(part for part in (references, in_reply_to) if part)
     message.set_content(body)
     if attachment is not None:
         message.add_attachment(

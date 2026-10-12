@@ -11,10 +11,12 @@ from pydantic import BaseModel
 
 from internship_agent.ai import draft_outreach
 from internship_agent.config import get_settings
+from internship_agent.followup_run import run_followups
 from internship_agent.leads.refill import DONE, open_postings
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Region, Segment
 from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import SendBlocked
+from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.workflows import (
     find_more_postings,
@@ -87,6 +89,11 @@ class SaveAnswersRequest(BaseModel):
 
 class PreferenceDelete(BaseModel):
     id: str
+
+
+class FollowupsRequest(BaseModel):
+    # Find out who would get what without sending anything.
+    dry_run: bool = True
 
 
 class SendRequest(BaseModel):
@@ -201,6 +208,29 @@ def send(request: SendRequest) -> dict[str, Any]:
     except (SendBlocked, MailError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}
+
+
+@app.post("/api/followups/run")
+def followups(request: FollowupsRequest) -> dict[str, Any]:
+    """Follow up on emails with no reply. Sends only when FOLLOWUPS_ENABLED is on.
+
+    Called on a schedule, so unlike /api/send no click is involved: it writes only to
+    people already emailed from here, only the fixed follow-up texts, at most twice each,
+    and never after a reply or a bounce.
+    """
+    settings = get_settings()
+    if not settings.gmail_address or not settings.gmail_app_password:
+        raise HTTPException(400, "Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env first.")
+    dry_run = request.dry_run or not settings.followups_enabled
+    password = settings.gmail_app_password.get_secret_value()
+    try:
+        with GmailMailbox(settings.gmail_address, password) as mailbox:
+            report = run_followups(
+                settings, mailbox, dry_run=dry_run, pause_seconds=0 if dry_run else 2
+            )
+    except (MailboxError, MailError) as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return {"enabled": settings.followups_enabled, **report.model_dump(mode="json")}
 
 
 @app.post("/api/note")

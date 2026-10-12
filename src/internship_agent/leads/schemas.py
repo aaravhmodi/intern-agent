@@ -194,6 +194,11 @@ class Lead(BaseModel):
     draft: OutreachDraft | None = None
     sent_at: datetime | None = None
     sent_to: str | None = None
+    # Automatic follow-ups: when each went out, when they wrote back, and anything
+    # else that ended them ("bounced").
+    followups: list[datetime] = Field(default_factory=list)
+    replied_at: datetime | None = None
+    followups_stopped: str = ""
     notes: list[Note] = Field(default_factory=list)
     application: ApplicationPrep | None = None
     # Posting description fetched for scoring (truncated); empty for founder leads.

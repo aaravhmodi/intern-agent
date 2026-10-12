@@ -9,10 +9,13 @@ from rich.table import Table
 
 from internship_agent.ai import draft_outreach
 from internship_agent.config import Settings, get_settings
+from internship_agent.followup_run import run_followups
 from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Region, Segment
 from internship_agent.leads.store import LeadStore, load_inbox, merge
+from internship_agent.mailbox import GmailMailbox, MailboxError
+from internship_agent.mailer import MailError
 from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
     CHANNELS,
@@ -209,6 +212,43 @@ def daily_cmd() -> None:
         f"{len(report.new)} new, {len(report.skipped)} skipped by your rules, "
         f"{len(report.prepared)} prepared, {report.pushed} push(es) sent."
     )
+
+
+@leads_app.command("followups")
+def followups_cmd(
+    send: Annotated[
+        bool, typer.Option("--send", help="Send them. Without this, only show what would go.")
+    ] = False,
+) -> None:
+    """Follow up on emails with no reply after 5 days, at most twice per person."""
+    settings = get_settings()
+    if send and not settings.followups_enabled:
+        console.print("[red]Set FOLLOWUPS_ENABLED=true in .env to send follow-ups.[/red]")
+        raise typer.Exit(1)
+    if not settings.gmail_address or not settings.gmail_app_password:
+        console.print("[red]Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env first.[/red]")
+        raise typer.Exit(1)
+    password = settings.gmail_app_password.get_secret_value()
+    try:
+        with GmailMailbox(settings.gmail_address, password) as mailbox:
+            report = run_followups(settings, mailbox, dry_run=not send, pause_seconds=2)
+    except (MailboxError, MailError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    for item in report.sent:
+        verb = "sent" if send else "would send"
+        console.print(f"{verb} follow-up {item.number}: {item.contact} at {item.company}")
+    for name in report.replied:
+        console.print(f"replied, no follow-up: {name}")
+    for name in report.bounced:
+        console.print(f"bounced, no follow-up: {name}")
+    console.print(
+        f"{len(report.sent)} {'sent' if send else 'due'}, {len(report.replied)} replied, "
+        f"{report.waiting} waiting, {report.finished} finished without a reply."
+    )
+    if report.error:
+        console.print(f"[red]Stopped early: {report.error}[/red]")
+        raise typer.Exit(1)
 
 
 @leads_app.command("prepare")

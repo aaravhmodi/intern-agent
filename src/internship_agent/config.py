@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     gmail_address: str | None = None
     gmail_app_password: SecretStr | None = None
 
+    # Automatic follow-ups (`leads followups`): off unless switched on. One goes out
+    # after this many days without a reply, to at most this many people in one run.
+    followups_enabled: bool = False
+    followup_days: int = 5
+    followup_daily_limit: int = 25
+
     # Daily run (`leads daily`): new postings to add, how many get answers, and the
     # ntfy topic your phone subscribes to (https://ntfy.sh). No topic means no push.
     daily_new_postings: int = 10
