@@ -1,7 +1,67 @@
+<div align="center">
+
 # Winter 2027 Internship Agent
 
-Separate local-first agent for finding Winter 2027 software-engineering internships,
-matching them against Aarav Modi's resume, and preparing application materials.
+**Finds the internships worth my time, scores each against my resume, and drafts the outreach.**<br>
+I review every message and send it myself; it never applies or sends on its own.
+
+![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-web_search_+_structured_output-412991?style=flat-square)
+![Outlook: read-only](https://img.shields.io/badge/Outlook-read--only-0078D4?style=flat-square)
+![Local-first](https://img.shields.io/badge/local--first-1f4d35?style=flat-square)
+
+[What it does](#what-it-does) · [Dashboard](#dashboard) · [Outlook](#outlook-integration-mcp) · [Development](#development)
+
+<img src="docs/images/demo.gif" width="900" alt="Opening a startup to see its fit score and email draft, then a posting's prepared application answers, then the learned rules">
+
+<sub>A startup's fit and draft, a posting's prepared answers, and the rules learned from notes. Every company and person shown is made up.</sub>
+
+</div>
+
+## What it does
+
+A local-first agent for finding Winter 2027 software-engineering internships, matching them against Aarav Modi's resume, and preparing application materials.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Scored against the resume**
+
+Each lead gets a fit score, the reasons for it, and what to lead with.
+
+<img src="docs/images/fit.png" alt="A startup's fit score, reasons and talking points">
+
+</td>
+<td width="33%" valign="top">
+
+**Drafts you edit, then send yourself**
+
+Sending takes a second confirming click, and a guessed address has to be checked first.
+
+<img src="docs/images/draft.png" alt="An email draft and LinkedIn connection note for a founder">
+
+</td>
+<td width="33%" valign="top">
+
+**Application answers, prepared**
+
+Written from the resume for a posting's real form. Nothing is submitted for you.
+
+<img src="docs/images/application.png" alt="Prepared answers to a posting's application questions, one marked as needing the applicant">
+
+</td>
+</tr>
+</table>
+
+**Recently funded startups first.** Web search finds funding rounds from the last 60 days in Canada, the USA and Europe. A result is kept only if its cited article loads and names both the company and the founder.
+
+<p align="center"><img src="docs/images/startups.png" width="720" alt="Startups listed by fit score, with round, amount, date and founder"></p>
+
+**It learns from your notes.** "This one needs French, not applying" becomes a rule, and every later lead is scored against it.
+
+<p align="center"><img src="docs/images/rules.png" width="720" alt="Rules learned from notes: two skip rules and one boost rule"></p>
 
 ## Current setup
 
