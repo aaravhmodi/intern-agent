@@ -1,0 +1,134 @@
+{
+  "id": "185afe1c705a5ae6",
+  "name": "Internship tracker: replies",
+  "active": true,
+  "nodes": [
+    {
+      "id": "dbcc6edc-14c2-5e3d-98cd-e797b5b18750",
+      "name": "New email",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "credentials": {
+        "imap": {
+          "id": "gmailimapreadonly",
+          "name": "Gmail (read-only)"
+        }
+      },
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "nothing",
+        "format": "simple",
+        "downloadAttachments": false,
+        "options": {
+          "customEmailConfig": "[\"ALL\"]",
+          "trackLastMessageId": true
+        }
+      }
+    },
+    {
+      "id": "5d0861aa-5b6c-508e-bbb8-2561b639b3a4",
+      "name": "Your leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "executeOnce": true,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.INTERN_AGENT_URL }}/api/leads",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "920eea3b-f026-5bdc-94ae-cde1b52a478d",
+      "name": "Match to a lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "\nconst leads = $('Your leads').first().json.leads || [];\nconst watched = leads.filter((l) => ['applied', 'contacted'].includes(l.status) || l.sent_at);\nconst page = $env.INTERN_AGENT_URL;\n\nconst domainOf = (url) => {\n  try { return new URL(url).hostname.replace(/^www\\./, '').toLowerCase(); } catch { return ''; }\n};\nconst addressOf = (from) => ((from.match(/<([^>]+)>/) || [, from])[1] || '').trim().toLowerCase();\nconst nameOf = (from) => from.replace(/<[^>]*>/, '').replace(/\"/g, '').trim();\nconst escape = (s) => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst mentions = (text, company) =>\n  company.length >= 3 && new RegExp(`\\\\b${escape(company)}\\\\b`, 'i').test(text);\n\n// The reply itself, without the quoted thread underneath.\nconst snippet = (text) => {\n  const lines = [];\n  for (const line of (text || '').split(/\\r?\\n/)) {\n    if (/^>|^On .+wrote:$|^-{2,}\\s*Original Message/i.test(line.trim())) break;\n    if (line.trim()) lines.push(line.trim());\n  }\n  const body = lines.join(' ').replace(/\\s+/g, ' ');\n  return body.length > 400 ? body.slice(0, 400) + '…' : body;\n};\n\n// First match wins. An invite often opens with \"thank you for your interest\", so the\n// interview and rejection rules come before the receipt rule.\nconst KINDS = [\n  { kind: 'next step', priority: 5, tag: 'tada', title: '🎉 Next step from',\n    test: new RegExp('interview|schedule (a|some) (time|call|chat)|your availability|' +\n      'online assessment|coding (challenge|assessment)|hackerrank|codesignal|take-home|' +\n      'phone screen', 'i') },\n  { kind: 'rejection', priority: 2, tag: 'envelope', title: 'Update from',\n    test: new RegExp('unfortunately|not (be )?(moving|move) forward|other candidates|' +\n      'regret to inform|position has been filled|decided to pursue', 'i') },\n  { kind: 'receipt', skip: true,\n    test: new RegExp('thank(s| you) for (applying|your (application|interest))|' +\n      \"application (was |has been )?received|we('ve| have) received your\", 'i') },\n];\n\nconst pushes = [];\nfor (const { json: mail } of $('New email').all()) {\n  const from = mail.from || '';\n  const address = addressOf(from);\n  const domain = address.split('@')[1] || '';\n  const subject = mail.subject || '(no subject)';\n  const header = `${nameOf(from)} ${subject}`;\n  const sameSite = (l) => {\n    const site = domainOf(l.company_url);\n    return Boolean(site && domain && (domain === site || domain.endsWith(`.${site}`)));\n  };\n  const lead = watched.find((l) =>\n    [l.email, l.sent_to].filter(Boolean).map((e) => e.toLowerCase()).includes(address) ||\n    sameSite(l) || mentions(header, l.company));\n  if (!lead) continue;\n\n  const text = `${subject}\\n${mail.textPlain || ''}`;\n  const kind = KINDS.find((k) => k.test.test(text)) ||\n    { kind: 'reply', priority: 4, tag: 'incoming_envelope', title: '📬 Reply from' };\n  if (kind.skip) continue;\n\n  const role = lead.posting_title ? ` (${lead.posting_title})` : '';\n  pushes.push({ json: {\n    title: `${kind.title} ${lead.company}`.slice(0, 120),\n    message: `${nameOf(from) || address}: \"${subject}\"\\n\\n${snippet(mail.textPlain)}\\n\\n` +\n      `You ${lead.status === 'applied' ? 'applied' : 'reached out'}${role}. ` +\n      '👉 Reply from Gmail; open the tracker to see the lead.',\n    priority: kind.priority, tags: [kind.tag], click: page,\n  } });\n}\nreturn pushes;\n"
+      }
+    },
+    {
+      "id": "bce3cd85-3b76-57e6-8cd3-6306ebd21e08",
+      "name": "Send to phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NTFY_SERVER }}",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...$json, topic: $env.NTFY_TOPIC }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New email": {
+      "main": [
+        [
+          {
+            "node": "Your leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Your leads": {
+      "main": [
+        [
+          {
+            "node": "Match to a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match to a lead": {
+      "main": [
+        [
+          {
+            "node": "Send to phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "notes": "Watches your Gmail inbox (read-only) and pushes when a company you applied to or contacted writes back: interviews and next steps are urgent, rejections are quiet, 'thanks for applying' receipts are skipped."
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Toronto",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false
+  },
+  "tags": []
+}
