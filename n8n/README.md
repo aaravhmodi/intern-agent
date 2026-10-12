@@ -5,6 +5,7 @@
 | Workflow | When | What it does |
 | --- | --- | --- |
 | Internship tracker: replies | Each new email | Reads your Gmail inbox (read-only: nothing is marked read, moved or sent) and matches each new email to a lead you applied to or contacted, by the address you emailed, the company's web domain, or its name in the sender or subject. Interviews and other next steps push urgently, plain replies normally, rejections quietly; "thanks for applying" receipts and unrelated mail are skipped. No AI, so it costs nothing. |
+| Internship tracker: follow-ups | Weekdays, 9:30 AM | Asks the tracker to follow up on emails with no reply after 5 days: a reply in the same thread, fixed wording (`src/internship_agent/leads/followups.py`), twice at most. It checks Gmail first and never writes to someone who replied or whose address bounced. Pushes who got one and who wrote back; quiet days send nothing. The tracker only sends with `FOLLOWUPS_ENABLED=true` in its `.env`; remove that to stop them. |
 
 Successful runs aren't kept in n8n's history, so your email isn't stored there; failed runs
 are kept for two weeks so they can be looked into.

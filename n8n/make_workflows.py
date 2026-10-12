@@ -186,10 +186,139 @@ def internship_replies() -> dict[str, Any]:
     }
 
 
+# Turns the follow-up run's result into one push: who got one, who replied, what stopped.
+FOLLOWUPS_JS = r"""
+const run = $input.first().json;
+const page = $env.INTERN_AGENT_URL;
+if (run.detail) {
+  const message = `${run.detail}\n\nNothing was sent. ` +
+    '👉 If this repeats tomorrow, ask Claude to look.';
+  return [{ json: { title: "⚠️ Follow-ups didn't run", message, priority: 4,
+                    tags: ['warning'], click: page } }];
+}
+const sent = run.sent || [];
+const parts = [];
+if (sent.length && !run.dry_run) {
+  parts.push(`Sent ${sent.length} follow-up${sent.length === 1 ? '' : 's'}:\n` +
+    sent.map((s) => `• ${s.contact || 'the team'} at ${s.company} (${s.number} of 2)`).join('\n'));
+}
+if ((run.replied || []).length) {
+  parts.push(`Wrote back, so no follow-up:\n${run.replied.map((n) => `• ${n}`).join('\n')}`);
+}
+if ((run.bounced || []).length) {
+  parts.push(`Bounced, so stopped:\n${run.bounced.map((n) => `• ${n}`).join('\n')}`);
+}
+if ((run.wrong_address || []).length) {
+  parts.push('Sent to another company\'s address, so stopped (email them properly from the ' +
+    `tracker):\n${run.wrong_address.map((n) => `• ${n}`).join('\n')}`);
+}
+if (run.held) parts.push(`${run.held} more are due and go out tomorrow (daily limit).`);
+if (run.error) parts.push(`⚠️ Stopped early: ${run.error}`);
+if (!parts.length) return [];  // a quiet day: nobody due, nobody new replied
+const title = sent.length && !run.dry_run
+  ? `📨 ${sent.length} follow-up${sent.length === 1 ? '' : 's'} sent`
+  : '📨 Follow-ups: nothing sent today';
+const message = parts.join('\n\n') + `\n\n${run.waiting || 0} still inside their 5 days.`;
+return [{ json: { title, message, priority: run.error ? 4 : 3, tags: ['email'], click: page } }];
+"""
+
+
+def internship_followups() -> dict[str, Any]:
+    names = ["Weekdays at 9:30", "Send what's due", "Say what happened", "Send to phone"]
+    nodes: list[Node] = [
+        {
+            "id": _id(names[0]),
+            "name": names[0],
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [0, 300],
+            "parameters": {
+                "rule": {"interval": [{"field": "cronExpression", "expression": "30 9 * * 1-5"}]}
+            },
+        },
+        {
+            "id": _id(names[1]),
+            "name": names[1],
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [220, 300],
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.INTERN_AGENT_URL }}/api/followups/run",
+                "sendBody": True,
+                "contentType": "json",
+                "specifyBody": "json",
+                # The tracker only sends when FOLLOWUPS_ENABLED is on; otherwise this is
+                # a dry run whatever is asked for here.
+                "jsonBody": "={{ JSON.stringify({ dry_run: false }) }}",
+                # Checking Gmail for each person takes a while; errors come back as data.
+                "options": {"timeout": 600000, "response": {"response": {"neverError": True}}},
+            },
+        },
+        {
+            "id": _id(names[2]),
+            "name": names[2],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [440, 300],
+            "parameters": {
+                "mode": "runOnceForAllItems",
+                "language": "javaScript",
+                "jsCode": FOLLOWUPS_JS,
+            },
+        },
+        {
+            "id": _id(names[3]),
+            "name": names[3],
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [660, 300],
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.NTFY_SERVER }}",
+                "sendBody": True,
+                "contentType": "json",
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({ ...$json, topic: $env.NTFY_TOPIC }) }}",
+                "options": {"timeout": 15000},
+            },
+        },
+    ]
+    connections = {
+        a: {"main": [[{"node": b, "type": "main", "index": 0}]]}
+        for a, b in zip(names, names[1:], strict=False)
+    }
+    return {
+        "id": _id("internship followups").replace("-", "")[:16],
+        "name": "Internship tracker: follow-ups",
+        "active": True,
+        "nodes": nodes,
+        "connections": connections,
+        "pinData": {},
+        "meta": {
+            "notes": "On weekday mornings, asks the tracker to follow up on emails with no "
+            "reply after 5 days (twice at most, never after a reply or a bounce), then pushes "
+            "who got one and who wrote back. Has no Run-it-now trigger on purpose: it sends "
+            "real email."
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "timezone": TZ,
+            "saveDataSuccessExecution": "all",
+            "saveDataErrorExecution": "all",
+        },
+        "tags": [],
+    }
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
-    flow = internship_replies()
-    (OUT / "replies.json").write_text(
-        json.dumps(flow, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
-    )
-    print(f"replies.json  {flow['name']}  {len(flow['nodes'])} nodes")
+    for build, file in (
+        (internship_replies, "replies.json"),
+        (internship_followups, "followups.json"),
+    ):
+        flow = build()
+        (OUT / file).write_text(
+            json.dumps(flow, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
+        )
+        print(f"{file:<16} {flow['name']}  {len(flow['nodes'])} nodes")

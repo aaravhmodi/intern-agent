@@ -9,12 +9,19 @@ nothing is sent.
 import json
 import time
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
 from internship_agent import mailer
 from internship_agent.config import Settings
-from internship_agent.leads.followups import TEMPLATES, followup_body, is_due, reply_subject
+from internship_agent.leads.followups import (
+    TEMPLATES,
+    company_domain,
+    followup_body,
+    is_due,
+    reply_subject,
+)
 from internship_agent.leads.schemas import Lead, LeadStatus, Note
 from internship_agent.leads.store import LeadStore
 from internship_agent.mailbox import Mailbox
@@ -38,6 +45,8 @@ class FollowupReport(BaseModel):
     # Wrote back since the last run, so they get no more follow-ups.
     replied: list[str] = []
     bounced: list[str] = []
+    # Emailed at an address that belongs to another lead's company, so not followed up.
+    wrong_address: list[str] = []
     # Emailed, no reply yet, and not due a follow-up today.
     waiting: int = 0
     # Got every follow-up and still hasn't replied.
@@ -63,6 +72,31 @@ def _logged_subject(settings: Settings, key: str) -> str | None:
     return subject
 
 
+def _site(lead: Lead) -> str:
+    host = urlsplit(lead.company_url or "").hostname or ""
+    return host.removeprefix("www.").lower()
+
+
+def _misaddressed(leads: list[Lead]) -> set[str]:
+    """Leads emailed at an address another lead's company owns.
+
+    Two leads sharing one address means one email went to the wrong company (Keenable's
+    was once sent to Veeda's contact address). The lead whose own site matches the
+    address keeps its follow-ups; the others are not written to there again.
+    """
+    by_address: dict[str, list[Lead]] = {}
+    for lead in leads:
+        if lead.sent_at and lead.sent_to:
+            by_address.setdefault(lead.sent_to, []).append(lead)
+    wrong: set[str] = set()
+    for address, sharing in by_address.items():
+        domain = company_domain(address)
+        owners = [lead for lead in sharing if domain and _site(lead).endswith(domain)]
+        if len(sharing) > 1 and owners:
+            wrong.update(lead.key for lead in sharing if lead not in owners)
+    return wrong
+
+
 def _name(lead: Lead) -> str:
     return f"{lead.contact_name or 'the team'} at {lead.company}"
 
@@ -81,10 +115,25 @@ def run_followups(
     moment = now or datetime.now(UTC)
     store = LeadStore(settings.data_dir / "leads.json")
     report = FollowupReport(dry_run=dry_run)
-    for lead in store.load():
+    leads = store.load()
+    misaddressed = _misaddressed(leads)
+    for lead in leads:
         if not lead.sent_at or not lead.sent_to or lead.status is LeadStatus.SKIPPED:
             continue
         if lead.replied_at is not None or lead.followups_stopped:
+            continue
+        if lead.key in misaddressed:
+            report.wrong_address.append(f"{_name(lead)} (sent to {lead.sent_to})")
+            if not dry_run:
+                lead.followups_stopped = "wrong address"
+                lead.notes.append(
+                    Note(
+                        at=moment,
+                        text=f"The email went to {lead.sent_to}, another company's address; "
+                        "no follow-ups. Email them at their own address.",
+                    )
+                )
+                store.upsert(lead)
             continue
         # Everyone still waiting is checked, due or not, so a reply always ends it.
         heard = mailbox.heard_from(lead.sent_to, lead.sent_at)

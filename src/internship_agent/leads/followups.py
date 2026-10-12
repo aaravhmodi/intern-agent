@@ -10,13 +10,14 @@ from datetime import datetime, timedelta
 
 from internship_agent.leads.schemas import Lead, LeadStatus
 
-# What each follow-up says, in order. {first} is their first name, {company} the company
-# and {sent} the day the first email went ("October 6").
+# What each follow-up says, in order. {first} is their first name and {company} the
+# company. The first goes out five to seven days after the email, always the week after
+# it, so "last week" is right whatever the time zone.
 TEMPLATES = (
     """\
 Hi {first},
 
-Following up on my note from {sent} in case it got buried. I'm still very interested in a \
+Following up on my note from last week in case it got buried. I'm still very interested in a \
 Winter 2027 (Jan–Apr) software engineering internship at {company}.
 
 Would a 15-minute call work sometime in the next week or two?
@@ -76,11 +77,8 @@ def first_name(lead: Lead) -> str:
 
 def followup_body(lead: Lead) -> str:
     """The text of this lead's next follow-up."""
-    if lead.sent_at is None:
-        raise ValueError("No first email to follow up on")
-    sent = f"{lead.sent_at:%B} {lead.sent_at.day}"
     template = TEMPLATES[len(lead.followups)]
-    return template.format(first=first_name(lead), company=lead.company, sent=sent)
+    return template.format(first=first_name(lead), company=lead.company)
 
 
 def reply_subject(original: str) -> str:

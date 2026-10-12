@@ -104,7 +104,7 @@ def test_nobody_gets_a_third_or_one_after_replying_or_being_skipped() -> None:
 
 def test_the_follow_up_names_them_the_company_and_the_first_email() -> None:
     first = followup_body(emailed())
-    assert first.startswith("Hi Pranav,\n\nFollowing up on my note from October 6")
+    assert first.startswith("Hi Pranav,\n\nFollowing up on my note from last week")
     assert "internship at Blueprint" in first and first.endswith("Aarav")
 
     last = followup_body(emailed(followups=[SENT + timedelta(days=5)]))
@@ -253,3 +253,22 @@ def test_the_scheduled_call_only_sends_when_follow_ups_are_switched_on(
     on = client.post("/api/followups/run", json={"dry_run": False}).json()
     assert (on["enabled"], on["dry_run"], len(on["sent"])) == (True, False, 1)
     assert len(outbox) == 1
+
+
+def test_an_email_sent_to_another_companys_address_is_not_followed_up(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    # Keenable's email had gone to Veeda's contact address.
+    veeda = emailed(
+        "Veeda", "Sanja Fidler", company_url="https://veeda.io", sent_to="contact@veeda.io"
+    )
+    keenable = emailed(
+        "Keenable", "Matthias Petri", company_url="https://keenable.ai/", sent_to="contact@veeda.io"
+    )
+    store = save(settings, veeda, keenable)
+
+    report = run_followups(settings, FakeMailbox(), now=NOW)
+
+    assert [item.company for item in report.sent] == ["Veeda"] and len(outbox) == 1
+    assert report.wrong_address == ["Matthias Petri at Keenable (sent to contact@veeda.io)"]
+    assert store.get(keenable.key).followups_stopped == "wrong address"
