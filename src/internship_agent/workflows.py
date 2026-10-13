@@ -42,6 +42,7 @@ from internship_agent.sources import simplify, startups
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.posting_text import fetch_posting_text
 from internship_agent.sources.startup_jobs import find_intern_roles
+from internship_agent.x_search import post_confirms, search_x_raises
 
 
 def lead_store(settings: Settings) -> LeadStore:
@@ -201,34 +202,42 @@ def find_startups(
     for region in regions or [Region(r) for r in settings.search_regions]:
         for channel in channels:
             existing = store.load()
+            known = sorted({lead.company for lead in existing})
             use_grok = (
                 channel == "x" and xai is not None and xai_calls < settings.xai_max_calls_per_run
             )
             if use_grok:
+                # Founders' own posts on X announcing a raise, kept only when the post
+                # exists and says so. Without an xAI key the X channel is a web
+                # search for the same thing, which finds far less.
                 assert xai is not None
                 xai_calls += 1
-                tools = [
-                    {"type": "x_search", "from_date": str(start), "to_date": str(today)},
-                    {"type": "web_search"},
-                ]
-                pass_client, pass_model = xai, settings.xai_model
-            else:
-                tools, pass_client, pass_model = None, client, settings.openai_model
-            findings, usage = search_startups(
-                pass_client,
-                pass_model,
-                start,
-                today,
-                stages,
-                region,
-                channel,
-                sorted({lead.company for lead in existing}),
-                count,
-                tools=tools,
-            )
-            if use_grok:
+                findings, usage = search_x_raises(
+                    xai, settings.xai_model, start, today, stages, region, known, count
+                )
                 _log_xai(settings, region, usage)
-            found = startups.to_leads(findings, today, max_age_days, stages, region=region)
+                found = startups.to_leads(
+                    findings,
+                    today,
+                    max_age_days,
+                    stages,
+                    confirm=post_confirms,
+                    region=region,
+                    require_founder=False,
+                )
+            else:
+                findings, _ = search_startups(
+                    client,
+                    settings.openai_model,
+                    start,
+                    today,
+                    stages,
+                    region,
+                    channel,
+                    known,
+                    count,
+                )
+                found = startups.to_leads(findings, today, max_age_days, stages, region=region)
             leads, added = merge(existing, found)
             new_founders = leads[len(existing) :]
             roles = [p for f in new_founders for p in startup_postings(f)]

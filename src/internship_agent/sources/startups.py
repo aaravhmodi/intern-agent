@@ -54,14 +54,20 @@ def to_leads(
     stages: list[Segment],
     confirm: Callable[[StartupFinding], bool] = source_confirms,
     region: Region | None = None,
+    require_founder: bool = True,
 ) -> list[Lead]:
+    """Findings that are recent, at a wanted stage and confirmed, as founder leads.
+
+    A raise announced from a company's own X account names no founder; with
+    ``require_founder`` off it is kept, to be contacted as a company.
+    """
     leads: list[Lead] = []
     for f in findings:
         if not (today - timedelta(days=max_age_days) <= f.announced_on <= today):
             continue
         round_ = parse_round(f.round)
         segment = ROUND_SEGMENT.get(round_)
-        if segment not in stages or not f.founder_name.strip():
+        if segment not in stages or (require_founder and not f.founder_name.strip()):
             continue
         if not confirm(f):
             continue
