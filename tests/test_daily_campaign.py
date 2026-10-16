@@ -1,15 +1,8 @@
 from datetime import UTC, datetime
 
-import pytest
-
 from internship_agent import workflows
 from internship_agent.config import Settings
 from internship_agent.leads.schemas import ApplicationPrep, FitAssessment, Lead
-
-
-def test_application_submission_is_disabled() -> None:
-    with pytest.raises(ValueError, match="browser access is read-only"):
-        workflows.submit_application(Settings(_env_file=None), "any-posting")
 
 
 def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:

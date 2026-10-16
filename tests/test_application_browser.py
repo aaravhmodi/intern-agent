@@ -6,6 +6,7 @@ from internship_agent.applications.browser import (
     _field_label,
     _fill_form,
     _numeric_answer,
+    _online_checks,
     _posting_is_closed,
     _supported_url,
     apply_to_posting,
@@ -91,6 +92,25 @@ def test_supported_submission_hosts_are_explicit() -> None:
     assert not _supported_url("https://acme.wd5.myworkdayjobs.com/interns")
     assert not _supported_url("https://example.com/careers")
     assert not _supported_url("https://greenhouse.io.attacker.example/careers")
+    assert not _supported_url("http://jobs.ashbyhq.com/acme/123")
+
+
+def test_three_live_checks_before_submit() -> None:
+    class LivePage:
+        def __init__(self, url: str, unsafe_count: int = 0) -> None:
+            self.url = url
+            self.unsafe_count = unsafe_count
+
+        def locator(self, _selector: str) -> FakeLocator:
+            return FakeLocator([FakeField({}) for _ in range(self.unsafe_count)])
+
+    lead = posting("https://jobs.ashbyhq.com/acme/123")
+    live = LivePage(lead.posting_url or "")
+    text = "Acme is hiring a Software Engineering Intern."
+    assert _online_checks(live, lead, text) is None
+    assert "approved HTTPS" in (_online_checks(LivePage("https://evil.example"), lead, text) or "")
+    assert "job title" in (_online_checks(live, lead, "Unrelated opportunity") or "")
+    assert "payment" in (_online_checks(LivePage(live.url, 1), lead, text) or "")
 
 
 def test_answer_mapping_requires_unambiguous_question_match() -> None:

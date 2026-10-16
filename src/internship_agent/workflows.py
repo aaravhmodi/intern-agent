@@ -36,6 +36,7 @@ from internship_agent.leads.schemas import (
     Note,
     Person,
     Preference,
+    QuestionKind,
     Region,
     Segment,
 )
@@ -442,8 +443,62 @@ def save_answers(settings: Settings, key: str, edits: dict[int, str]) -> Lead:
 def submit_application(
     settings: Settings, key: str, *, dry_run: bool = False, headless: bool = True
 ) -> Lead:
-    """Block browser writes while application access is read-only."""
-    raise ValueError("Application submission is disabled; browser access is read-only")
+    """Submit one prepared application through a persistent, user-authenticated browser."""
+    from internship_agent.applications.browser import apply_to_posting
+
+    store = lead_store(settings)
+    lead = store.get(key)
+    if lead.application is None:
+        raise ValueError("Prepare application answers first")
+    if lead.application.submission_status == "uncertain":
+        lead.application.submission_detail = (
+            "A prior submit attempt may have reached the employer; verify on the application "
+            "site before trying again."
+        )
+        store.upsert(lead)
+        return lead
+    transcript_questions = [
+        answer.question.label
+        for answer in lead.application.answers
+        if answer.question.required and "transcript" in answer.question.label.lower()
+    ]
+    if transcript_questions:
+        lead.application.submission_status = "skipped"
+        lead.application.submission_detail = (
+            "Automatic application skipped because a transcript is required"
+        )
+        store.upsert(lead)
+        return lead
+    unanswered = [
+        answer.question.label
+        for answer in lead.application.answers
+        if answer.question.required
+        and answer.question.kind is not QuestionKind.FILE
+        and not answer.answer.strip()
+    ]
+    if unanswered:
+        lead.application.submission_status = "blocked"
+        lead.application.submission_detail = (
+            f"Required answers need your input: {', '.join(unanswered[:5])}"
+        )
+        store.upsert(lead)
+        return lead
+
+    result = apply_to_posting(
+        lead,
+        settings.resume_path,
+        settings.application_browser_dir,
+        bank=answer_bank(settings),
+        dry_run=dry_run,
+        headless=headless,
+    )
+    lead.application.submission_status = result.status
+    lead.application.submission_detail = result.detail
+    if result.status == "submitted":
+        lead.application.submitted_at = datetime.now(UTC)
+        lead.status = LeadStatus.APPLIED
+    store.upsert(lead)
+    return lead
 
 
 @dataclass

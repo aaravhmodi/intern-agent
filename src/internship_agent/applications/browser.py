@@ -71,11 +71,33 @@ def _posting_is_closed(text: str) -> bool:
 
 
 def _supported_url(url: str) -> bool:
-    host = urlparse(url).netloc.lower()
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        return False
+    host = parsed.netloc.lower()
     return any(
         host == domain or host.endswith(f".{domain}")
         for domain in ("greenhouse.io", "ashbyhq.com", "lever.co")
     )
+
+
+def _online_checks(page: Any, lead: Lead, body_text: str) -> str | None:
+    """Check the live destination, role, and form before any submission click."""
+    if not _supported_url(page.url):
+        return "Live page left the approved HTTPS application site"
+    title_words = set(_normalize(lead.posting_title).split())
+    visible_words = set(_normalize(body_text).split())
+    minimum = min(len(title_words), max(2, len(title_words) // 2))
+    if title_words and len(title_words & visible_words) < minimum:
+        return "Live page does not match the saved job title"
+    unsafe_fields = page.locator(
+        "input[type=password], input[autocomplete='cc-number'], "
+        "input[autocomplete='cc-csc'], input[name*='credit_card' i], "
+        "input[name*='payment' i]"
+    )
+    if unsafe_fields.count():
+        return "Live form requests payment or credentials"
+    return None
 
 
 def _answer_for(label: str, lead: Lead, bank: AnswerBank | None = None) -> str | None:
@@ -260,6 +282,8 @@ def apply_to_posting(
             body_text = page.locator("body").inner_text(timeout=5000)
             if _posting_is_closed(body_text):
                 return SubmissionResult("skipped", "Posting is closed or no longer available")
+            if reason := _online_checks(page, lead, body_text):
+                return SubmissionResult("blocked", reason)
             if page.locator(_CAPTCHA_SELECTOR).count():
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
 
@@ -287,6 +311,9 @@ def apply_to_posting(
                         )
                     except PlaywrightTimeoutError:
                         pass
+
+            if reason := _online_checks(page, lead, page.locator("body").inner_text(timeout=5000)):
+                return SubmissionResult("blocked", reason)
 
             required_transcript = any(
                 answer.question.required and "transcript" in answer.question.label.lower()
