@@ -6,6 +6,7 @@ Use this file, the configured resume, and the public sources linked below to pre
 
 - Legal/full name: Aarav Modi. Preferred name: Aarav. Pronouns: he/him only when a form requires them.
 - Systems Design Engineering, University of Waterloo; candidate-confirmed expected graduation: April 2029. (The currently published resume says May 2029; use the candidate's direct confirmation of April 2029.)
+- Candidate-confirmed current year of study: third year.
 - Enrolled in a co-op program.
 - Seeking only a four-month term from January through April 2027. Do not apply to postings requiring a different term length.
 - Location-only fields: Toronto, Ontario, Canada. If a form explicitly requires a street address, use the candidate-provided Waterloo address stored in the local answer bank; do not put the street address into city/location-only fields.
