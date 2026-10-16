@@ -36,6 +36,18 @@ def _normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
+def _field_label(info: dict[str, Any]) -> str:
+    """Prefer visible/accessibility labels over ATS-generated field identifiers."""
+    for key in ("label", "ariaLabel", "associatedLabel"):
+        value = str(info.get(key, "")).strip()
+        if value:
+            return value
+    name = str(info.get("name", "")).strip()
+    if re.fullmatch(r"cards\[[^]]+\]\[field\d+\]", name):
+        return ""
+    return name or str(info.get("placeholder", "")).strip()
+
+
 def _supported_url(url: str) -> bool:
     host = urlparse(url).netloc.lower()
     return any(
@@ -80,6 +92,14 @@ def _fill_form(
         info = field.evaluate(
             "el => ({tag: el.tagName.toLowerCase(), type: (el.type || '').toLowerCase(), "
             "label: (el.labels ? Array.from(el.labels).map(x => x.innerText).join(' ') : ''), "
+            "ariaLabel: el.getAttribute('aria-label') || '', "
+            "associatedLabel: (() => { const ids = (el.getAttribute('aria-labelledby') || '')"
+            ".split(/\\s+/).filter(Boolean); const explicit = ids.map(id => "
+            "document.getElementById(id)?.innerText || '').filter(Boolean).join(' '); "
+            "if (explicit) return explicit; const group = el.closest("
+            "'.application-field, .application-question, .form-field, .form-group, .field'); "
+            "const label = group?.querySelector('.application-label, label, legend'); "
+            "return label?.innerText || ''; })(), "
             "required: el.required || el.getAttribute('aria-required') === 'true', "
             "ariaHidden: el.getAttribute('aria-hidden') === 'true', "
             "value: el.value || '', name: el.name || '', placeholder: el.placeholder || ''})"
@@ -89,9 +109,7 @@ def _fill_form(
             continue
         if not field.is_visible() and info["type"] != "file":
             continue
-        label = " ".join(
-            part for part in (info["label"], info["name"], info["placeholder"]) if part
-        )
+        label = _field_label(info)
         if info["type"] == "file":
             if re.search(r"resume|cv upload", label, re.I) and resume_path.is_file():
                 field.set_input_files(str(resume_path))

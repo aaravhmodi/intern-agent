@@ -3,6 +3,7 @@ from pathlib import Path
 
 from internship_agent.applications.browser import (
     _answer_for,
+    _field_label,
     _fill_form,
     _supported_url,
     apply_to_posting,
@@ -101,6 +102,13 @@ def test_answer_mapping_uses_saved_answer_for_live_form_fields(tmp_path: Path) -
     bank = AnswerBank(tmp_path / "answer-bank.json")
     bank.remember("School*", "University of Waterloo")
     assert _answer_for("School*", lead, bank) == "University of Waterloo"
+
+
+def test_field_label_does_not_expose_generated_lever_field_ids() -> None:
+    assert _field_label(
+        {"name": "cards[abc-123][field0]", "associatedLabel": "Which year of studies?"}
+    ) == "Which year of studies?"
+    assert _field_label({"name": "cards[abc-123][field0]"}) == ""
 
 
 def test_fill_form_uses_prepared_answers_and_uploads_resume(tmp_path: Path) -> None:
