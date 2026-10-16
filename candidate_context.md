@@ -1,73 +1,68 @@
-# Aarav Modi — application context
+﻿# Aarav Modi — application context
 
-This file is the factual source of context for tailored internship application materials. Use the resume and the job posting as primary sources. Treat the experience below as candidate-provided facts; do not embellish scope, dates, metrics, or outcomes. If a required personal answer is not stated here or in the resume, leave it for Aarav to complete.
+Use this file, the configured resume, and the public sources linked below to prepare accurate, tailored application materials. These facts are candidate-confirmed unless identified as coming from a public portfolio source. Tailor wording to each role, but never invent personal facts, qualifications, dates, technologies, metrics, employers, or project outcomes. If required information is not in this context, the resume, the public sources, or `data/answer-bank.json`, leave it unanswered and do not submit.
 
-## Profile
+## Candidate and search preferences
 
-- Systems Design Engineering student at the University of Waterloo; expected graduation May 2029.
-- Software engineering intern at Upside Robotics (Summer 2026) and CIBC (Fall 2025); earlier IT project coordinator internship at CIBC (Winter 2025).
-- Seeking a four-month Winter 2027 software engineering internship (January–April).
-- Portfolio: https://aaravmodi.ca
+- Legal/full name: Aarav Modi. Preferred name: Aarav. Pronouns: he/him only when a form requires them.
+- Systems Design Engineering, University of Waterloo; candidate-confirmed expected graduation: April 2029. (The currently published resume says May 2029; use the candidate's direct confirmation of April 2029.)
+- Enrolled in a co-op program.
+- Seeking only a four-month term from January through April 2027. Do not apply to postings requiring a different term length.
+- Location-only fields: Toronto, Ontario, Canada. If a form explicitly requires a street address, use the candidate-provided Waterloo address stored in the local answer bank; do not put the street address into city/location-only fields.
+- Willing to relocate anywhere.
+- No active offers; no referral. Background-check consent: yes. Interview recording/data processing consent: yes.
+- Current employer and role: Enerzen, Founding Software Engineer.
+- Salary expectation: CAD $30/hour or higher when required.
+- Work authorization: candidate confirms Canadian citizenship and authorization to work in Canada without sponsorship. For the United States, candidate confirms currently legally authorized to work and that future employer sponsorship will be required. Do not infer authorization for other countries.
+- Candidate asks that jobs requiring a transcript be skipped for automatic application. GPA, test scores, transcript, and optional demographic questions remain unanswered; do not apply when a transcript is required.
+- Contact from public resume/site: aarav.modi@uwaterloo.ca; 437-553-9632.
+- Portfolio: https://aaravmodi.ca/
+- Experience: https://aaravmodi.ca/experience
+- Projects: https://aaravmodi.ca/projects
+- Resume: https://aaravmodi.ca/ModiAaravResume.pdf
 - GitHub: https://github.com/aaravhmodi
 - LinkedIn: https://www.linkedin.com/in/aaravhmodi
-- Use “Aarav” as the sign-off. Do not guess personal/contact details beyond the resume and the links above.
+- Articles: https://aaravmodi.ca/articles
 
-## Experience highlights
+## Experience
 
-### Upside Robotics — software engineering intern
+### Enerzen — Founding Software Engineer (Aug 2026–present)
 
-- Built a production performance dashboard used by a 35+ person team and executive leadership, with a FastAPI service, PostgreSQL/RDS, Redshift, Redis, and AWS ECS.
-- Worked with operations staff and leadership to understand needs and deliver production software.
-- Built data and ML workflows for agricultural robotics, including reinforcement-learning crop simulations, geospatial field plans, data pipelines, and robot telemetry. Use metrics only when present in the resume or the matching public portfolio detail.
-- The company describes itself as an early-stage startup; when relevant, emphasize the direct, hands-on work in a small robotics team without overstating title or ownership.
+Early-stage startup; four-person founding team. Resume says Aarav owns software architecture and implementation. Built the Enerzen Performance Engine to convert Ontario land data into energy-optimized residential site plans. The pipeline ingests parcel data, validates 20+ site constraints, generates OpenUSD scenes in NVIDIA Omniverse, runs 10,000+ EnergyPlus simulations, and ranks designs by energy performance. Deployed the platform for a Mississauga pilot; planned expansion to Pickering and Dryden. Highlight the early-stage, hands-on, zero-to-one environment when relevant.
 
-### CIBC
+### Upside Robotics — Software Engineering Intern (Jan–Aug 2026 per resume)
 
-- Software engineering intern (Fall 2025): built internal reporting and analytics tools with Python, Django, React, PostgreSQL, Dagster, Redis, and CI tooling.
-- IT project coordinator intern (Winter 2025): supported a large Azure migration and automated portfolio reporting.
-- Use the CIBC experience selectively for enterprise systems, data engineering, analytics, and stakeholder collaboration roles.
+An early-stage robotics company. Built a production performance dashboard used by 35+ staff and executive leadership. Portfolio details include a FastAPI service with 48 endpoints across 12 modules; PostgreSQL/RDS read and write pools; Redshift warehouse queries; Redis TTL caching; and AWS ECS. Built data pipelines and machine-learning workflows for agricultural robotics, including crop simulations, geospatial field plans, and robot telemetry. The public experience page reports 40% simulated corn-yield improvement over an agronomist baseline at flat nitrogen across 800+ seasons, and a 60% reduction in analysis time from SHAP-based feature analysis. Integrated trained policies into prescription pipelines, with field plans used across 40 fields. Built ETL that loaded 200,000+ warehouse rows daily; S3 staging and Redshift COPY cut load times 80%. Migrated telemetry from polling to WebSockets and Zenoh pub/sub, reducing production message latency 50%. Use only details relevant to the role and keep the simulation result clearly identified as simulated.
 
-### Enerzen — early-stage startup
+### CIBC — Software Engineering Intern (Aug–Dec 2025 per resume)
 
-- Aarav says he was a founding software engineer at Enerzen, a four-person team, and owned architecture and helped deploy a pilot in Mississauga.
-- Emphasize early-stage, zero-to-one work when it matches the role. The public portfolio does not provide further details; do not invent the product, dates, technologies, or pilot outcomes.
+Built a React/Django dashboard covering 25+ projects, batching Jira API access to reduce calls 67% and page loads from 8 seconds to under 1 second. Engineered Dagster ETL pipelines over 100GB+ of data, saving 2+ days monthly. Built Python/GraphQL GitHub activity analytics for 40+ offshore engineers. Implemented Jenkins/Docker CI pipelines and PostgreSQL read replicas. Integrated scikit-learn anomaly detection through FastAPI.
 
-## Agents and automation projects
+### CIBC — IT Project Coordinator Intern (Winter 2025)
 
-- Built a personal Study Agent. Aarav identifies this as his project; confirm implementation details from the resume or project source before naming technologies, users, or outcomes.
-- Building this Winter 2027 Internship Agent: a local-first Python application that finds postings, scores fit against the resume, prepares application answers, and provides a FastAPI dashboard and ntfy notifications. It uses Pydantic validation, structured AI outputs, and read-only public job-board discovery. Describe it as a personal project; do not claim it submits applications or has external users.
-- These projects are useful evidence for AI tooling, workflow automation, product thinking, and end-to-end engineering roles.
+Coordinated planning and reporting for a large Azure migration. Portfolio reports supporting a Cloud@Scale migration of 400+ applications; automated reporting with Excel VBA/Power Query, cutting manual reporting 30%; managed $3.5M initiatives across six delivery teams; built Power BI reporting that reduced status turnaround from three days to same day. The resume describes selection for CIBC Spark as 1 of 30 company-wide from 800+ interns.
 
-## Homelab
+## Projects and public work
 
-- Aarav says he has built and operates a homelab. The available context confirms self-hosted services, including n8n workflows, but does not establish full hardware, scale, uptime, or networking details.
-- Mention the homelab as hands-on infrastructure and self-hosting experience when relevant. Do not invent hardware, scale, service count, or reliability claims.
+Use the project's public page or repository to verify details before adding claims. Select the closest projects instead of listing everything.
 
-## Public portfolio projects
+- **Lockerlink (founder):** social platform for Ontario Volleyball Association athletes and coaches. 100+ users across 15+ clubs; backend models for 1,000+ profile attributes and 300+ athlete-coach connections. Next.js, React, TypeScript, Firebase/Firestore, PWA, and computer-vision work using OpenCV, SAM3, and pose estimation. https://aaravmodi.ca/projects
+- **GitGrade:** analyzes GitHub engineering signals rather than commit volume. Public project page reports 2,234 labeled commits, 47 features, a random-forest classifier, Next.js dashboard, FastAPI, and GitHub App integrations.
+- **CRai (HackMIT 2025):** infant-cry audio ML prototype. Public page reports 92% accuracy on labeled datasets and a FastAPI inference API on Modal. Describe as a prototype/research project, not a clinical diagnostic product.
+- **NASA Design Challenge:** grand-prize-winning team among 4,000+ teams; space agriculture/health concept, Python ecosystem simulations, and 3D orbital colony model.
+- **A New Dawn:** Python/FastAPI terminal RPG with Supabase persistence, Docker, AWS EC2, and generative narration.
+- **Wrapped Spotify:** React Native/Expo app for listening-session insights using Spotify API; OAuth callback handled server-side.
+- **OSINT Canada:** open-source intelligence pipelines and counterfeit currency analysis dashboard. Currency model used synthetic data.
+- More public work is linked from https://aaravmodi.ca/projects and GitHub, including BiasBuster, UrbanQuiet, NameSlot, EchoSphere, and AI Paper-to-Code. Check the actual repository before describing specifics.
+- **Study Agent:** personal project built by Aarav. Confirm implementation details from its repository before naming technologies, users, or outcomes.
+- **Winter 2027 Internship Agent:** personal local-first Python project that discovers postings, scores fit, prepares applications, and provides a FastAPI dashboard and ntfy notifications. Describe only capabilities present in the current code; do not claim deployments, users, or outcomes without evidence.
+- **Homelab:** Aarav built and operates a homelab. Mention as practical self-hosting/infrastructure experience; do not invent its hardware, scale, uptime, or services.
 
-Select only projects that fit the posting; do not list everything in every answer.
+## Writing and answering rules
 
-- **Lockerlink (founder):** social platform for Ontario Volleyball Association athletes and coaches; 100+ users across 15+ clubs. Built with Next.js, React, TypeScript, Firebase, and related web technologies. Portfolio: https://aaravmodi.ca/projects
-- **GitGrade:** GitHub engineering-signal scoring app with a Next.js dashboard and FastAPI analyzer. Trained on labeled commit examples; portfolio reports a 2,234-commit dataset and 47 engineered features. Avoid implying broad adoption unless independently supported.
-- **CRai (HackMIT 2025):** infant-cry audio ML project; portfolio reports 92% accuracy on labeled datasets and an inference API deployed on Modal. Present as a prototype/research project, not a clinical diagnostic product.
-- **NASA Design Challenge:** grand-prize-winning team among 4,000+ teams for a space agriculture and health concept; included Python ecosystem simulations and a 3D orbital-colony model.
-- **A New Dawn:** Python/FastAPI terminal RPG with Supabase persistence, Docker packaging, and AWS EC2 deployment.
-- **Wrapped Spotify:** React Native/Expo app for listening-session analytics, using Spotify API and a server-side OAuth callback.
-- **OSINT Canada:** open-source intelligence pipelines and counterfeit-currency analysis dashboard. Be clear that the currency model used synthetic data, as noted in the portfolio.
-- Other portfolio work includes BiasBuster, UrbanQuiet, NameSlot, EchoSphere, and AI Paper-to-Code. Refer to the portfolio for exact details before making specific claims.
-
-## How to tailor application materials
-
-- Lead with the closest relevant example and its concrete outcome; then connect it to the posting's actual requirements.
-- For early-stage startups, foreground Enerzen, Lockerlink, or another directly relevant project to show comfort with ambiguity and shipping. Use the Upside Robotics early-stage context accurately.
-- For backend/data roles, consider the production dashboard, data pipelines, GitGrade, or CIBC analytics work.
-- For AI/ML roles, use the agricultural robotics ML work, CRai, or another directly relevant project, distinguishing production work from prototypes.
-- Keep answers in first person, specific, and natural. No generic claims, fabricated enthusiasm, unsupported metrics, or copied job-description phrases.
-- Never guess work authorization, demographic information, salary, availability beyond the stated Winter 2027 term, or other personal facts. Mark these for Aarav to answer.
-
-## Sources and confidence
-
-- Public portfolio: https://aaravmodi.ca/ (home, experience, and projects pages).
-- Public GitHub profile and pinned repositories: https://github.com/aaravhmodi
-- Resume configured for this project: `../website/public/ModiAaravResume.pdf` (when available).
-- Study Agent, homelab, and Enerzen notes above are candidate-provided context. Confirm more detail from Aarav's resume or project materials before adding claims.
+- For narrative questions, use the resume, this file, the posting, and relevant public website/GitHub details. You may synthesize concise first-person answers from verified facts and make the framing sound natural; do not fabricate supporting facts or outcomes.
+- For personal questions, use only the explicit values above or the local answer bank. Never infer or fabricate contact details, legal status, compensation, demographic information, consent, or availability.
+- Leave unanswered optional questions blank. Never guess an answer just to complete a form.
+- Skip automatic application if a transcript is required. Skip Workday applications. Never bypass CAPTCHA, access controls, or required unanswered fields.
+- Do not mention visa, J-1, sponsorship, or work authorization in prospective-lead emails or outreach drafts.
+- Sign off as “Aarav” when a sign-off is needed.

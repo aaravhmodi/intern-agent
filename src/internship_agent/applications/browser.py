@@ -164,6 +164,22 @@ def apply_to_posting(
                     page.wait_for_load_state("domcontentloaded", timeout=20000)
                     page.wait_for_timeout(800)
 
+            required_transcript = any(
+                answer.question.required and "transcript" in answer.question.label.lower()
+                for answer in lead.application.answers
+            )
+            if not required_transcript:
+                required_transcript = page.locator("input[type=file][required]").evaluate_all(
+                    "els => els.some(el => { const label = el.labels ? "
+                    "Array.from(el.labels).map(x => x.innerText).join(' ') : ''; "
+                    "return /transcript/i.test(label + ' ' + (el.name || '') + ' ' + "
+                    "(el.getAttribute('aria-label') || '')); })"
+                )
+            if required_transcript:
+                return SubmissionResult(
+                    "skipped", "Automatic application skipped because a transcript is required"
+                )
+
             reason = _fill_form(page, lead, resume_path)
             if reason:
                 return SubmissionResult("blocked", reason)

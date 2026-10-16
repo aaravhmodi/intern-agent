@@ -443,6 +443,18 @@ def submit_application(
         )
         store.upsert(lead)
         return lead
+    transcript_questions = [
+        answer.question.label
+        for answer in lead.application.answers
+        if answer.question.required and "transcript" in answer.question.label.lower()
+    ]
+    if transcript_questions:
+        lead.application.submission_status = "skipped"
+        lead.application.submission_detail = (
+            "Automatic application skipped because a transcript is required"
+        )
+        store.upsert(lead)
+        return lead
     unanswered = [
         answer.question.label
         for answer in lead.application.answers
