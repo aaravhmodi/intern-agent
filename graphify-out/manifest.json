@@ -460,5 +460,11 @@
     "seen": 1792125962.0471482,
     "ast_hash": "67e6ae8e8e5dbafb422e6c81b40a8c96",
     "semantic_hash": ""
+  },
+  "tests/test_daily_campaign.py": {
+    "mtime": 1792126031.8345165,
+    "seen": 1792126130.1868863,
+    "ast_hash": "500f0c8db07e3fc8c53f64db295d5a77",
+    "semantic_hash": ""
   }
 }
