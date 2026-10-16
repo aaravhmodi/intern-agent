@@ -1,0 +1,11 @@
+[Unit]
+Description=Scrape internship postings daily at 7:30 AM Toronto
+
+[Timer]
+OnCalendar=*-*-* 07:30:00 America/Toronto
+AccuracySec=1min
+Persistent=true
+Unit=internship-job-scrape.service
+
+[Install]
+WantedBy=timers.target

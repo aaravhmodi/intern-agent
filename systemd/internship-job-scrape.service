@@ -1,0 +1,7 @@
+[Unit]
+Description=Scrape all matching internship postings before applications
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-daily-job-scrape.sh
