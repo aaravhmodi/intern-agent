@@ -455,10 +455,16 @@
     "ast_hash": "8d87bb40abc1783b0d10516e1adb6f31",
     "semantic_hash": ""
   },
-  "scripts/run-application-campaign-2026-10-17.sh": {
-    "mtime": 1792125928.6504385,
-    "seen": 1792125962.0471482,
-    "ast_hash": "67e6ae8e8e5dbafb422e6c81b40a8c96",
+  "tests/test_daily_campaign.py": {
+    "mtime": 1792126031.8345165,
+    "seen": 1792126130.1868863,
+    "ast_hash": "500f0c8db07e3fc8c53f64db295d5a77",
+    "semantic_hash": ""
+  },
+  "scripts/run-application-campaign-2026-10-16.sh": {
+    "mtime": 1792126333.2799976,
+    "seen": 1792126367.054777,
+    "ast_hash": "65c5c9c527b630a567a3962eb43c5eb0",
     "semantic_hash": ""
   }
 }
