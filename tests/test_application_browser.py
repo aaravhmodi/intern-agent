@@ -9,6 +9,7 @@ from internship_agent.applications.browser import (
     _online_checks,
     _posting_is_closed,
     _supported_url,
+    _visible_captcha,
     apply_to_posting,
 )
 from internship_agent.leads.answers import AnswerBank
@@ -111,6 +112,30 @@ def test_three_live_checks_before_submit() -> None:
     assert "approved HTTPS" in (_online_checks(LivePage("https://evil.example"), lead, text) or "")
     assert "job title" in (_online_checks(live, lead, "Unrelated opportunity") or "")
     assert "payment" in (_online_checks(LivePage(live.url, 1), lead, text) or "")
+
+
+def test_hidden_recaptcha_support_nodes_do_not_block() -> None:
+    class CaptchaElement:
+        def __init__(self, visible: bool, css_class: str = "") -> None:
+            self.visible = visible
+            self.css_class = css_class
+
+        def is_visible(self) -> bool:
+            return self.visible
+
+        def get_attribute(self, name: str) -> str | None:
+            return self.css_class if name == "class" else None
+
+    class CaptchaPage:
+        def __init__(self, elements: list[CaptchaElement]) -> None:
+            self.elements = elements
+
+        def locator(self, _selector: str) -> FakeLocator:
+            return FakeLocator(self.elements)
+
+    support = CaptchaPage([CaptchaElement(False), CaptchaElement(True, "grecaptcha-badge")])
+    assert not _visible_captcha(support)
+    assert _visible_captcha(CaptchaPage([CaptchaElement(True, "challenge")]))
 
 
 def test_answer_mapping_requires_unambiguous_question_match() -> None:

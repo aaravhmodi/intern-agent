@@ -17,6 +17,16 @@ _CAPTCHA_SELECTOR = (
     "iframe[src*='captcha' i], [class*='captcha' i], [id*='captcha' i], "
     "[name*='captcha' i], [class*='turnstile' i], [id*='turnstile' i]"
 )
+
+
+def _visible_captcha(page: Any) -> bool:
+    """Ignore hidden reCAPTCHA support nodes; stop for an actual visible challenge."""
+    matches = page.locator(_CAPTCHA_SELECTOR)
+    for index in range(matches.count()):
+        item = matches.nth(index)
+        if item.is_visible() and "badge" not in (item.get_attribute("class") or "").lower():
+            return True
+    return False
 _SUCCESS_TEXT = re.compile(
     r"thank you for (applying|your application)|application (was |has been )?received|"
     r"we('ve| have) received your application|successfully submitted",
@@ -284,7 +294,7 @@ def apply_to_posting(
                 return SubmissionResult("skipped", "Posting is closed or no longer available")
             if reason := _online_checks(page, lead, body_text):
                 return SubmissionResult("blocked", reason)
-            if page.locator(_CAPTCHA_SELECTOR).count():
+            if _visible_captcha(page):
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
 
             if page.locator(_FIELD_SELECTOR).count() == 0:
@@ -336,7 +346,7 @@ def apply_to_posting(
                 return SubmissionResult("blocked", reason)
             if dry_run:
                 return SubmissionResult("ready", "Form filled; dry run did not submit")
-            if page.locator(_CAPTCHA_SELECTOR).count():
+            if _visible_captcha(page):
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
 
             submit = page.get_by_role("button", name=_SUBMIT_BUTTON)
@@ -346,7 +356,7 @@ def apply_to_posting(
                 return SubmissionResult("blocked", "Could not identify the final submit button")
             submit.last.click()
             page.wait_for_timeout(1800)
-            if page.locator(_CAPTCHA_SELECTOR).count():
+            if _visible_captcha(page):
                 return SubmissionResult(
                     "uncertain", "CAPTCHA appeared after submit; verify manually"
                 )
