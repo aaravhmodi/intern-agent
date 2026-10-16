@@ -366,9 +366,9 @@
     "semantic_hash": "a70c44576220c357b661a90f50864e34"
   },
   "AGENTS.md": {
-    "mtime": 1792124927.7978547,
-    "seen": 1792124965.705937,
-    "ast_hash": "f1d0ea0f94d3fc23a2ac9d8d026fc356",
+    "mtime": 1792125370.7658098,
+    "seen": 1792125386.0195484,
+    "ast_hash": "16fe9b7ae8bf99ad095c51bd9b42916b",
     "semantic_hash": ""
   },
   "README.md": {
@@ -438,21 +438,21 @@
     "semantic_hash": ""
   },
   "candidate_context.md": {
-    "mtime": 1792124929.8877692,
-    "seen": 1792124965.705937,
-    "ast_hash": "23cf9d5e8eee9044d2cdfe1f0e9a01c5",
+    "mtime": 1792125372.733494,
+    "seen": 1792125386.0195484,
+    "ast_hash": "8656c105e52e251ad2a1bac5f7cb4348",
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792125191.5613885,
-    "seen": 1792125205.1462286,
-    "ast_hash": "203693c62bbc687d9f881d66f249750c",
+    "mtime": 1792125298.8381746,
+    "seen": 1792125386.0195484,
+    "ast_hash": "7eefc3972123fe540b3103f657664509",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792125101.3784554,
-    "seen": 1792125115.154763,
-    "ast_hash": "c4636bcfa2098d20a23008b1fbb952b6",
+    "mtime": 1792125301.2721667,
+    "seen": 1792125386.0195484,
+    "ast_hash": "9dc8a4fdc1b0aebc64f61add21af15ab",
     "semantic_hash": ""
   }
 }

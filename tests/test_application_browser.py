@@ -6,6 +6,7 @@ from internship_agent.applications.browser import (
     _field_label,
     _fill_form,
     _numeric_answer,
+    _posting_is_closed,
     _supported_url,
     apply_to_posting,
 )
@@ -116,6 +117,11 @@ def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
     assert _numeric_answer("CAD 30 per hour or higher", "Desired Salary") == "30"
     assert _numeric_answer("Third year", "Year of study") == "3"
     assert _numeric_answer("around thirty", "Desired Salary") is None
+
+
+def test_closed_posting_text_is_detected() -> None:
+    assert _posting_is_closed("There are no current openings.")
+    assert not _posting_is_closed("Apply for this Job")
 
 
 def test_fill_form_uses_prepared_answers_and_uploads_resume(tmp_path: Path) -> None:

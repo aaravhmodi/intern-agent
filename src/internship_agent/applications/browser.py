@@ -22,6 +22,11 @@ _SUCCESS_TEXT = re.compile(
     r"we('ve| have) received your application|successfully submitted",
     re.I,
 )
+_CLOSED_TEXT = re.compile(
+    r"there are no current openings|job (?:is )?no longer available|"
+    r"position (?:has been|is) filled|no longer accepting applications|posting is closed",
+    re.I,
+)
 _APPLY_BUTTON = re.compile(r"^(apply( now)?|apply for this (job|role)|start application)$", re.I)
 _SUBMIT_BUTTON = re.compile(r"^(submit( application)?|send application|apply( now)?)$", re.I)
 
@@ -59,6 +64,10 @@ def _numeric_answer(answer: str, label: str) -> str | None:
             values = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
             return str(values[ordinal.group(1).lower()])
     return None
+
+
+def _posting_is_closed(text: str) -> bool:
+    return bool(_CLOSED_TEXT.search(text))
 
 
 def _supported_url(url: str) -> bool:
@@ -248,6 +257,9 @@ def apply_to_posting(
             page = context.pages[0] if context.pages else context.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(1200)
+            body_text = page.locator("body").inner_text(timeout=5000)
+            if _posting_is_closed(body_text):
+                return SubmissionResult("skipped", "Posting is closed or no longer available")
             if page.locator(_CAPTCHA_SELECTOR).count():
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
 
