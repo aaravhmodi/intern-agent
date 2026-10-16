@@ -47,7 +47,7 @@ Sending takes a second confirming click, and a guessed address has to be checked
 
 **Application answers, prepared**
 
-Written from the resume for a posting's real form. Nothing is submitted for you.
+Written from the resume for a posting's real form. Eligible, complete forms can be submitted by the saved browser session.
 
 <img src="docs/images/application.png" alt="Prepared answers to a posting's application questions, one marked as needing the applicant">
 
@@ -70,8 +70,8 @@ Written from the resume for a posting's real form. Nothing is submitted for you.
   facts and clearly marked candidate-provided notes
 - Outlook Email and Outlook Calendar: optional, read-only inputs when connected
 - LinkedIn: public-page discovery only until a supported connector is available
-- Application submission: manual review required; this agent prepares tailored answers and
-  cover letters but never submits forms
+- Application submission: browser driven for Greenhouse, Ashby, and Lever postings; Workday,
+  CAPTCHA pages, unsupported sites, and forms with unanswered required fields are skipped
 
 ## Outlook integration (MCP)
 
@@ -131,9 +131,13 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   campus recruiters and the team's manager and engineers at a big company. Each needs a source
   page that names them and the company; a LinkedIn source cannot be read by a script, so check
   the profile before you send. New startups get this automatically when they are found.
-- **Open application** opens the posting. The daily prep run prepares tailored answers and
-  cover letters for every open posting it finds or has stored, excluding Workday-hosted forms.
-  It sends a count summary to the configured ntfy topic; you review and submit applications.
+- **Applications**: run `uv run playwright install chromium`, then
+  `uv run internship-agent leads browser-login` once to sign in to the job sites you use.
+  The daily run prepares tailored answers and attempts browser submission for complete
+  Greenhouse, Ashby, and Lever forms. Workday, CAPTCHA pages, unsupported sites, and forms
+  with missing required answers are left for you; the ntfy summary reports submitted and
+  blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
+  a form without submitting it.
   The `Internship tracker: daily job prep` n8n workflow runs `POST /api/daily/run` at 8:00 AM
   Toronto time.
 

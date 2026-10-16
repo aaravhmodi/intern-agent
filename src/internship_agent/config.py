@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     ntfy_topic: str | None = None
     dashboard_url: str | None = None
 
+    # Browser-driven applications. Sign in once with `internship-agent leads browser-login`.
+    auto_submit_applications: bool = True
+    application_browser_dir: Path = Path("data/application-browser")
+
     # Extra hostnames the dashboard answers to, e.g. a Tailscale IP when run on another machine.
     dashboard_allowed_hosts: list[str] = []
 

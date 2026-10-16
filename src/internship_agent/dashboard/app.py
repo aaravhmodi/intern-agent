@@ -20,6 +20,8 @@ from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.workflows import (
     daily as run_daily,
+)
+from internship_agent.workflows import (
     find_more_postings,
     find_people,
     find_startups,
@@ -31,6 +33,7 @@ from internship_agent.workflows import (
     resume_text,
     save_answers,
     send_email,
+    submit_application,
 )
 
 app = FastAPI(title="Internship Agent", version="0.2.0")
@@ -87,6 +90,11 @@ class AnswerEdit(BaseModel):
 class SaveAnswersRequest(BaseModel):
     key: str
     answers: list[AnswerEdit]
+
+
+class SubmitApplicationRequest(BaseModel):
+    key: str
+    dry_run: bool = False
 
 
 class PreferenceDelete(BaseModel):
@@ -316,6 +324,17 @@ def save(request: SaveAnswersRequest) -> dict[str, Any]:
     edits = {e.index: e.answer[:5000] for e in request.answers}
     try:
         lead = save_answers(get_settings(), request.key, edits)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
+
+
+@app.post("/api/application/submit")
+def submit(request: SubmitApplicationRequest) -> dict[str, Any]:
+    """Fill and submit one prepared, eligible application in the saved browser session."""
+    _get(request.key)
+    try:
+        lead = submit_application(get_settings(), request.key, dry_run=request.dry_run)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}

@@ -103,7 +103,8 @@ ANGLE BY AUDIENCE (use the lead's segment and posting_title):
 - big companies: name the posting, then the core story and one proof point mapped to the team.
 
 RULES: Never mention visa, J-1, sponsorship, or work authorization in outreach.
-Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or banking role.
+Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or
+banking role.
 Sole ownership and stakeholder requirements work apply only to the Upside dashboard. Do not
 claim external customer interviews or anything not stated here or in the resume.
 End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
@@ -136,7 +137,8 @@ ANSWER_INSTRUCTIONS = (
     """\
 You prepare answers to a job application's questions for a University of Waterloo student
 applying to a Winter 2027 (January-April, 4-month) software-engineering internship. Use only
-facts from the resume, candidate context, and focus notes; map them to the requirements in the posting text.
+facts from the resume, candidate context, and focus notes; map them to the requirements in the
+posting text.
 For each question index, return:
 - answer: for long-text questions, 80-180 words, first person, concrete, leading with the
   impact story from the focus notes and tying it to this role's requirements; for short text,

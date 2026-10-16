@@ -66,6 +66,11 @@ def posting_push(lead: Lead) -> Push:
         left = [a.question.label for a in lead.application.answers if a.needs_user_input]
         if left:
             lines.append(f"\nYou fill in ({len(left)}): " + _clip("; ".join(left), 300))
+        if lead.application.submission_status != "pending":
+            lines.append(
+                f"\nApplication: {lead.application.submission_status} — "
+                f"{_clip(lead.application.submission_detail, 250)}"
+            )
     return Push(
         title=_clip(title, 120),
         message=_fit_bytes("\n".join(lines), MESSAGE_BYTES),
@@ -75,13 +80,19 @@ def posting_push(lead: Lead) -> Push:
     )
 
 
-def summary_push(new: list[Lead], prepared: list[Lead], dashboard_url: str | None) -> Push:
+def summary_push(
+    new: list[Lead],
+    prepared: list[Lead],
+    dashboard_url: str | None,
+    submitted: int = 0,
+    blocked: int = 0,
+) -> Push:
     ranked = sorted(prepared, key=lambda lead: -(lead.fit.score if lead.fit else 0))
     top = ", ".join(f"{lead.company} {lead.fit.score}" for lead in ranked[:3] if lead.fit)
     letters = sum(bool(lead.application and lead.application.cover_letter) for lead in prepared)
     message = (
         f"{len(new)} new posting(s); application materials ready for {len(prepared)} "
-        f"({letters} cover letters). Submitted: 0; applications require your manual review."
+        f"({letters} cover letters). Submitted: {submitted}; blocked/failed: {blocked}."
     )
     if top:
         message += f"\nTop: {top}"

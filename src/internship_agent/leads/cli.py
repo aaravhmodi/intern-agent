@@ -24,6 +24,7 @@ from internship_agent.workflows import (
     find_startups,
     prepare_application,
     score,
+    submit_application,
 )
 
 leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
@@ -203,7 +204,7 @@ def find_more(
 
 @leads_app.command("daily")
 def daily_cmd() -> None:
-    """Daily run: new postings, scores, prepared answers, and a phone push. Never submits."""
+    """Daily run: find postings, prepare materials, submit eligible applications, and report."""
     report = daily(get_settings(), log=console.print)
     for lead in report.prepared:
         fit = lead.fit.score if lead.fit else "-"
@@ -211,6 +212,7 @@ def daily_cmd() -> None:
     console.print(
         f"{len(report.new)} new, {len(report.skipped)} skipped by your rules, "
         f"{len(report.prepared)} prepared, {report.submitted} submitted, "
+        f"{report.application_blocked} blocked, "
         f"{report.pushed} push(es) sent."
     )
 
@@ -254,7 +256,7 @@ def followups_cmd(
 
 @leads_app.command("prepare")
 def prepare_cmd(key: str) -> None:
-    """Prepare answers to a posting's application questions. Nothing is submitted."""
+    """Prepare answers to a posting's application questions."""
     lead = prepare_application(get_settings(), key)
     assert lead.application is not None
     console.print(f"[bold]{lead.company}[/bold] ({lead.application.source} questions)")
@@ -280,6 +282,26 @@ def prepare_all_cmd() -> None:
         missing = sum(1 for a in lead.application.answers if a.needs_user_input)
         console.print(f"{key}: {len(lead.application.answers)} questions, {missing} need you")
     console.print(f"Prepared {len(todo)} application(s).")
+
+
+@leads_app.command("browser-login")
+def browser_login() -> None:
+    """Open the saved browser once so you can sign in to supported job sites."""
+    from internship_agent.applications.browser import open_login_browser
+
+    settings = get_settings()
+    open_login_browser(settings.application_browser_dir)
+
+
+@leads_app.command("apply")
+def apply_cmd(
+    key: str,
+    dry_run: Annotated[bool, typer.Option(help="Fill the form without submitting it.")] = False,
+) -> None:
+    """Submit one prepared, non-Workday application (or preview with --dry-run)."""
+    lead = submit_application(get_settings(), key, dry_run=dry_run)
+    assert lead.application is not None
+    console.print(f"{lead.application.submission_status}: {lead.application.submission_detail}")
 
 
 @leads_app.command("mark")

@@ -158,6 +158,9 @@ class ApplicationPrep(BaseModel):
     source: str
     cover_letter: str = ""
     answers: list[PreparedAnswer]
+    submission_status: str = "pending"
+    submission_detail: str = ""
+    submitted_at: datetime | None = None
 
 
 class Person(BaseModel):

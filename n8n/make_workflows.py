@@ -314,9 +314,9 @@ def internship_followups() -> dict[str, Any]:
 
 
 def internship_daily_prep() -> dict[str, Any]:
-    """Run read-only job discovery and draft materials each morning."""
+    """Discover jobs, prepare materials, and submit eligible applications each morning."""
     trigger = "Every morning at 8"
-    run = "Find jobs and prepare materials"
+    run = "Find jobs, prepare materials, and submit eligible applications"
     nodes: list[Node] = [
         {
             "id": _id(trigger),
@@ -343,7 +343,7 @@ def internship_daily_prep() -> dict[str, Any]:
     ]
     return {
         "id": _id("internship daily preparation").replace("-", "")[:16],
-        "name": "Internship tracker: daily job prep",
+        "name": "Internship tracker: daily applications",
         "active": True,
         "nodes": nodes,
         "connections": {
@@ -351,9 +351,11 @@ def internship_daily_prep() -> dict[str, Any]:
         },
         "pinData": {},
         "meta": {
-            "notes": "Every morning at 8 AM America/Toronto, finds postings and prepares "
-            "tailored answers and cover letters for open, non-Workday jobs. The tracker pushes "
-            "counts to the configured ntfy topic. This workflow never submits applications."
+            "notes": "Every morning at 8 AM America/Toronto, finds postings, "
+            "prepares tailored answers "
+            "and cover letters, and submits complete non-Workday Greenhouse, Ashby, and Lever "
+            "applications through the saved browser profile. CAPTCHA, unsupported, and "
+            "incomplete forms are reported as blocked for manual completion. Pushes counts to ntfy."
         },
         "settings": {
             "executionOrder": "v1",

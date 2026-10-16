@@ -333,9 +333,10 @@ def answer_bank(settings: Settings) -> AnswerBank:
 
 
 def prepare_application(settings: Settings, key: str) -> Lead:
-    """Read the posting's application questions and prepare answers. Never submits anything."""
+    """Prepare application materials without changing a prior submission outcome."""
     store = lead_store(settings)
     lead = store.get(key)
+    prior_application = lead.application
     if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
         lead.posting_text = fetch_posting_text(lead.posting_url)
     questions = fetch_questions(lead.posting_url) if lead.posting_url else []
@@ -387,6 +388,15 @@ def prepare_application(settings: Settings, key: str) -> Lead:
         source=source,
         cover_letter=cover_letter,
         answers=prepared,
+        submission_status=(
+            prior_application.submission_status
+            if prior_application
+            and prior_application.submission_status
+            in {"blocked", "failed", "uncertain", "skipped", "submitted"}
+            else "pending"
+        ),
+        submission_detail=prior_application.submission_detail if prior_application else "",
+        submitted_at=prior_application.submitted_at if prior_application else None,
     )
     store.upsert(lead)
     return lead
@@ -410,6 +420,54 @@ def save_answers(settings: Settings, key: str, edits: dict[int, str]) -> Lead:
             if was_personal and reusable:
                 bank.remember(item.question.label, item.answer)
             item.needs_user_input = False
+    lead.application.submission_status = "pending"
+    lead.application.submission_detail = ""
+    store.upsert(lead)
+    return lead
+
+
+def submit_application(
+    settings: Settings, key: str, *, dry_run: bool = False, headless: bool = True
+) -> Lead:
+    """Submit one prepared application through a persistent, user-authenticated browser."""
+    from internship_agent.applications.browser import apply_to_posting
+
+    store = lead_store(settings)
+    lead = store.get(key)
+    if lead.application is None:
+        raise ValueError("Prepare application answers first")
+    if lead.application.submission_status == "uncertain":
+        lead.application.submission_detail = (
+            "A prior submit attempt may have reached the employer; verify on the application "
+            "site before trying again."
+        )
+        store.upsert(lead)
+        return lead
+    unanswered = [
+        answer.question.label
+        for answer in lead.application.answers
+        if answer.question.required and not answer.answer.strip()
+    ]
+    if unanswered:
+        lead.application.submission_status = "blocked"
+        lead.application.submission_detail = (
+            f"Required answers need your input: {', '.join(unanswered[:5])}"
+        )
+        store.upsert(lead)
+        return lead
+
+    result = apply_to_posting(
+        lead,
+        settings.resume_path,
+        settings.application_browser_dir,
+        dry_run=dry_run,
+        headless=headless,
+    )
+    lead.application.submission_status = result.status
+    lead.application.submission_detail = result.detail
+    if result.status == "submitted":
+        lead.application.submitted_at = datetime.now(UTC)
+        lead.status = LeadStatus.APPLIED
     store.upsert(lead)
     return lead
 
@@ -421,13 +479,11 @@ class DailyReport:
     prepared: list[Lead]
     pushed: int
     submitted: int = 0
+    application_blocked: int = 0
 
 
 def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> DailyReport:
-    """Find postings, prepare open non-Workday applications, and report by ntfy.
-
-    Submission remains a manual action; this workflow only drafts application materials.
-    """
+    """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
     store = lead_store(settings)
     leads = store.load()
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
@@ -464,9 +520,35 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
         except Exception as error:
             log(f"{lead.key}: could not prepare answers: {error}")
 
+    submitted = 0
+    application_blocked = 0
+    if settings.auto_submit_applications:
+        for index, lead in enumerate(prepared):
+            if lead.application and lead.application.submission_status != "pending":
+                application_blocked += 1
+                continue
+            try:
+                lead = submit_application(settings, lead.key)
+                prepared[index] = lead
+            except Exception as error:
+                log(f"{lead.key}: application submission failed ({type(error).__name__})")
+                application_blocked += 1
+                continue
+            if lead.application and lead.application.submission_status == "submitted":
+                submitted += 1
+            elif (
+                lead.application
+                and lead.application.submission_status != "ready"
+            ):
+                application_blocked += 1
+
     pushed = 0
     if settings.ntfy_topic:
-        pushes = [notify.summary_push(new, prepared, settings.dashboard_url)]
+        pushes = [
+            notify.summary_push(
+                new, prepared, settings.dashboard_url, submitted, application_blocked
+            )
+        ]
         pushes += [notify.posting_push(lead) for lead in prepared]
         for push in pushes:
             try:
@@ -474,4 +556,11 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
                 pushed += 1
             except Exception as error:
                 log(f"push failed: {error}")
-    return DailyReport(new=new, skipped=skipped, prepared=prepared, pushed=pushed, submitted=0)
+    return DailyReport(
+        new=new,
+        skipped=skipped,
+        prepared=prepared,
+        pushed=pushed,
+        submitted=submitted,
+        application_blocked=application_blocked,
+    )

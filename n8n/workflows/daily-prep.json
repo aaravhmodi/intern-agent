@@ -1,6 +1,6 @@
 {
   "id": "7c4d8e74077c5df9",
-  "name": "Internship tracker: daily job prep",
+  "name": "Internship tracker: daily applications",
   "active": true,
   "nodes": [
     {
@@ -24,8 +24,8 @@
       }
     },
     {
-      "id": "6372fabb-31cc-5f53-a804-153f4f69af02",
-      "name": "Find jobs and prepare materials",
+      "id": "c84fe1a0-61df-52d9-97cb-df6d751167f6",
+      "name": "Find jobs, prepare materials, and submit eligible applications",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -46,7 +46,7 @@
       "main": [
         [
           {
-            "node": "Find jobs and prepare materials",
+            "node": "Find jobs, prepare materials, and submit eligible applications",
             "type": "main",
             "index": 0
           }
@@ -56,7 +56,7 @@
   },
   "pinData": {},
   "meta": {
-    "notes": "Every morning at 8 AM America/Toronto, finds postings and prepares tailored answers and cover letters for open, non-Workday jobs. The tracker pushes counts to the configured ntfy topic. This workflow never submits applications."
+    "notes": "Every morning at 8 AM America/Toronto, finds postings, prepares tailored answers and cover letters, and submits complete non-Workday Greenhouse, Ashby, and Lever applications through the saved browser profile. CAPTCHA, unsupported, and incomplete forms are reported as blocked for manual completion. Pushes counts to ntfy."
   },
   "settings": {
     "executionOrder": "v1",
