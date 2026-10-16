@@ -499,15 +499,8 @@ class DailyReport:
     attempted: int = 0
 
 
-def daily(
-    settings: Settings,
-    log: Callable[[str], None] = lambda _: None,
-    *,
-    target_submissions: int | None = None,
-) -> DailyReport:
-    """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
-    if target_submissions is not None and target_submissions < 1:
-        raise ValueError("target_submissions must be positive")
+def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None) -> list[Lead]:
+    """Save every matching posting from the configured startup boards and Simplify feed."""
     store = lead_store(settings)
     leads = store.load()
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
@@ -529,6 +522,21 @@ def daily(
     leads, new = refill(leads, candidates, target)
     store.save(leads)
     log(f"{len(new)} new posting(s)")
+    return new
+
+
+def daily(
+    settings: Settings,
+    log: Callable[[str], None] = lambda _: None,
+    *,
+    target_submissions: int | None = None,
+) -> DailyReport:
+    """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
+    if target_submissions is not None and target_submissions < 1:
+        raise ValueError("target_submissions must be positive")
+    new = scrape_jobs(settings, log)
+    store = lead_store(settings)
+    leads = store.load()
     skipped = score(settings, open_postings(leads))
     skipped_keys = {lead.key for lead in skipped}
     eligible = [

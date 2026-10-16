@@ -53,3 +53,44 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     report = workflows.daily(Settings(_env_file=None), target_submissions=2)
     assert report.submitted == report.attempted == len(submitted) == 2
     assert len(report.prepared) == 2
+
+
+def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
+    candidates = [
+        Lead(
+            kind="posting",
+            company=f"Company {i}",
+            posting_title="Software Intern",
+            posting_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            source_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+        )
+        for i in range(3)
+    ]
+    candidates.append(
+        Lead(
+            kind="posting",
+            company="Workday Company",
+            posting_title="Software Intern",
+            posting_url="https://example.myworkdayjobs.com/intern",
+            source_url="https://example.myworkdayjobs.com/intern",
+        )
+    )
+
+    class Store:
+        items: list[Lead] = []
+
+        def load(self) -> list[Lead]:
+            return self.items
+
+        def save(self, items: list[Lead]) -> None:
+            self.items = items
+
+    store = Store()
+    monkeypatch.setattr(workflows, "lead_store", lambda _: store)
+    monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
+    monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
+    monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: candidates)
+    monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)
+
+    new = workflows.scrape_jobs(Settings(_env_file=None))
+    assert len(new) == len(store.items) == 3

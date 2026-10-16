@@ -25,6 +25,7 @@ from internship_agent.workflows import (
     find_startups,
     prepare_application,
     score,
+    scrape_jobs,
     submit_application,
 )
 
@@ -216,6 +217,14 @@ def daily_cmd() -> None:
         f"{report.application_blocked} blocked, "
         f"{report.pushed} push(es) sent."
     )
+
+
+@leads_app.command("scrape-jobs")
+def scrape_jobs_cmd() -> None:
+    """Store all available matching postings from the configured job sources."""
+    settings = get_settings()
+    new = scrape_jobs(settings, log=console.print)
+    console.print(f"Scraped {len(new)} new posting(s).")
 
 
 @leads_app.command("application-campaign")
