@@ -333,6 +333,14 @@ def answer_bank(settings: Settings) -> AnswerBank:
     return AnswerBank(settings.data_dir / "answer-bank.json")
 
 
+def _retryable_block(application: ApplicationPrep | None) -> bool:
+    return bool(
+        application
+        and application.submission_status == "blocked"
+        and "after submit" not in application.submission_detail.lower()
+    )
+
+
 def prepare_application(settings: Settings, key: str) -> Lead:
     """Prepare application materials without changing a prior submission outcome."""
     store = lead_store(settings)
@@ -394,9 +402,14 @@ def prepare_application(settings: Settings, key: str) -> Lead:
             if prior_application
             and prior_application.submission_status
             in {"blocked", "failed", "uncertain", "skipped", "submitted"}
+            and not _retryable_block(prior_application)
             else "pending"
         ),
-        submission_detail=prior_application.submission_detail if prior_application else "",
+        submission_detail=(
+            prior_application.submission_detail
+            if prior_application and not _retryable_block(prior_application)
+            else ""
+        ),
         submitted_at=prior_application.submitted_at if prior_application else None,
     )
     store.upsert(lead)

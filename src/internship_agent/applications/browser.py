@@ -320,7 +320,9 @@ def apply_to_posting(
             submit.last.click()
             page.wait_for_timeout(1800)
             if page.locator(_CAPTCHA_SELECTOR).count():
-                return SubmissionResult("blocked", "CAPTCHA appeared after submit; verify manually")
+                return SubmissionResult(
+                    "uncertain", "CAPTCHA appeared after submit; verify manually"
+                )
             body = page.locator("body").inner_text(timeout=5000)
             if _SUCCESS_TEXT.search(body):
                 return SubmissionResult("submitted", "Application confirmation detected")

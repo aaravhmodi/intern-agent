@@ -94,3 +94,21 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
 
     new = workflows.scrape_jobs(Settings(_env_file=None))
     assert len(new) == len(store.items) == 3
+
+
+def test_pre_submit_block_can_be_retried_but_uncertain_cannot() -> None:
+    blocked = ApplicationPrep(
+        prepared_at=datetime.now(UTC),
+        source="form",
+        answers=[],
+        submission_status="blocked",
+        submission_detail="CAPTCHA detected; manual completion required",
+    )
+    uncertain = blocked.model_copy(
+        update={
+            "submission_status": "uncertain",
+            "submission_detail": "CAPTCHA appeared after submit; verify manually",
+        }
+    )
+    assert workflows._retryable_block(blocked)
+    assert not workflows._retryable_block(uncertain)
