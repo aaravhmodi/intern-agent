@@ -56,6 +56,9 @@ class FakePage:
             return FakeLocator()
         return FakeLocator(self.fields)
 
+    def get_by_role(self, _role: str) -> FakeLocator:
+        return FakeLocator()
+
 
 def posting(url: str) -> Lead:
     lead = Lead(

@@ -1,9 +1,9 @@
 # Graph Report - winter-2027-internship-agent  (2026-10-16)
 
 ## Corpus Check
-- 68 files · ~87,588 words
+- 68 files · ~87,619 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 94 file(s) not represented in the graph (top: (none) 78, .log 5, .old 5)
+- Unclassified: 6 file(s) not represented in the graph (top: (none) 4, .example 1, .lock 1)
 
 ## Summary
 - 887 nodes · 2588 edges · 42 communities (33 shown, 9 thin omitted)
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1c7805e4`
+- Built from commit: `4a765898`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

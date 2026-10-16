@@ -81,8 +81,12 @@ def _fill_form(
             "el => ({tag: el.tagName.toLowerCase(), type: (el.type || '').toLowerCase(), "
             "label: (el.labels ? Array.from(el.labels).map(x => x.innerText).join(' ') : ''), "
             "required: el.required || el.getAttribute('aria-required') === 'true', "
+            "ariaHidden: el.getAttribute('aria-hidden') === 'true', "
             "value: el.value || '', name: el.name || '', placeholder: el.placeholder || ''})"
         )
+        if info.get("ariaHidden"):
+            # Greenhouse uses hidden required inputs as validity proxies for React selects.
+            continue
         if not field.is_visible() and info["type"] != "file":
             continue
         label = " ".join(
@@ -120,6 +124,52 @@ def _fill_form(
                 continue
         if info["required"] and not info["value"].strip():
             return f"Required field needs a verified answer: {label or 'unlabeled field'}"
+
+    comboboxes = page.get_by_role("combobox")
+    for index in range(comboboxes.count()):
+        combo = comboboxes.nth(index)
+        info = combo.evaluate(
+            "el => ({tag: el.tagName.toLowerCase(), required: "
+            "el.getAttribute('aria-required') === 'true', labelledBy: "
+            "(el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean), "
+            "value: el.value || ''})"
+        )
+        if info["tag"] == "select":
+            continue
+        label = combo.evaluate(
+            "(el, ids) => ids.map(id => document.getElementById(id)?.innerText || '')"
+            ".filter(Boolean).join(' ')",
+            info["labelledBy"],
+        )
+        answer = _answer_for(label, lead, bank)
+        if not answer:
+            if info["required"] and not info["value"].strip():
+                return f"Required selection needs a verified answer: {label or 'unlabeled field'}"
+            continue
+        combo.click()
+        combo.fill(answer)
+        page.wait_for_timeout(500)
+        options = page.get_by_role("option")
+        target = None
+        for option_index in range(options.count()):
+            option = options.nth(option_index)
+            option_text = option.inner_text().strip()
+            if _normalize(option_text) == _normalize(answer):
+                target = option
+                break
+        if target is None:
+            for option_index in range(options.count()):
+                option = options.nth(option_index)
+                option_text = _normalize(option.inner_text())
+                if option_text and (
+                    option_text in _normalize(answer) or _normalize(answer) in option_text
+                ):
+                    target = option
+                    break
+        if target is not None:
+            target.click()
+        elif info["required"]:
+            return f"Could not match saved answer to required selection: {label}"
 
     if count == 0:
         return "No application fields found on the page"
