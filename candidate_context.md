@@ -9,6 +9,7 @@ Use this file, the configured resume, and the public sources linked below to pre
 - Candidate-confirmed current year of study: third year.
 - Enrolled in a co-op program.
 - Seeking only a four-month term from January through April 2027. Do not apply to postings requiring a different term length.
+- If a form requires a precise start date, use January 11, 2027 as an inference from Waterloo's published Winter 2027 co-op start date; actual employer-specific dates may differ.
 - Location-only fields: Toronto, Ontario, Canada. If a form explicitly requires a street address, use the candidate-provided Waterloo address stored in the local answer bank; do not put the street address into city/location-only fields.
 - Willing to relocate anywhere.
 - No active offers; no referral. Background-check consent: yes. Interview recording/data processing consent: yes.

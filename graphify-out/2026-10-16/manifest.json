@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792125098.818781,
-    "seen": 1792125115.154763,
-    "ast_hash": "d5d06a21a815c16f721816acf46858c2",
+    "mtime": 1792125191.5613885,
+    "seen": 1792125205.1462286,
+    "ast_hash": "203693c62bbc687d9f881d66f249750c",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {

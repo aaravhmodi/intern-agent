@@ -48,6 +48,19 @@ def _field_label(info: dict[str, Any]) -> str:
     return name or str(info.get("placeholder", "")).strip()
 
 
+def _numeric_answer(answer: str, label: str) -> str | None:
+    """Format an explicitly saved value for a numeric HTML input without guessing units."""
+    match = re.search(r"(?<![a-z0-9])\d+(?:\.\d+)?", answer.lower())
+    if match:
+        return match.group(0)
+    if re.search(r"year|study|grade", label, re.I):
+        ordinal = re.search(r"\b(first|second|third|fourth|fifth)\b", answer, re.I)
+        if ordinal:
+            values = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+            return str(values[ordinal.group(1).lower()])
+    return None
+
+
 def _supported_url(url: str) -> bool:
     host = urlparse(url).netloc.lower()
     return any(
@@ -138,6 +151,12 @@ def _fill_form(
                     field.select_option(label=option)
                     continue
             else:
+                if info["type"] == "number":
+                    answer = _numeric_answer(answer, label)
+                    if answer is None:
+                        if info["required"]:
+                            return f"Required numeric field needs a verified number: {label}"
+                        continue
                 field.fill(answer)
                 continue
         if info["required"] and not info["value"].strip():

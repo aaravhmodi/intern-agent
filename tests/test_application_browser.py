@@ -5,6 +5,7 @@ from internship_agent.applications.browser import (
     _answer_for,
     _field_label,
     _fill_form,
+    _numeric_answer,
     _supported_url,
     apply_to_posting,
 )
@@ -109,6 +110,12 @@ def test_field_label_does_not_expose_generated_lever_field_ids() -> None:
         {"name": "cards[abc-123][field0]", "associatedLabel": "Which year of studies?"}
     ) == "Which year of studies?"
     assert _field_label({"name": "cards[abc-123][field0]"}) == ""
+
+
+def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
+    assert _numeric_answer("CAD 30 per hour or higher", "Desired Salary") == "30"
+    assert _numeric_answer("Third year", "Year of study") == "3"
+    assert _numeric_answer("around thirty", "Desired Salary") is None
 
 
 def test_fill_form_uses_prepared_answers_and_uploads_resume(tmp_path: Path) -> None:
