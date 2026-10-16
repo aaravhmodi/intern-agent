@@ -19,21 +19,28 @@ def _fold(text: str) -> str:
     return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
 
 
+def names(page: str, company: str, person: str) -> bool:
+    """The page names the company and the person's last name."""
+    folded = _fold(page)
+    return _fold(company.split()[0]) in folded and _fold(person.split()[-1]) in folded
+
+
 def mentions(page: str, finding: StartupFinding) -> bool:
     """The page names the company and the founder's last name."""
-    folded = _fold(page)
-    company = _fold(finding.company.split()[0])
-    last_name = _fold(finding.founder_name.split()[-1])
-    return company in folded and last_name in folded
+    return names(page, finding.company, finding.founder_name)
 
 
 def source_confirms(finding: StartupFinding) -> bool:
-    """True if the cited article loads and names the company and founder.
+    """True if the cited article loads and names the company and founder."""
+    return page_names(finding.source_url, finding.company, finding.founder_name)
 
-    Guards against invented URLs and misattributed founders. Pages that refuse scripts
+
+def page_names(url: str, company: str, person: str) -> bool:
+    """True if the page loads and names the company and the person.
+
+    Guards against invented URLs and misattributed people. Pages that refuse scripts
     (paywalls, bot protection) prove the page exists but cannot be read, so they pass.
     """
-    url = finding.source_url
     if not url.startswith(("https://", "http://")):
         return False
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -44,7 +51,7 @@ def source_confirms(finding: StartupFinding) -> bool:
         return exc.code in (401, 403, 429)
     except Exception:
         return False
-    return mentions(html.unescape(body.decode("utf-8", "ignore")), finding)
+    return names(html.unescape(body.decode("utf-8", "ignore")), company, person)
 
 
 def to_leads(

@@ -80,6 +80,11 @@ def test_unknown_lead_404(client: TestClient) -> None:
     assert client.post("/api/status", json={"key": "nope", "status": "applied"}).status_code == 404
 
 
+def test_finding_people_needs_an_openai_key(client: TestClient) -> None:
+    response = client.post("/api/people", json={"key": "acme/jane-doe"})
+    assert response.status_code == 400 and "OPENAI_API_KEY" in response.json()["detail"]
+
+
 def test_cross_site_post_is_blocked(client: TestClient) -> None:
     response = client.post(
         "/api/status",

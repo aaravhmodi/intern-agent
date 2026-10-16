@@ -254,10 +254,23 @@ function renderRows() {
     </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
 }
 
-function linkedinUrl(l) {
-  if (l.linkedin_url) return l.linkedin_url;
-  const q = [l.contact_name || "", l.company].join(" ").trim();
+// The lead's main contact, or one of its other people (p).
+function linkedinUrl(l, p) {
+  const url = p ? p.linkedin_url : l.linkedin_url, name = p ? p.name : l.contact_name;
+  if (url) return url;
+  const q = [name || "", l.company].join(" ").trim();
   return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(q);
+}
+function peopleSection(l) {
+  const people = l.people || [];
+  const rows = people.map((p, i) => `<div class="qa">
+      <div class="qa-label"><span>${esc(p.name)}</span><button class="btn copy-a" data-person="${i}">${l.draft ? "Copy note and open" : "Open"} LinkedIn${p.linkedin_url ? "" : " search"}</button></div>
+      <div class="hint">${esc(p.role)}${p.source_url ? ` · <a href="${esc(p.source_url)}" target="_blank" rel="noopener">Source</a>` : ""}</div>
+    </div>`).join("");
+  return `<section><h4>More people to connect with</h4>
+    ${rows || `<div class="hint">I'll look for at least three people beyond the main contact: founders and first engineers at an early-stage startup; engineering managers, recruiters and engineers at a larger one.</div>`}
+    <div class="actions"><button class="btn ${people.length ? "" : "primary"}" id="people">${people.length ? "Look again" : "Find people"}</button></div>
+  </section>`;
 }
 function applicationSection(l) {
   const app = l.application;
@@ -281,6 +294,7 @@ function applicationSection(l) {
   }).join("");
   return `<section><h4>Application answers</h4>
     <div class="hint">${origin} ${need ? `<b>${need}</b> need your input; what you type there is remembered for future applications.` : "Everything is filled in."} Nothing is submitted for you.</div>
+    ${app.cover_letter ? `<div class="qa"><div class="qa-label"><span>Tailored cover letter</span><button class="btn" data-copy-letter>Copy</button></div><textarea class="long" id="cover-letter">${esc(app.cover_letter)}</textarea></div>` : ""}
     ${items}
     <div class="actions"><button class="btn primary" id="save-ans">Save answers</button><button class="btn" id="prep">Re-read questions and redo</button></div>
   </section>`;
@@ -357,6 +371,7 @@ function renderDetail() {
       ${list("Why", fit.reasons)}${list("Concerns", fit.concerns)}${list("Talking points", fit.talking_points)}
     </section>` : ""}
     ${notes.length ? `<section><h4>Your notes</h4><ul class="note-list">${notes.map(n => `<li><time>${esc(n.at.slice(0, 10))}</time>${esc(n.text)}</li>`).join("")}</ul></section>` : ""}
+    ${peopleSection(l)}
     ${l.kind === "posting" ? applicationSection(l) : ""}
     ${emailSection}
     ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
@@ -421,6 +436,17 @@ $("detail").addEventListener("click", async e => {
     } else if (b.dataset.copyA !== undefined) {
       const t = document.querySelector(`[data-ans="${b.dataset.copyA}"]`);
       await navigator.clipboard.writeText(t ? t.value : ""); toast("Copied.");
+    } else if (b.dataset.copyLetter !== undefined) {
+      await navigator.clipboard.writeText($("cover-letter").value); toast("Cover letter copied.");
+    } else if (b.id === "people") {
+      b.disabled = true; b.textContent = "Searching… (up to a minute)";
+      const n = (await api("/api/people", { key: l.key })).lead.people.length;
+      toast(n >= 3 ? `Found ${n} people.` : `Only ${n} with a source this time. Try again later.`); await load();
+    } else if (b.dataset.person !== undefined) {
+      const p = l.people[Number(b.dataset.person)], li = $("f-li");
+      // The drafted note greets the main contact; greet this person instead.
+      if (li) await navigator.clipboard.writeText(li.value.replace("Hi " + (l.contact_name.split(" ")[0] || "there"), "Hi " + p.name.split(" ")[0]));
+      window.open(linkedinUrl(l, p), "_blank", "noopener"); toast(li ? "Note copied. Paste it into the invitation." : "Write a draft to get a note to paste.");
     } else if (b.id === "li-go") {
       await navigator.clipboard.writeText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
     } else if (b.id === "dm-go") {

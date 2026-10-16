@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Most capable model, used only for text you send: outreach drafts and application answers.
     openai_writing_model: str = "gpt-6-astra"
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
+    candidate_context_path: Path = Path("candidate_context.md")
     data_dir: Path = Path("data")
     # Open (not applied/skipped) postings the dashboard keeps topped up.
     target_open_postings: int = 15
@@ -43,8 +44,9 @@ class Settings(BaseSettings):
     followup_days: int = 5
     followup_daily_limit: int = 25
 
-    # Daily run (`leads daily`): new postings to add, how many get answers, and the
-    # ntfy topic your phone subscribes to (https://ntfy.sh). No topic means no push.
+    # Daily run (`leads daily`): ntfy topic your phone subscribes to (https://ntfy.sh).
+    # No topic means no push. The legacy daily count controls remain accepted for old .envs;
+    # the current prep run covers every open posting in the database.
     daily_new_postings: int = 10
     daily_prepare: int = 6
     daily_min_score: int = 60

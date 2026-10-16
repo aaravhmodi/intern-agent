@@ -156,7 +156,17 @@ class ApplicationPrep(BaseModel):
     prepared_at: datetime
     # "form": the board's real questions; "common": typical questions (form not public).
     source: str
+    cover_letter: str = ""
     answers: list[PreparedAnswer]
+
+
+class Person(BaseModel):
+    """Someone else at the company to connect with on LinkedIn, besides the main contact."""
+
+    name: str = Field(min_length=1)
+    role: str = ""
+    linkedin_url: str | None = None
+    source_url: str = ""  # the page that shows they work there
 
 
 class Lead(BaseModel):
@@ -176,6 +186,7 @@ class Lead(BaseModel):
     email: str | None = None
     email_status: EmailStatus = EmailStatus.NONE
     email_source: str = ""
+    people: list[Person] = Field(default_factory=list)
 
     # Founder leads
     round: Round = Round.OTHER

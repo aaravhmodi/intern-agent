@@ -66,10 +66,12 @@ Written from the resume for a posting's real form. Nothing is submitted for you.
 ## Current setup
 
 - Resume source: `../website/public/ModiAaravResume.pdf`
+- Tailoring context: [`candidate_context.md`](candidate_context.md), including public portfolio
+  facts and clearly marked candidate-provided notes
 - Outlook Email and Outlook Calendar: optional, read-only inputs when connected
 - LinkedIn: public-page discovery only until a supported connector is available
-- Application submission: manual review required; this agent will not submit forms,
-  send messages, or apply on the user's behalf by default
+- Application submission: manual review required; this agent prepares tailored answers and
+  cover letters but never submits forms
 
 ## Outlook integration (MCP)
 
@@ -123,7 +125,17 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   `GMAIL_APP_PASSWORD` (with `GMAIL_ADDRESS`). Never use your normal Google password.
 - **LinkedIn**: copies the connection note and opens the profile (or a people search). LinkedIn
   forbids automated invitations, so you paste and send it.
-- **Open application** opens the posting; applications are submitted by you.
+- **More people to connect with**: "Find people" runs a web search for about five other people
+  at the company, chosen by its size: founders and first engineers at an early-stage startup;
+  engineering managers, recruiters and engineers (not the co-founders) at a mid-stage one;
+  campus recruiters and the team's manager and engineers at a big company. Each needs a source
+  page that names them and the company; a LinkedIn source cannot be read by a script, so check
+  the profile before you send. New startups get this automatically when they are found.
+- **Open application** opens the posting. The daily prep run prepares tailored answers and
+  cover letters for every open posting it finds or has stored, excluding Workday-hosted forms.
+  It sends a count summary to the configured ntfy topic; you review and submit applications.
+  The `Internship tracker: daily job prep` n8n workflow runs `POST /api/daily/run` at 8:00 AM
+  Toronto time.
 
 **Notes (bottom of the side panel).** Type why you're skipping something or what you want
 more of, e.g. "this one needs French, not applying". With a company selected, the note is saved

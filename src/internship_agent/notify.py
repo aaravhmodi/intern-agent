@@ -78,7 +78,11 @@ def posting_push(lead: Lead) -> Push:
 def summary_push(new: list[Lead], prepared: list[Lead], dashboard_url: str | None) -> Push:
     ranked = sorted(prepared, key=lambda lead: -(lead.fit.score if lead.fit else 0))
     top = ", ".join(f"{lead.company} {lead.fit.score}" for lead in ranked[:3] if lead.fit)
-    message = f"{len(new)} new posting(s); answers ready for {len(prepared)}."
+    letters = sum(bool(lead.application and lead.application.cover_letter) for lead in prepared)
+    message = (
+        f"{len(new)} new posting(s); application materials ready for {len(prepared)} "
+        f"({letters} cover letters). Submitted: 0; applications require your manual review."
+    )
     if top:
         message += f"\nTop: {top}"
     return Push(

@@ -210,7 +210,8 @@ def daily_cmd() -> None:
         console.print(f"ready: {lead.company}: {lead.posting_title} (fit {fit})")
     console.print(
         f"{len(report.new)} new, {len(report.skipped)} skipped by your rules, "
-        f"{len(report.prepared)} prepared, {report.pushed} push(es) sent."
+        f"{len(report.prepared)} prepared, {report.submitted} submitted, "
+        f"{report.pushed} push(es) sent."
     )
 
 

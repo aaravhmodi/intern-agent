@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -13,6 +14,8 @@ from internship_agent.ai import (
     assess_fit,
     interpret_note,
     prepare_answers,
+    prepare_cover_letter,
+    search_people,
     search_startups,
 )
 from internship_agent.config import Settings
@@ -24,22 +27,25 @@ from internship_agent.leads.answers import (
     validate,
 )
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
-from internship_agent.leads.refill import DONE, open_postings, refill
+from internship_agent.leads.refill import DONE, is_workday, open_postings, refill
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     Lead,
     LeadKind,
     LeadStatus,
     Note,
+    Person,
     Preference,
     Region,
     Segment,
 )
-from internship_agent.leads.sending import check_send
+from internship_agent.leads.segments import effective_segment
+from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, merge
 from internship_agent.resume import load_resume_text
 from internship_agent.sources import simplify, startups
 from internship_agent.sources.application_form import fetch_questions
+from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
 from internship_agent.sources.startup_jobs import find_intern_roles
 from internship_agent.x_search import post_confirms, search_x_raises
@@ -169,10 +175,24 @@ def startup_postings(founder: Lead) -> list[Lead]:
                 contact_name=founder.contact_name,
                 contact_role=founder.contact_role,
                 x_handle=founder.x_handle,
+                people=founder.people,
                 hiring_signals=[f"Open role on their {role.board} job board; raised recently"],
             )
         )
     return leads
+
+
+def find_people(settings: Settings, key: str) -> Lead:
+    """Look up more people at the lead's company to connect with on LinkedIn, and store them.
+
+    A search that confirms nobody keeps the people already stored.
+    """
+    store = lead_store(settings)
+    lead = store.get(key)
+    found = search_people(_openai(settings), settings.openai_model, lead, effective_segment(lead))
+    lead.people = to_people(lead.company, found, skip=lead.contact_name) or lead.people
+    store.upsert(lead)
+    return lead
 
 
 def find_startups(
@@ -246,6 +266,27 @@ def find_startups(
             if progress:
                 progress(f"{region.value}/{channel}: +{added} startups, +{len(roles)} open roles")
     new = store.load()[before:]
+
+    def people_at(founder: Lead) -> list[Person]:
+        try:
+            found = search_people(
+                client, settings.openai_model, founder, effective_segment(founder)
+            )
+            return to_people(founder.company, found, skip=founder.contact_name)
+        except Exception as error:  # the startup is still worth keeping without them
+            if progress:
+                progress(f"{founder.company}: no people found: {error}")
+            return []
+
+    # Each lookup is a web search of up to two minutes, so they run side by side; more than
+    # two at once runs into the OpenAI tokens-per-minute limit.
+    founders = [lead for lead in new if lead.kind is LeadKind.FOUNDER]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        people = dict(
+            zip((f.company for f in founders), pool.map(people_at, founders), strict=True)
+        )
+    for lead in new:
+        lead.people = people.get(lead.company, [])
     score(settings, new)
     return new
 
@@ -266,6 +307,7 @@ def send_email(
     store = lead_store(settings)
     lead = store.get(key)
     check_send(lead, to, confirm_unverified, resend)
+    check_outreach_text(subject, body)
     message = mailer.build_message(
         settings.gmail_address,
         to.strip(),
@@ -301,6 +343,11 @@ def prepare_application(settings: Settings, key: str) -> Lead:
     if not questions:
         questions = common_questions(lead.company)
     prepared = prefill(questions, answer_bank(settings))
+    context = (
+        settings.candidate_context_path.read_text(encoding="utf-8")
+        if settings.candidate_context_path.exists()
+        else ""
+    )
     todo = [(i, p) for i, p in enumerate(prepared) if p.note == "ai"]
     if todo:
         listing = [
@@ -320,6 +367,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 resume_text(settings),
                 lead,
                 listing,
+                context,
             )
         }
         for i, item in todo:
@@ -330,8 +378,15 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 item.note = draft.note if draft and draft.note else "Fill this in yourself."
             else:
                 item.answer, item.needs_user_input, item.note = cleaned, False, draft.note
+    client = _openai(settings)
+    cover_letter = prepare_cover_letter(
+        client, settings.openai_writing_model, resume_text(settings), context, lead
+    )
     lead.application = ApplicationPrep(
-        prepared_at=datetime.now(UTC), source=source, answers=prepared
+        prepared_at=datetime.now(UTC),
+        source=source,
+        cover_letter=cover_letter,
+        answers=prepared,
     )
     store.upsert(lead)
     return lead
@@ -365,11 +420,14 @@ class DailyReport:
     skipped: list[Lead]
     prepared: list[Lead]
     pushed: int
+    submitted: int = 0
 
 
 def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> DailyReport:
-    """Find new postings (startup job boards and SimplifyJobs), score them, prepare answers
-    for the best, and push each to your phone. Nothing is ever submitted."""
+    """Find postings, prepare open non-Workday applications, and report by ntfy.
+
+    Submission remains a manual action; this workflow only drafts application materials.
+    """
     store = lead_store(settings)
     leads = store.load()
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
@@ -384,25 +442,30 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
     simplify_postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
     candidates.extend(simplify.to_lead(p) for p in simplify_postings)
 
-    target = len(open_postings(leads)) + settings.daily_new_postings
+    candidates = [lead for lead in candidates if not is_workday(lead)]
+    # Store every eligible job surfaced today; the daily preparation pass covers the whole
+    # open database rather than stopping at the old small "top N" cap.
+    target = len(open_postings(leads)) + len(candidates)
     leads, new = refill(leads, candidates, target)
     store.save(leads)
     log(f"{len(new)} new posting(s)")
-    skipped = score(settings, new)
-    kept = [lead for lead in new if lead not in skipped and lead.fit is not None]
-    best = sorted(
-        (lead for lead in kept if lead.fit and lead.fit.score >= settings.daily_min_score),
-        key=lambda lead: -(lead.fit.score if lead.fit else 0),
-    )[: settings.daily_prepare]
+    skipped = score(settings, open_postings(leads))
+    skipped_keys = {lead.key for lead in skipped}
+    eligible = [
+        lead
+        for lead in open_postings(store.load())
+        if lead.fit is not None and lead.key not in skipped_keys
+    ]
+    eligible.sort(key=lambda lead: -(lead.fit.score if lead.fit else 0))
     prepared: list[Lead] = []
-    for lead in best:
+    for lead in eligible:
         try:
             prepared.append(prepare_application(settings, lead.key))
         except Exception as error:
             log(f"{lead.key}: could not prepare answers: {error}")
 
     pushed = 0
-    if settings.ntfy_topic and new:
+    if settings.ntfy_topic:
         pushes = [notify.summary_push(new, prepared, settings.dashboard_url)]
         pushes += [notify.posting_push(lead) for lead in prepared]
         for push in pushes:
@@ -411,4 +474,4 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
                 pushed += 1
             except Exception as error:
                 log(f"push failed: {error}")
-    return DailyReport(new=new, skipped=skipped, prepared=prepared, pushed=pushed)
+    return DailyReport(new=new, skipped=skipped, prepared=prepared, pushed=pushed, submitted=0)

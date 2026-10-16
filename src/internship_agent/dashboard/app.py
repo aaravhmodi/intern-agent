@@ -19,7 +19,9 @@ from internship_agent.leads.sending import SendBlocked
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.workflows import (
+    daily as run_daily,
     find_more_postings,
+    find_people,
     find_startups,
     handle_note,
     lead_store,
@@ -94,6 +96,22 @@ class PreferenceDelete(BaseModel):
 class FollowupsRequest(BaseModel):
     # Find out who would get what without sending anything.
     dry_run: bool = True
+
+
+@app.post("/api/daily/run")
+def daily_run() -> dict[str, Any]:
+    """Run the scheduled, read-only discovery and application-material preparation."""
+    try:
+        report = run_daily(get_settings())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {
+        "new": len(report.new),
+        "skipped": len(report.skipped),
+        "prepared": len(report.prepared),
+        "submitted": report.submitted,
+        "pushes": report.pushed,
+    }
 
 
 class SendRequest(BaseModel):
@@ -174,6 +192,17 @@ def find_more_startups(request: FindStartupsRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"added": [_view(x) for x in added]}
+
+
+@app.post("/api/people")
+def people(request: KeyRequest) -> dict[str, Any]:
+    """Look up more people at the company to connect with on LinkedIn (uses OpenAI)."""
+    _get(request.key)
+    try:
+        lead = find_people(get_settings(), request.key)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
 
 
 @app.post("/api/draft")

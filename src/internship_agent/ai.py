@@ -92,11 +92,6 @@ SUPPORTING PROOF (pick at most one that matches the company):
   OpenAI structured outputs and web search with source verification, and runs a FastAPI
   dashboard he uses for his own internship search. Call it a personal project; no other users.
 
-US COMPANIES (lead region "usa"): add one short line that the US is not a hassle: as a
-University of Waterloo co-op student he can work in the US on a J-1 visa through Waterloo's
-partner sponsors, which takes about 2-4 weeks and Waterloo's co-op team helps with the
-paperwork. Keep it to one sentence and never imply there is no cost or effort for the employer.
-
 ANGLE BY AUDIENCE (use the lead's segment and posting_title):
 - early/mid startups and founders: ownership and speed. Show you ship end to end for real users
   and can work without much direction. Under 100 words. Tie the core story to one specific
@@ -107,10 +102,10 @@ ANGLE BY AUDIENCE (use the lead's segment and posting_title):
   TypeScript; and AI in production.
 - big companies: name the posting, then the core story and one proof point mapped to the team.
 
-RULES: Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or
-banking role. Sole ownership and stakeholder requirements work apply only to the Upside
-dashboard. Do not claim external customer interviews or anything not stated here or in the
-resume.
+RULES: Never mention visa, J-1, sponsorship, or work authorization in outreach.
+Never cite endpoint or module counts. CIBC only as brief AI/banking proof or for a CIBC or banking role.
+Sole ownership and stakeholder requirements work apply only to the Upside dashboard. Do not
+claim external customer interviews or anything not stated here or in the resume.
 End the email with "Portfolio: aaravmodi.ca" on its own line before the sign-off."""
 
 DRAFT_INSTRUCTIONS = (
@@ -141,7 +136,7 @@ ANSWER_INSTRUCTIONS = (
     """\
 You prepare answers to a job application's questions for a University of Waterloo student
 applying to a Winter 2027 (January-April, 4-month) software-engineering internship. Use only
-facts from the resume and the focus notes; map them to the requirements in the posting text.
+facts from the resume, candidate context, and focus notes; map them to the requirements in the posting text.
 For each question index, return:
 - answer: for long-text questions, 80-180 words, first person, concrete, leading with the
   impact story from the focus notes and tying it to this role's requirements; for short text,
@@ -209,6 +204,50 @@ CHANNELS: dict[str, str] = {
 }
 
 
+PEOPLE_INSTRUCTIONS = """\
+Use web search to find people who work at {company} today and whom a University of Waterloo
+student could ask about a Winter 2027 software-engineering internship there. Find up to {count}
+different people, at least three if the sources allow, in different roles where you can. Who to
+look for: {who}
+Keep to those roles: nobody in sales, marketing, customer success, design, operations or an
+advisory role. A shorter list, or an empty one, is better than a guess or the wrong role.
+Prefer people with a University of Waterloo connection (alumni, former co-op students) when
+there are any. Do not include {skip}.
+For each person report only what a source states: name; their current title at the company;
+linkedin_url (their linkedin.com/in/ profile, only if that exact URL appeared in a search
+result, else null; never build one from a name); and source_url (the page showing they work
+there in that role: the company's team or about page, a blog post, a news article, or their
+LinkedIn profile). Leave out anyone you cannot back with a source_url and anyone who has left."""
+
+# Who is worth a cold note depends on company size: a founder reads one at a seed-stage
+# startup, not at a company with an engineering org and recruiters.
+PEOPLE_BY_SEGMENT: dict[Segment | None, str] = {
+    Segment.EARLY: "the founders, the CTO, and the first engineers (founding or software "
+    "engineers).",
+    Segment.MID: "an engineering manager or the head or VP of engineering; a technical or "
+    "university recruiter (talent, people team); and software engineers on the team. This "
+    "company is past seed stage, so leave out the CEO and the co-founders.",
+    Segment.BIG: "a university or campus recruiter; the engineering manager of the team the "
+    "role is on; and software engineers on that team. Leave out executives.",
+}
+PEOPLE_BY_SEGMENT[None] = PEOPLE_BY_SEGMENT[Segment.BIG]
+
+
+class PersonFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    role: str
+    linkedin_url: str | None
+    source_url: str
+
+
+class PeopleFindings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    people: list[PersonFinding]
+
+
 class StartupFinding(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -269,6 +308,7 @@ def _lead_context(lead: Lead) -> str:
             "replied_at",
             "followups_stopped",
             "application",
+            "people",  # drafts are addressed to contact_name only
         },
         indent=2,
     )
@@ -369,6 +409,34 @@ def search_startups(
     return parsed.startups, tokens
 
 
+def search_people(
+    client: OpenAI, model: str, lead: Lead, segment: Segment | None, count: int = 5
+) -> list[PersonFinding]:
+    """One web search for people at the lead's company, in roles that suit its size."""
+    company = f"{lead.company} ({lead.company_url})" if lead.company_url else lead.company
+    role = f" The role: {lead.posting_title}." if lead.posting_title else ""
+    response = client.responses.parse(
+        model=model,
+        tools=[{"type": "web_search"}],
+        input=[
+            {
+                "role": "system",
+                "content": PEOPLE_INSTRUCTIONS.format(
+                    company=company,
+                    count=count,
+                    who=PEOPLE_BY_SEGMENT[segment] + role,
+                    skip=lead.contact_name or "anyone twice",
+                ),
+            },
+            {"role": "user", "content": f"Find up to {count} people at {lead.company}."},
+        ],
+        text_format=PeopleFindings,
+    )
+    if response.output_parsed is None:
+        return []
+    return PeopleFindings.model_validate(response.output_parsed.model_dump()).people
+
+
 def interpret_note(
     client: OpenAI, model: str, message: str, lead: Lead | None, prefs: list[Preference]
 ) -> NoteResult:
@@ -416,7 +484,12 @@ class AnswerDrafts(BaseModel):
 
 
 def prepare_answers(
-    client: OpenAI, model: str, resume: str, lead: Lead, questions: list[tuple[int, str]]
+    client: OpenAI,
+    model: str,
+    resume: str,
+    lead: Lead,
+    questions: list[tuple[int, str]],
+    candidate_context: str = "",
 ) -> list[AnswerDraft]:
     """Draft answers for (index, question description) pairs."""
     listing = "\n".join(f"[{i}] {text}" for i, text in questions)
@@ -426,7 +499,8 @@ def prepare_answers(
             {"role": "system", "content": ANSWER_INSTRUCTIONS},
             {
                 "role": "user",
-                "content": f"RESUME:\n{resume}\n\nPOSTING:\n{_lead_context(lead)}"
+                "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
+                f"\n\nPOSTING:\n{_lead_context(lead)}"
                 f"\n\nQUESTIONS:\n{listing}",
             },
         ],
@@ -435,3 +509,41 @@ def prepare_answers(
     if response.output_parsed is None:
         raise ValueError("Model returned no answers")
     return AnswerDrafts.model_validate(response.output_parsed.model_dump()).answers
+
+
+class CoverLetterDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cover_letter: str
+
+
+def prepare_cover_letter(
+    client: OpenAI, model: str, resume: str, candidate_context: str, lead: Lead
+) -> str:
+    """Write a tailored cover letter using only validated candidate and posting facts."""
+    response = client.responses.parse(
+        model=model,
+        input=[
+            {
+                "role": "system",
+                "content": (
+                    "Write a concise, specific cover letter for a Winter 2027 software "
+                    "engineering internship. Use only facts in the resume, candidate context, "
+                    "and job posting. Focus on the strongest matching experience, particularly "
+                    "early-stage startup experience when relevant. Do not invent experience, "
+                    "metrics, availability, work authorization, or claims about the employer. "
+                    "Use first person, natural language, and a professional greeting and sign-off. "
+                    "Return only the letter text."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
+                f"\n\nPOSTING:\n{_lead_context(lead)}",
+            },
+        ],
+        text_format=CoverLetterDraft,
+    )
+    if response.output_parsed is None:
+        raise ValueError("Model returned no cover letter")
+    return CoverLetterDraft.model_validate(response.output_parsed.model_dump()).cover_letter

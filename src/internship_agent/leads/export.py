@@ -31,6 +31,9 @@ def render_outreach(leads: list[Lead]) -> str:
             lines.append(f"**X:** {lead.x_url}")
         if lead.linkedin_url:
             lines.append(f"**LinkedIn:** {lead.linkedin_url}")
+        for person in lead.people:
+            where = person.linkedin_url or person.source_url
+            lines.append(f"**Also:** {person.name}, {person.role} ({where})")
         if lead.posting_url:
             lines.append(f"**Posting:** {lead.posting_title or 'link'} ({lead.posting_url})")
         lines.append(f"**Source:** {lead.source_url}")

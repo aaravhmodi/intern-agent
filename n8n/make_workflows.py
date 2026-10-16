@@ -288,6 +288,8 @@ def internship_followups() -> dict[str, Any]:
         a: {"main": [[{"node": b, "type": "main", "index": 0}]]}
         for a, b in zip(names, names[1:], strict=False)
     }
+
+
     return {
         "id": _id("internship followups").replace("-", "")[:16],
         "name": "Internship tracker: follow-ups",
@@ -311,11 +313,62 @@ def internship_followups() -> dict[str, Any]:
     }
 
 
+def internship_daily_prep() -> dict[str, Any]:
+    """Run read-only job discovery and draft materials each morning."""
+    trigger = "Every morning at 8"
+    run = "Find jobs and prepare materials"
+    nodes: list[Node] = [
+        {
+            "id": _id(trigger),
+            "name": trigger,
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [0, 300],
+            "parameters": {
+                "rule": {"interval": [{"field": "cronExpression", "expression": "0 8 * * *"}]}
+            },
+        },
+        {
+            "id": _id(run),
+            "name": run,
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [240, 300],
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.INTERN_AGENT_URL }}/api/daily/run",
+                "options": {"timeout": 900000},
+            },
+        },
+    ]
+    return {
+        "id": _id("internship daily preparation").replace("-", "")[:16],
+        "name": "Internship tracker: daily job prep",
+        "active": True,
+        "nodes": nodes,
+        "connections": {
+            trigger: {"main": [[{"node": run, "type": "main", "index": 0}]]}
+        },
+        "pinData": {},
+        "meta": {
+            "notes": "Every morning at 8 AM America/Toronto, finds postings and prepares "
+            "tailored answers and cover letters for open, non-Workday jobs. The tracker pushes "
+            "counts to the configured ntfy topic. This workflow never submits applications."
+        },
+        "settings": {
+            "executionOrder": "v1",
+            "timezone": TZ,
+            "saveDataSuccessExecution": "none",
+            "saveDataErrorExecution": "all",
+        },
+        "tags": [],
+    }
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     for build, file in (
         (internship_replies, "replies.json"),
         (internship_followups, "followups.json"),
+        (internship_daily_prep, "daily-prep.json"),
     ):
         flow = build()
         (OUT / file).write_text(
