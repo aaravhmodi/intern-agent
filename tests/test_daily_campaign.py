@@ -1,8 +1,15 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from internship_agent import workflows
 from internship_agent.config import Settings
 from internship_agent.leads.schemas import ApplicationPrep, FitAssessment, Lead
+
+
+def test_application_submission_is_disabled() -> None:
+    with pytest.raises(ValueError, match="browser access is read-only"):
+        workflows.submit_application(Settings(_env_file=None), "any-posting")
 
 
 def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
@@ -50,7 +57,9 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     monkeypatch.setattr(workflows, "prepare_application", prepare)
     monkeypatch.setattr(workflows, "submit_application", submit)
 
-    report = workflows.daily(Settings(_env_file=None), target_submissions=2)
+    report = workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=True), target_submissions=2
+    )
     assert report.submitted == report.attempted == len(submitted) == 2
     assert len(report.prepared) == 2
 
