@@ -27,6 +27,7 @@ class FakeField:
         self.info = info
         self.filled = ""
         self.uploaded = ""
+        self.checked = False
 
     def evaluate(self, _script: str) -> dict[str, object]:
         return self.info
@@ -39,6 +40,12 @@ class FakeField:
 
     def set_input_files(self, path: str) -> None:
         self.uploaded = path
+
+    def check(self) -> None:
+        self.checked = True
+
+    def is_checked(self) -> bool:
+        return self.checked
 
 
 class FakeLocator:
@@ -156,6 +163,33 @@ def test_field_label_does_not_expose_generated_lever_field_ids() -> None:
         {"name": "cards[abc-123][field0]", "associatedLabel": "Which year of studies?"}
     ) == "Which year of studies?"
     assert _field_label({"name": "cards[abc-123][field0]"}) == ""
+    assert _field_label(
+        {"label": "Third", "associatedLabel": "Which year of studies are you currently in?"}
+    ) == "Which year of studies are you currently in?"
+
+
+def test_fill_form_selects_saved_year_from_lever_radio_group(tmp_path: Path) -> None:
+    lead = posting("https://jobs.lever.co/acme/123")
+    assert lead.application is not None
+    lead.application.answers.append(
+        PreparedAnswer(
+            question=FormQuestion(
+                label="Which year of studies are you currently in?", required=True
+            ),
+            answer="Third year",
+        )
+    )
+    first = FakeField(
+        {
+            "tag": "input", "type": "radio", "label": "First",
+            "associatedLabel": "Which year of studies are you currently in?",
+            "required": True, "name": "year", "value": "First", "placeholder": "",
+        }
+    )
+    third = FakeField({**first.info, "label": "Third", "value": "Third"})
+    assert _fill_form(FakePage([first, third]), lead, tmp_path / "resume.pdf") is None
+    assert not first.checked
+    assert third.checked
 
 
 def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:

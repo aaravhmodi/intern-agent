@@ -53,7 +53,7 @@ def _normalize(value: str) -> str:
 
 def _field_label(info: dict[str, Any]) -> str:
     """Prefer visible/accessibility labels over ATS-generated field identifiers."""
-    for key in ("label", "ariaLabel", "associatedLabel"):
+    for key in ("associatedLabel", "ariaLabel", "label"):
         value = str(info.get(key, "")).strip()
         if value:
             return value
@@ -151,8 +151,8 @@ def _fill_form(
             ".split(/\\s+/).filter(Boolean); const explicit = ids.map(id => "
             "document.getElementById(id)?.innerText || '').filter(Boolean).join(' '); "
             "if (explicit) return explicit; const group = el.closest("
-            "'.application-field, .application-question, .form-field, .form-group, .field'); "
-            "const label = group?.querySelector('.application-label, label, legend'); "
+            "'.application-question, .form-group, .form-field') || el.parentElement; "
+            "const label = group?.querySelector('.application-label, legend, label'); "
             "return label?.innerText || ''; })(), "
             "required: el.required || el.getAttribute('aria-required') === 'true', "
             "ariaHidden: el.getAttribute('aria-hidden') === 'true', "
@@ -170,8 +170,20 @@ def _fill_form(
             elif info["required"]:
                 return "Required file upload is not supported for this field"
             continue
-        if info["type"] in {"checkbox", "radio"}:
-            if info["required"] and not field.is_checked():
+        if info["type"] == "radio":
+            answer = _answer_for(label, lead, bank)
+            option = str(info.get("label", "")).strip()
+            if answer and option and (
+                _normalize(answer) == _normalize(option)
+                or _normalize(answer).startswith(_normalize(option) + " ")
+            ):
+                field.check()
+            continue
+        if info["type"] == "checkbox":
+            answer = _answer_for(label, lead, bank)
+            if answer and _normalize(answer) in {"yes", "true", "i agree"}:
+                field.check()
+            elif info["required"] and not field.is_checked():
                 return f"Required consent/selection needs review: {label or 'unlabeled field'}"
             continue
         if info["type"] in {"submit", "button", "reset"}:
