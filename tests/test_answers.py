@@ -7,7 +7,7 @@ import pytest
 
 from internship_agent import workflows
 from internship_agent.config import Settings
-from internship_agent.leads.answers import AnswerBank, category, prefill, validate
+from internship_agent.leads.answers import AnswerBank, category, match_option, prefill, validate
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     FormQuestion,
@@ -27,6 +27,15 @@ def q(
     label: str, kind: QuestionKind = QuestionKind.TEXT, options: list[str] | None = None
 ) -> FormQuestion:
     return FormQuestion(label=label, kind=kind, options=options or [])
+
+
+def test_yes_no_answer_matches_long_select_options() -> None:
+    options = [
+        "Yes, I will require sponsorship now or in the future.",
+        "No, I do not require sponsorship now or in the future.",
+    ]
+    assert match_option("No", options) == options[1]
+    assert match_option("Yes", options) == options[0]
 
 
 def test_greenhouse_parser() -> None:

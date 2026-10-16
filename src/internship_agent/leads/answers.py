@@ -46,6 +46,11 @@ def match_option(answer: str, options: list[str]) -> str | None:
     by_norm = {normalize(o): o for o in options}
     if normalize(answer) in by_norm:
         return by_norm[normalize(answer)]
+    if normalize(answer) in {"yes", "no"}:
+        polarity = normalize(answer)
+        matches = [o for o in options if normalize(o).split(" ", 1)[0] == polarity]
+        if len(matches) == 1:
+            return matches[0]
     close = difflib.get_close_matches(normalize(answer), list(by_norm), n=1, cutoff=0.8)
     return by_norm[close[0]] if close else None
 
