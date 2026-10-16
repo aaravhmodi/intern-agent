@@ -496,10 +496,18 @@ class DailyReport:
     pushed: int
     submitted: int = 0
     application_blocked: int = 0
+    attempted: int = 0
 
 
-def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> DailyReport:
+def daily(
+    settings: Settings,
+    log: Callable[[str], None] = lambda _: None,
+    *,
+    target_submissions: int | None = None,
+) -> DailyReport:
     """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
+    if target_submissions is not None and target_submissions < 1:
+        raise ValueError("target_submissions must be positive")
     store = lead_store(settings)
     leads = store.load()
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
@@ -530,42 +538,51 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
     ]
     eligible.sort(key=lambda lead: -(lead.fit.score if lead.fit else 0))
     prepared: list[Lead] = []
-    for lead in eligible:
-        try:
-            prepared.append(prepare_application(settings, lead.key))
-        except Exception as error:
-            log(f"{lead.key}: could not prepare answers: {error}")
-
     submitted = 0
     application_blocked = 0
-    if settings.auto_submit_applications:
-        for index, lead in enumerate(prepared):
-            if lead.application and lead.application.submission_status != "pending":
-                application_blocked += 1
-                continue
-            try:
-                lead = submit_application(settings, lead.key)
-                prepared[index] = lead
-            except Exception as error:
-                log(f"{lead.key}: application submission failed ({type(error).__name__})")
-                application_blocked += 1
-                continue
-            if lead.application and lead.application.submission_status == "submitted":
-                submitted += 1
-            elif (
-                lead.application
-                and lead.application.submission_status != "ready"
-            ):
-                application_blocked += 1
+    attempted = 0
+    for lead in eligible:
+        if target_submissions is not None and submitted >= target_submissions:
+            break
+        # A prior uncertain submit may have reached the employer. Never repeat it blindly.
+        if lead.application and lead.application.submission_status == "uncertain":
+            application_blocked += 1
+            continue
+        try:
+            lead = prepare_application(settings, lead.key)
+            prepared.append(lead)
+        except Exception as error:
+            log(f"{lead.key}: could not prepare answers ({type(error).__name__})")
+            application_blocked += 1
+            continue
+        if not settings.auto_submit_applications:
+            continue
+        if lead.application and lead.application.submission_status != "pending":
+            application_blocked += 1
+            continue
+        try:
+            attempted += 1
+            lead = submit_application(settings, lead.key)
+            prepared[-1] = lead
+        except Exception as error:
+            log(f"{lead.key}: application submission failed ({type(error).__name__})")
+            application_blocked += 1
+            continue
+        if lead.application and lead.application.submission_status == "submitted":
+            submitted += 1
+        elif lead.application and lead.application.submission_status != "ready":
+            application_blocked += 1
 
     pushed = 0
     if settings.ntfy_topic:
         pushes = [
             notify.summary_push(
-                new, prepared, settings.dashboard_url, submitted, application_blocked
+                new, prepared, settings.dashboard_url, submitted, application_blocked,
+                attempted=attempted, target=target_submissions,
             )
         ]
-        pushes += [notify.posting_push(lead) for lead in prepared]
+        if target_submissions is None:
+            pushes += [notify.posting_push(lead) for lead in prepared]
         for push in pushes:
             try:
                 notify.send(settings.ntfy_server, settings.ntfy_topic, push)
@@ -579,4 +596,5 @@ def daily(settings: Settings, log: Callable[[str], None] = lambda _: None) -> Da
         pushed=pushed,
         submitted=submitted,
         application_blocked=application_blocked,
+        attempted=attempted,
     )

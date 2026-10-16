@@ -86,6 +86,9 @@ def summary_push(
     dashboard_url: str | None,
     submitted: int = 0,
     blocked: int = 0,
+    *,
+    attempted: int | None = None,
+    target: int | None = None,
 ) -> Push:
     ranked = sorted(prepared, key=lambda lead: -(lead.fit.score if lead.fit else 0))
     top = ", ".join(f"{lead.company} {lead.fit.score}" for lead in ranked[:3] if lead.fit)
@@ -94,10 +97,18 @@ def summary_push(
         f"{len(new)} new posting(s); application materials ready for {len(prepared)} "
         f"({letters} cover letters). Submitted: {submitted}; blocked/failed: {blocked}."
     )
+    if target is not None:
+        message = (
+            f"Target: {target} applications. Confirmed submitted: {submitted}; "
+            f"submission attempts: {attempted or 0}; blocked/failed: {blocked}; "
+            f"shortfall: {max(0, target - submitted)}. "
+            f"Found {len(new)} new posting(s) and prepared {len(prepared)} application(s)."
+        )
     if top:
         message += f"\nTop: {top}"
     return Push(
-        title="Internship agent: today's postings",
+        title=("Internship agent: application report" if target is not None
+               else "Internship agent: today's postings"),
         message=message,
         click=dashboard_url,
         tags=["sunrise"],

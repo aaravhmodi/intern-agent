@@ -71,3 +71,12 @@ def test_summary_lists_top_scores() -> None:
     push = summary_push([a, b], [a, b], "http://100.76.57.23:8765")
     assert "Top: Beta 90, Acme 70" in push.message
     assert push.click == "http://100.76.57.23:8765"
+
+
+def test_campaign_summary_reports_actual_result_and_shortfall() -> None:
+    push = summary_push([], [lead([])], None, submitted=3, blocked=5, attempted=8, target=20)
+    assert "Target: 20" in push.message
+    assert "Confirmed submitted: 3" in push.message
+    assert "submission attempts: 8" in push.message
+    assert "blocked/failed: 5" in push.message
+    assert "shortfall: 17" in push.message

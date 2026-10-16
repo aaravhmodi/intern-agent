@@ -7,6 +7,7 @@ from openai import OpenAI
 from rich.console import Console
 from rich.table import Table
 
+from internship_agent import notify
 from internship_agent.ai import draft_outreach
 from internship_agent.config import Settings, get_settings
 from internship_agent.followup_run import run_followups
@@ -214,6 +215,54 @@ def daily_cmd() -> None:
         f"{len(report.prepared)} prepared, {report.submitted} submitted, "
         f"{report.application_blocked} blocked, "
         f"{report.pushed} push(es) sent."
+    )
+
+
+@leads_app.command("application-campaign")
+def application_campaign(
+    target: Annotated[int, typer.Option(help="Target number of confirmed submissions.")] = 20,
+    for_date: Annotated[
+        str | None, typer.Option(help="Run only on this YYYY-MM-DD date (configured zone).")
+    ] = None,
+) -> None:
+    """Run a dated application campaign and send its result through ntfy."""
+    settings = get_settings()
+    if for_date is not None:
+        try:
+            campaign_date = date.fromisoformat(for_date)
+        except ValueError as error:
+            raise typer.BadParameter("Use YYYY-MM-DD") from error
+        if date.today() != campaign_date:
+            console.print(f"Campaign date {for_date} is not today; no applications submitted.")
+            return
+    if not settings.ntfy_topic:
+        console.print("[red]NTFY_TOPIC is required for an application campaign.[/red]")
+        raise typer.Exit(1)
+    if not settings.auto_submit_applications:
+        console.print("[red]AUTO_SUBMIT_APPLICATIONS is disabled.[/red]")
+        raise typer.Exit(1)
+    try:
+        report = daily(settings, log=console.print, target_submissions=target)
+    except Exception as error:
+        console.print(f"Campaign stopped ({type(error).__name__}).")
+        notify.send(
+            settings.ntfy_server,
+            settings.ntfy_topic,
+            notify.Push(
+                title="Internship agent: application campaign failed",
+                message=(
+                    "Campaign stopped before the final report "
+                    f"({type(error).__name__}). Check the server log."
+                ),
+                priority=4,
+                tags=["warning"],
+            ),
+        )
+        raise typer.Exit(1) from error
+    console.print(
+        f"Target {target}; {report.submitted} confirmed submitted; "
+        f"{report.attempted} attempted; {report.application_blocked} blocked/failed; "
+        f"{report.pushed} ntfy report(s)."
     )
 
 
