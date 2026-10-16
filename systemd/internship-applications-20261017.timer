@@ -1,0 +1,11 @@
+[Unit]
+Description=One-time internship application campaign on October 17, 2026
+
+[Timer]
+OnCalendar=2026-10-17 12:00:00
+AccuracySec=1min
+Persistent=true
+Unit=internship-applications-20261017.service
+
+[Install]
+WantedBy=timers.target
