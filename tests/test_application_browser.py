@@ -7,6 +7,7 @@ from internship_agent.applications.browser import (
     _supported_url,
     apply_to_posting,
 )
+from internship_agent.leads.answers import AnswerBank
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     FormQuestion,
@@ -90,6 +91,13 @@ def test_answer_mapping_requires_unambiguous_question_match() -> None:
     lead = posting("https://jobs.ashbyhq.com/acme/123")
     assert _answer_for("Why Acme?", lead) == "I like building useful software."
     assert _answer_for("How many years of experience?", lead) is None
+
+
+def test_answer_mapping_uses_saved_answer_for_live_form_fields(tmp_path: Path) -> None:
+    lead = posting("https://jobs.ashbyhq.com/acme/123")
+    bank = AnswerBank(tmp_path / "answer-bank.json")
+    bank.remember("School*", "University of Waterloo")
+    assert _answer_for("School*", lead, bank) == "University of Waterloo"
 
 
 def test_fill_form_uses_prepared_answers_and_uploads_resume(tmp_path: Path) -> None:

@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from internship_agent.leads.answers import AnswerBank
 from internship_agent.leads.refill import is_workday
-from internship_agent.leads.schemas import Lead
+from internship_agent.leads.schemas import FormQuestion, Lead
 
 _FIELD_SELECTOR = "input:not([type=hidden]), textarea, select"
 _CAPTCHA_SELECTOR = (
@@ -43,7 +44,7 @@ def _supported_url(url: str) -> bool:
     )
 
 
-def _answer_for(label: str, lead: Lead) -> str | None:
+def _answer_for(label: str, lead: Lead, bank: AnswerBank | None = None) -> str | None:
     assert lead.application is not None
     wanted = _normalize(label)
     if not wanted:
@@ -61,10 +62,16 @@ def _answer_for(label: str, lead: Lead) -> str | None:
         for question, answer in answers
         if question and (question in wanted or wanted in question)
     ]
-    return matches[0] if len(set(matches)) == 1 else None
+    if len(set(matches)) == 1:
+        return matches[0]
+    if bank is not None:
+        return bank.lookup(FormQuestion(label=label))
+    return None
 
 
-def _fill_form(page: Any, lead: Lead, resume_path: Path) -> str | None:
+def _fill_form(
+    page: Any, lead: Lead, resume_path: Path, bank: AnswerBank | None = None
+) -> str | None:
     """Fill fields only when they have an unambiguous saved answer; return a block reason."""
     fields = page.locator(_FIELD_SELECTOR)
     count = fields.count()
@@ -96,7 +103,7 @@ def _fill_form(page: Any, lead: Lead, resume_path: Path) -> str | None:
         if re.search(r"cover.?letter", label, re.I) and lead.application.cover_letter:
             field.fill(lead.application.cover_letter)
             continue
-        answer = _answer_for(label, lead)
+        answer = _answer_for(label, lead, bank)
         if answer:
             if info["tag"] == "select":
                 options = field.locator("option").all_text_contents()
@@ -127,6 +134,7 @@ def apply_to_posting(
     resume_path: Path,
     browser_dir: Path,
     *,
+    bank: AnswerBank | None = None,
     dry_run: bool = False,
     headless: bool = True,
 ) -> SubmissionResult:
@@ -180,7 +188,7 @@ def apply_to_posting(
                     "skipped", "Automatic application skipped because a transcript is required"
                 )
 
-            reason = _fill_form(page, lead, resume_path)
+            reason = _fill_form(page, lead, resume_path, bank)
             if reason:
                 return SubmissionResult("blocked", reason)
             if dry_run:

@@ -258,9 +258,9 @@
     "semantic_hash": "c809069177249f969e3b667fcaa75111"
   },
   "src/internship_agent/workflows.py": {
-    "mtime": 1792124352.5134287,
-    "seen": 1792124397.0141358,
-    "ast_hash": "b79675f3d48c95c663e7169dd5278c82",
+    "mtime": 1792124715.8917272,
+    "seen": 1792124812.973365,
+    "ast_hash": "6f15512d8e0d77dc58bd9c703d5f2b8f",
     "semantic_hash": ""
   },
   "src/internship_agent/x_search.py": {
@@ -444,15 +444,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792124356.5412507,
-    "seen": 1792124397.0141358,
-    "ast_hash": "3ec7238a257b1900bdb6e026b81b5b6c",
+    "mtime": 1792124713.852183,
+    "seen": 1792124812.973365,
+    "ast_hash": "023ace42f4993d415d78d032bd808927",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792123729.2637923,
-    "seen": 1792123862.1468532,
-    "ast_hash": "ebff897c625c3469643e0aeffb44eab7",
+    "mtime": 1792124795.8247433,
+    "seen": 1792124812.973365,
+    "ast_hash": "ee151cda403cae1da6d9beb9a783e579",
     "semantic_hash": ""
   }
 }

@@ -36,6 +36,7 @@ from internship_agent.leads.schemas import (
     Note,
     Person,
     Preference,
+    QuestionKind,
     Region,
     Segment,
 )
@@ -458,7 +459,9 @@ def submit_application(
     unanswered = [
         answer.question.label
         for answer in lead.application.answers
-        if answer.question.required and not answer.answer.strip()
+        if answer.question.required
+        and answer.question.kind is not QuestionKind.FILE
+        and not answer.answer.strip()
     ]
     if unanswered:
         lead.application.submission_status = "blocked"
@@ -472,6 +475,7 @@ def submit_application(
         lead,
         settings.resume_path,
         settings.application_browser_dir,
+        bank=answer_bank(settings),
         dry_run=dry_run,
         headless=headless,
     )
