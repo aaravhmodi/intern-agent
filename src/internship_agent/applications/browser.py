@@ -208,6 +208,7 @@ def apply_to_posting(
 ) -> SubmissionResult:
     """Fill a supported ATS form and submit after all visible required fields are satisfied."""
     from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
     from playwright.sync_api import sync_playwright
 
     if is_workday(lead):
@@ -232,13 +233,29 @@ def apply_to_posting(
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
 
             if page.locator(_FIELD_SELECTOR).count() == 0:
+                try:
+                    page.wait_for_function(
+                        "() => document.querySelectorAll('input:not([type=hidden]), "
+                        "textarea, select').length > 0 || "
+                        "Array.from(document.querySelectorAll('button, a')).some(el => "
+                        "/^apply( for this (job|role)| now)?$/i.test(el.innerText.trim()))",
+                        timeout=5000,
+                    )
+                except PlaywrightTimeoutError:
+                    pass
                 apply_button = page.get_by_role("link", name=_APPLY_BUTTON)
                 if apply_button.count() == 0:
                     apply_button = page.get_by_role("button", name=_APPLY_BUTTON)
                 if apply_button.count():
                     apply_button.first.click()
-                    page.wait_for_load_state("domcontentloaded", timeout=20000)
-                    page.wait_for_timeout(800)
+                    try:
+                        page.wait_for_function(
+                            "() => document.querySelectorAll('input:not([type=hidden]), "
+                            "textarea, select').length > 0",
+                            timeout=10000,
+                        )
+                    except PlaywrightTimeoutError:
+                        pass
 
             required_transcript = any(
                 answer.question.required and "transcript" in answer.question.label.lower()
