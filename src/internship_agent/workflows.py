@@ -1,6 +1,7 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
 import json
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -341,6 +342,19 @@ def _retryable_block(application: ApplicationPrep | None) -> bool:
     )
 
 
+def _incompatible_term(lead: Lead) -> bool:
+    """Reject postings that explicitly require a term outside January-April 2027."""
+    text = f"{lead.posting_title} {lead.posting_text}"
+    return bool(
+        re.search(
+            r"\b(?:8|eight)[\s-]*month\b|\bjanuary\s*[-\u2013]\s*august\s*2027\b|"
+            r"\b(?:summer|fall|autumn)\s*2027\b",
+            text,
+            re.I,
+        )
+    )
+
+
 def prepare_application(settings: Settings, key: str) -> Lead:
     """Prepare application materials without changing a prior submission outcome."""
     store = lead_store(settings)
@@ -434,8 +448,33 @@ def save_answers(settings: Settings, key: str, edits: dict[int, str]) -> Lead:
             if was_personal and reusable:
                 bank.remember(item.question.label, item.answer)
             item.needs_user_input = False
-    lead.application.submission_status = "pending"
-    lead.application.submission_detail = ""
+    if lead.application.submission_status not in {"uncertain", "submitted"}:
+        lead.application.submission_status = "pending"
+        lead.application.submission_detail = ""
+    store.upsert(lead)
+    return lead
+
+
+def refresh_saved_application(settings: Settings, key: str) -> Lead:
+    """Reuse prepared materials and fill blank answers from the verified answer bank."""
+    store = lead_store(settings)
+    lead = store.get(key)
+    if lead.application is None:
+        raise ValueError("Prepare application answers first")
+    if lead.application.submission_status in {"submitted", "uncertain"}:
+        return lead
+    bank = answer_bank(settings)
+    for item in lead.application.answers:
+        if item.answer.strip():
+            continue
+        saved = bank.lookup(item.question)
+        if saved is not None:
+            item.answer = saved
+            item.needs_user_input = False
+            item.note = "From your saved answers."
+    if _retryable_block(lead.application):
+        lead.application.submission_status = "pending"
+        lead.application.submission_detail = ""
     store.upsert(lead)
     return lead
 
@@ -446,15 +485,24 @@ def submit_application(
     """Submit one prepared application through a persistent, user-authenticated browser."""
     from internship_agent.applications.browser import apply_to_posting
 
+    if not settings.auto_submit_applications and not dry_run:
+        raise ValueError("Automatic application submission is disabled")
     store = lead_store(settings)
     lead = store.get(key)
     if lead.application is None:
         raise ValueError("Prepare application answers first")
+    if lead.application.submission_status == "submitted":
+        return lead
     if lead.application.submission_status == "uncertain":
         lead.application.submission_detail = (
             "A prior submit attempt may have reached the employer; verify on the application "
             "site before trying again."
         )
+        store.upsert(lead)
+        return lead
+    if _incompatible_term(lead):
+        lead.application.submission_status = "skipped"
+        lead.application.submission_detail = "Posting requires a term outside January-April 2027"
         store.upsert(lead)
         return lead
     transcript_questions = [
@@ -555,8 +603,15 @@ def daily(
     eligible = [
         lead
         for lead in open_postings(store.load())
-        if lead.fit is not None and lead.key not in skipped_keys
+        if lead.fit is not None and lead.key not in skipped_keys and not _incompatible_term(lead)
     ]
+    if settings.auto_submit_applications:
+        from internship_agent.applications.browser import _supported_url
+
+        eligible = [
+            lead for lead in eligible
+            if lead.posting_url and _supported_url(lead.posting_url)
+        ]
     eligible.sort(key=lambda lead: -(lead.fit.score if lead.fit else 0))
     prepared: list[Lead] = []
     submitted = 0
@@ -569,8 +624,18 @@ def daily(
         if lead.application and lead.application.submission_status == "uncertain":
             application_blocked += 1
             continue
+        if lead.application and lead.application.submission_status == "skipped":
+            application_blocked += 1
+            continue
         try:
-            lead = prepare_application(settings, lead.key)
+            if (
+                lead.application
+                and lead.application.cover_letter
+                and lead.application.source == "form"
+            ):
+                lead = refresh_saved_application(settings, lead.key)
+            else:
+                lead = prepare_application(settings, lead.key)
             prepared.append(lead)
         except Exception as error:
             log(f"{lead.key}: could not prepare answers ({type(error).__name__})")

@@ -2,7 +2,14 @@ from datetime import UTC, datetime
 
 from internship_agent import workflows
 from internship_agent.config import Settings
-from internship_agent.leads.schemas import ApplicationPrep, FitAssessment, Lead
+from internship_agent.leads.answers import AnswerBank
+from internship_agent.leads.schemas import (
+    ApplicationPrep,
+    FitAssessment,
+    FormQuestion,
+    Lead,
+    PreparedAnswer,
+)
 
 
 def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
@@ -114,3 +121,84 @@ def test_pre_submit_block_can_be_retried_but_uncertain_cannot() -> None:
     )
     assert workflows._retryable_block(blocked)
     assert not workflows._retryable_block(uncertain)
+
+
+def test_incompatible_eight_month_term_is_rejected() -> None:
+    lead = Lead(
+        kind="posting",
+        company="Bree",
+        source_url="https://jobs.ashbyhq.com/bree/test",
+        posting_url="https://jobs.ashbyhq.com/bree/test",
+        posting_title="Software Engineer Co-op",
+        posting_text="This is an 8-month co-op term. (January - August 2027)",
+    )
+    assert workflows._incompatible_term(lead)
+    assert not workflows._incompatible_term(
+        lead.model_copy(update={"posting_text": "A 16-week internship (JAN - APRIL)."})
+    )
+
+
+def test_saving_answers_preserves_uncertain_submission(monkeypatch, tmp_path) -> None:
+    lead = Lead(
+        kind="posting",
+        company="Example",
+        source_url="https://jobs.ashbyhq.com/example/test",
+        posting_url="https://jobs.ashbyhq.com/example/test",
+        application=ApplicationPrep(
+            prepared_at=datetime.now(UTC),
+            source="form",
+            answers=[],
+            submission_status="uncertain",
+            submission_detail="Submit was clicked but no confirmation was detected",
+        ),
+    )
+
+    class Store:
+        def get(self, _key: str) -> Lead:
+            return lead
+
+        def upsert(self, _lead: Lead) -> None:
+            pass
+
+    monkeypatch.setattr(workflows, "lead_store", lambda _settings: Store())
+    monkeypatch.setattr(workflows, "answer_bank", lambda _settings: AnswerBank(tmp_path / "bank"))
+    saved = workflows.save_answers(Settings(_env_file=None), lead.key, {})
+    assert saved.application is not None
+    assert saved.application.submission_status == "uncertain"
+    assert "no confirmation" in saved.application.submission_detail
+
+
+def test_refresh_uses_saved_answer_without_regenerating_cover_letter(monkeypatch, tmp_path) -> None:
+    lead = Lead(
+        kind="posting",
+        company="Example",
+        source_url="https://jobs.ashbyhq.com/example/test",
+        posting_url="https://jobs.ashbyhq.com/example/test",
+        application=ApplicationPrep(
+            prepared_at=datetime.now(UTC),
+            source="form",
+            cover_letter="Tailored letter",
+            answers=[
+                PreparedAnswer(question=FormQuestion(label="Can you relocate?", required=True))
+            ],
+            submission_status="blocked",
+            submission_detail="Required answers need your input",
+        ),
+    )
+
+    class Store:
+        def get(self, _key: str) -> Lead:
+            return lead
+
+        def upsert(self, _lead: Lead) -> None:
+            pass
+
+    bank = AnswerBank(tmp_path / "bank.json")
+    bank.remember("Can you relocate?", "Yes")
+    monkeypatch.setattr(workflows, "lead_store", lambda _settings: Store())
+    monkeypatch.setattr(workflows, "answer_bank", lambda _settings: bank)
+    refreshed = workflows.refresh_saved_application(Settings(_env_file=None), lead.key)
+    assert refreshed.application is not None
+    assert refreshed.application.answers[0].answer == "Yes"
+    assert refreshed.application.cover_letter == "Tailored letter"
+    assert refreshed.application.submission_status == "pending"
