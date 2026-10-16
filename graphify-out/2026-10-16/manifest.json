@@ -444,15 +444,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792125298.8381746,
-    "seen": 1792125386.0195484,
-    "ast_hash": "7eefc3972123fe540b3103f657664509",
+    "mtime": 1792125431.5111973,
+    "seen": 1792125443.7128441,
+    "ast_hash": "33ccddccebf03ef831cc8e6cb5a90e04",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792125301.2721667,
-    "seen": 1792125386.0195484,
-    "ast_hash": "9dc8a4fdc1b0aebc64f61add21af15ab",
+    "mtime": 1792125433.864333,
+    "seen": 1792125443.7128441,
+    "ast_hash": "8d87bb40abc1783b0d10516e1adb6f31",
     "semantic_hash": ""
   }
 }
