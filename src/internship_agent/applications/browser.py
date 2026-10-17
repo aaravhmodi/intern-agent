@@ -167,12 +167,16 @@ def _fill_form(
             "return label?.innerText || ''; })(), "
             "required: el.required || el.getAttribute('aria-required') === 'true', "
             "ariaHidden: el.getAttribute('aria-hidden') === 'true', "
-            "value: el.value || '', name: el.name || '', placeholder: el.placeholder || ''})"
+            "value: el.value || '', name: el.name || '', placeholder: el.placeholder || '', "
+            "role: el.getAttribute('role') || ''})"
         )
         if info.get("ariaHidden"):
             # Greenhouse uses hidden required inputs as validity proxies for React selects.
             continue
         if not field.is_visible() and info["type"] != "file":
+            continue
+        if info.get("role") == "combobox":
+            # React selects have required proxy inputs; fill them in the combobox pass.
             continue
         label = _field_label(info)
         if info["type"] == "file":

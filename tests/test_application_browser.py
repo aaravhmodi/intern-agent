@@ -274,6 +274,23 @@ def test_fill_form_selects_only_four_month_availability(tmp_path: Path) -> None:
     assert not fields[1].checked
 
 
+def test_fill_form_defers_react_select_input_to_combobox_pass(tmp_path: Path) -> None:
+    lead = posting("https://job-boards.greenhouse.io/acme/jobs/123")
+    proxy = FakeField(
+        {
+            "tag": "input",
+            "type": "text",
+            "role": "combobox",
+            "associatedLabel": "Discipline*",
+            "required": True,
+            "name": "",
+            "value": "",
+            "placeholder": "",
+        }
+    )
+    assert _fill_form(FakePage([proxy]), lead, tmp_path / "resume.pdf") is None
+
+
 def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
     assert _numeric_answer("CAD 30 per hour or higher", "Desired Salary") == "30"
     assert _numeric_answer("Third year", "Year of study") == "3"
