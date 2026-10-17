@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 
+from internship_agent.applications import verification_mail
 from internship_agent.applications.verification_mail import _extract_code
 from internship_agent.config import Settings
 from internship_agent.leads.schemas import FormQuestion, PreparedAnswer
@@ -61,3 +62,49 @@ def test_extracts_greenhouse_mail_code_after_application_label() -> None:
     )
     assert _extract_code(raw, now, "candidate@gmail.com", "Bot Auto") == "H5bGteWa"
     assert _extract_code(raw, now, "candidate@gmail.com", "Another Company") is None
+
+
+def test_mail_poll_refreshes_inbox_until_new_code_arrives(monkeypatch) -> None:
+    now = datetime.now(UTC)
+    raw = message(
+        "Greenhouse <verify@us.greenhouse-mail.io>",
+        "candidate@gmail.com",
+        now,
+        "Use the Security code field on your application: H5bGteWa",
+        "Security code for your application to Bot Auto",
+    )
+
+    class Inbox:
+        searches = 0
+        refreshes = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def login(self, *_args):
+            return None
+
+        def select(self, *_args, **_kwargs):
+            return "OK", []
+
+        def noop(self):
+            self.refreshes += 1
+
+        def search(self, *_args):
+            self.searches += 1
+            return "OK", [b"" if self.searches == 1 else b"42"]
+
+        def fetch(self, *_args):
+            return "OK", [(b"42", raw)]
+
+    inbox = Inbox()
+    monkeypatch.setattr(verification_mail.imaplib, "IMAP4_SSL", lambda *_args, **_kw: inbox)
+    monkeypatch.setattr(verification_mail.time, "sleep", lambda _seconds: None)
+    code = verification_mail.wait_for_greenhouse_code(
+        "candidate@gmail.com", "secret", now, company="Bot Auto", timeout_seconds=2
+    )
+    assert code == "H5bGteWa"
+    assert inbox.refreshes >= 2

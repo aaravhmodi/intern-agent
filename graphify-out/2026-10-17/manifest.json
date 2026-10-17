@@ -258,9 +258,9 @@
     "semantic_hash": "c809069177249f969e3b667fcaa75111"
   },
   "src/internship_agent/workflows.py": {
-    "mtime": 1792274161.0226088,
-    "seen": 1792274190.49907,
-    "ast_hash": "64d3b844910b1d66ca0763c74f186418",
+    "mtime": 1792274551.7802148,
+    "seen": 1792274571.1036367,
+    "ast_hash": "dc811d7b5447be274a546687bf4ebcd1",
     "semantic_hash": ""
   },
   "src/internship_agent/x_search.py": {
@@ -444,21 +444,21 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792274161.014275,
-    "seen": 1792274190.49907,
-    "ast_hash": "7b20dc43f39665d13759874ed4138a45",
+    "mtime": 1792274535.673239,
+    "seen": 1792274571.1036367,
+    "ast_hash": "d10b68de3701636c50b4a6bd1ff9699c",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792273694.9671068,
-    "seen": 1792274190.49907,
-    "ast_hash": "c145402a07cb22ccd1863dd270f5b2e9",
+    "mtime": 1792274538.286371,
+    "seen": 1792274571.1036367,
+    "ast_hash": "091864474150df7910ce3ef79a176cd9",
     "semantic_hash": ""
   },
   "tests/test_daily_campaign.py": {
-    "mtime": 1792213046.2281284,
-    "seen": 1792213058.1444044,
-    "ast_hash": "5e5885041b55a122a9182985a0388594",
+    "mtime": 1792274543.9811985,
+    "seen": 1792274571.1036367,
+    "ast_hash": "4c184b9f0241e3dfd2ee0258f03c4bf8",
     "semantic_hash": ""
   },
   "scripts/run-application-campaign-2026-10-16.sh": {
@@ -510,21 +510,27 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/verification_mail.py": {
-    "mtime": 1792274356.2303393,
-    "seen": 1792274372.3149853,
-    "ast_hash": "e27fca64e8e477194d74c89ef8c0f7ba",
+    "mtime": 1792274551.7780104,
+    "seen": 1792274571.1036367,
+    "ast_hash": "1afe7a6816bd41717a23a5a773ef162c",
     "semantic_hash": ""
   },
   "tests/test_verification_mail.py": {
-    "mtime": 1792274356.2321532,
-    "seen": 1792274372.3149853,
-    "ast_hash": "926ae81d1213229956f017326710f16c",
+    "mtime": 1792274555.1805563,
+    "seen": 1792274571.1036367,
+    "ast_hash": "e3c52a2ee2137b8054532bae026e6cd9",
     "semantic_hash": ""
   },
   "data/figure-verification.png": {
     "mtime": 1792274043.1715057,
     "seen": 1792274190.49907,
     "ast_hash": "42c263fedaace7198e116adc7a4ba435",
+    "semantic_hash": ""
+  },
+  "data/bot-auto-diagnostic.png": {
+    "mtime": 1792274509.950644,
+    "seen": 1792274571.1036367,
+    "ast_hash": "4dd611b28f1ed100108d9ffb94d20e5b",
     "semantic_hash": ""
   }
 }
