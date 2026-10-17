@@ -138,8 +138,11 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   with missing required answers are left for you; the ntfy summary reports submitted and
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
   a form without submitting it.
-  The `Internship tracker: daily job prep` n8n workflow runs `POST /api/daily/run` at 8:00 AM
-  Toronto time.
+  The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
+  timers. The daily run scores only unscored postings, reuses prepared materials, and limits
+  new scoring and preparation calls with `DAILY_SCORE_LIMIT` and `DAILY_PREPARE_LIMIT`.
+  Token counts for scoring, answers, and cover letters are recorded without prompt content in
+  `data/openai-usage.jsonl`.
 
 **Notes (bottom of the side panel).** Type why you're skipping something or what you want
 more of, e.g. "this one needs French, not applying". With a company selected, the note is saved
@@ -161,7 +164,7 @@ Find founders who recently raised (pre-seed to Series A) and might take a Winter
    X search, founder profiles and funding news (read-only: no posts, likes, follows or DMs),
    and writes `data/leads-inbox.json`. Every lead must cite a `source_url` for the raise.
 2. `uv run internship-agent leads import data/leads-inbox.json`: validates and dedupes.
-3. `uv run internship-agent leads score`: OpenAI (`OPENAI_MODEL`, default `gpt-6.1-sol`)
+3. `uv run internship-agent leads score`: OpenAI (`OPENAI_MODEL`, default `gpt-6-luna`)
    scores fit 0-100 against the resume at `RESUME_PATH`, with reasons and concerns.
 4. `uv run internship-agent leads list`: ranked by fit, then stage, then recency.
 5. `uv run internship-agent leads draft <key>`: drafts an X DM and an email. Nothing is sent;

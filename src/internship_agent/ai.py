@@ -1,6 +1,7 @@
 """OpenAI calls. All output is parsed into Pydantic models before use."""
 
 import warnings
+from collections.abc import Callable
 from datetime import date
 from typing import Any, Literal
 
@@ -317,17 +318,27 @@ def _lead_context(lead: Lead) -> str:
 
 
 def assess_fit(
-    client: OpenAI, model: str, resume: str, lead: Lead, prefs: list[Preference] | None = None
+    client: OpenAI,
+    model: str,
+    resume: str,
+    lead: Lead,
+    prefs: list[Preference] | None = None,
+    *,
+    usage_callback: Callable[[Any], None] | None = None,
 ) -> FitResult:
     instructions = FIT_INSTRUCTIONS.format(preferences=format_preferences(prefs or []))
     response = client.responses.parse(
         model=model,
+        max_output_tokens=1500,
+        **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
         input=[
             {"role": "system", "content": instructions},
             {"role": "user", "content": f"RESUME:\n{resume}\n\nLEAD:\n{_lead_context(lead)}"},
         ],
         text_format=FitResult,
     )
+    if usage_callback and response.usage:
+        usage_callback(response.usage)
     if response.output_parsed is None:
         raise ValueError("Model returned no fit assessment")
     return FitResult.model_validate(response.output_parsed.model_dump())
@@ -337,6 +348,8 @@ def draft_outreach(client: OpenAI, model: str, resume: str, lead: Lead) -> Outre
     fit = lead.fit.model_dump_json() if lead.fit else "not assessed"
     response = client.responses.parse(
         model=model,
+        max_output_tokens=3000,
+        **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
         input=[
             {"role": "system", "content": DRAFT_INSTRUCTIONS},
             {
@@ -446,6 +459,8 @@ def interpret_note(
     status = lead.status.value if lead else "n/a"
     response = client.responses.parse(
         model=model,
+        max_output_tokens=1000,
+        **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
         input=[
             {
                 "role": "system",
@@ -492,11 +507,15 @@ def prepare_answers(
     lead: Lead,
     questions: list[tuple[int, str]],
     candidate_context: str = "",
+    *,
+    usage_callback: Callable[[Any], None] | None = None,
 ) -> list[AnswerDraft]:
     """Draft answers for (index, question description) pairs."""
     listing = "\n".join(f"[{i}] {text}" for i, text in questions)
     response = client.responses.parse(
         model=model,
+        max_output_tokens=3000,
+        **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
         input=[
             {"role": "system", "content": ANSWER_INSTRUCTIONS},
             {
@@ -508,6 +527,8 @@ def prepare_answers(
         ],
         text_format=AnswerDrafts,
     )
+    if usage_callback and response.usage:
+        usage_callback(response.usage)
     if response.output_parsed is None:
         raise ValueError("Model returned no answers")
     return AnswerDrafts.model_validate(response.output_parsed.model_dump()).answers
@@ -520,11 +541,19 @@ class CoverLetterDraft(BaseModel):
 
 
 def prepare_cover_letter(
-    client: OpenAI, model: str, resume: str, candidate_context: str, lead: Lead
+    client: OpenAI,
+    model: str,
+    resume: str,
+    candidate_context: str,
+    lead: Lead,
+    *,
+    usage_callback: Callable[[Any], None] | None = None,
 ) -> str:
     """Write a tailored cover letter using only validated candidate and posting facts."""
     response = client.responses.parse(
         model=model,
+        max_output_tokens=1000,
+        **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
         input=[
             {
                 "role": "system",
@@ -546,6 +575,8 @@ def prepare_cover_letter(
         ],
         text_format=CoverLetterDraft,
     )
+    if usage_callback and response.usage:
+        usage_callback(response.usage)
     if response.output_parsed is None:
         raise ValueError("Model returned no cover letter")
     return CoverLetterDraft.model_validate(response.output_parsed.model_dump()).cover_letter

@@ -17,9 +17,8 @@ class Settings(BaseSettings):
     timezone: str = "America/Toronto"
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-6.1-sol"
-    # Most capable model, used only for text you send: outreach drafts and application answers.
-    openai_writing_model: str = "gpt-6-astra"
+    openai_model: str = "gpt-6-luna"
+    openai_writing_model: str = "gpt-6-luna"
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
     candidate_context_path: Path = Path("candidate_context.md")
     data_dir: Path = Path("data")
@@ -50,6 +49,8 @@ class Settings(BaseSettings):
     daily_new_postings: int = 10
     daily_prepare: int = 6
     daily_min_score: int = 60
+    daily_score_limit: int = 20
+    daily_prepare_limit: int = 10
     ntfy_server: str = "https://ntfy.sh"
     ntfy_topic: str | None = None
     dashboard_url: str | None = None

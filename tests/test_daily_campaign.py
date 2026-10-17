@@ -1,4 +1,6 @@
+import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from internship_agent import workflows
 from internship_agent.config import Settings
@@ -202,3 +204,69 @@ def test_refresh_uses_saved_answer_without_regenerating_cover_letter(monkeypatch
     assert refreshed.application.answers[0].answer == "Yes"
     assert refreshed.application.cover_letter == "Tailored letter"
     assert refreshed.application.submission_status == "pending"
+
+
+def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> None:
+    leads = [
+        Lead(
+            kind="posting",
+            company=f"Company {i}",
+            source_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            posting_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            posting_title="Software Intern",
+            fit=(
+                FitAssessment(
+                    score=80, verdict="strong", reasons=[], concerns=[], talking_points=[]
+                )
+                if i < 2
+                else None
+            ),
+        )
+        for i in range(3)
+    ]
+
+    class Store:
+        def load(self) -> list[Lead]:
+            return leads
+
+    scored: list[str] = []
+    prepared: list[str] = []
+
+    def score_new(_settings: Settings, candidates: list[Lead]) -> list[Lead]:
+        scored.extend(lead.key for lead in candidates)
+        for lead in candidates:
+            lead.fit = FitAssessment(
+                score=70, verdict="possible", reasons=[], concerns=[], talking_points=[]
+            )
+        return []
+
+    def prepare(_settings: Settings, key: str) -> Lead:
+        prepared.append(key)
+        return next(lead for lead in leads if lead.key == key)
+
+    monkeypatch.setattr(workflows, "scrape_jobs", lambda _settings, _log: [])
+    monkeypatch.setattr(workflows, "lead_store", lambda _settings: Store())
+    monkeypatch.setattr(workflows, "score", score_new)
+    monkeypatch.setattr(workflows, "prepare_application", prepare)
+    report = workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=False, daily_prepare_limit=1)
+    )
+    assert scored == [leads[2].key]
+    assert len(prepared) == len(report.prepared) == 1
+
+
+def test_usage_log_contains_counts_without_prompt_content(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path)
+    usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        input_tokens_details=SimpleNamespace(cached_tokens=30),
+    )
+    workflows._record_openai_usage(settings, "score", "gpt-6-luna", usage)
+    record = json.loads((tmp_path / "openai-usage.jsonl").read_text())
+    assert record["input_tokens"] == 100
+    assert record["cached_input_tokens"] == 30
+    assert record["output_tokens"] == 20
+    assert set(record) == {
+        "at", "operation", "model", "input_tokens", "cached_input_tokens", "output_tokens"
+    }

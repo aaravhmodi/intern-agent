@@ -6,6 +6,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from openai import OpenAI
 
@@ -63,6 +64,23 @@ def _openai(settings: Settings) -> OpenAI:
     return OpenAI(api_key=settings.openai_api_key)
 
 
+def _record_openai_usage(settings: Settings, operation: str, model: str, usage: Any) -> None:
+    """Store token counts only, so scheduled AI spending can be audited."""
+    path = settings.data_dir / "openai-usage.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    details = getattr(usage, "input_tokens_details", None)
+    record = {
+        "at": datetime.now(UTC).isoformat(),
+        "operation": operation,
+        "model": model,
+        "input_tokens": usage.input_tokens,
+        "cached_input_tokens": getattr(details, "cached_tokens", 0) or 0,
+        "output_tokens": usage.output_tokens,
+    }
+    with path.open("a", encoding="utf-8") as log:
+        log.write(json.dumps(record) + "\n")
+
+
 def resume_text(settings: Settings) -> str:
     return load_resume_text(settings.resume_path, settings.data_dir / "resume.txt")
 
@@ -85,7 +103,16 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     for lead in leads:
         if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
             lead.posting_text = fetch_posting_text(lead.posting_url)
-        result = assess_fit(client, settings.openai_model, resume, lead, prefs)
+        result = assess_fit(
+            client,
+            settings.openai_model,
+            resume,
+            lead,
+            prefs,
+            usage_callback=lambda usage: _record_openai_usage(
+                settings, "score", settings.openai_model, usage
+            ),
+        )
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
@@ -392,6 +419,9 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 lead,
                 listing,
                 context,
+                usage_callback=lambda usage: _record_openai_usage(
+                    settings, "answers", settings.openai_writing_model, usage
+                ),
             )
         }
         for i, item in todo:
@@ -404,7 +434,14 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 item.answer, item.needs_user_input, item.note = cleaned, False, draft.note
     client = _openai(settings)
     cover_letter = prepare_cover_letter(
-        client, settings.openai_writing_model, resume_text(settings), context, lead
+        client,
+        settings.openai_writing_model,
+        resume_text(settings),
+        context,
+        lead,
+        usage_callback=lambda usage: _record_openai_usage(
+            settings, "cover_letter", settings.openai_writing_model, usage
+        ),
     )
     lead.application = ApplicationPrep(
         prepared_at=datetime.now(UTC),
@@ -598,7 +635,11 @@ def daily(
     new = scrape_jobs(settings, log)
     store = lead_store(settings)
     leads = store.load()
-    skipped = score(settings, open_postings(leads))
+    unscored = [lead for lead in open_postings(leads) if lead.fit is None]
+    score_limit = max(0, settings.daily_score_limit)
+    log(f"Scoring {min(len(unscored), score_limit)} new posting(s); "
+        f"{max(0, len(unscored) - score_limit)} deferred")
+    skipped = score(settings, unscored[:score_limit])
     skipped_keys = {lead.key for lead in skipped}
     eligible = [
         lead
@@ -617,6 +658,7 @@ def daily(
     submitted = 0
     application_blocked = 0
     attempted = 0
+    fresh_preparations = 0
     for lead in eligible:
         if target_submissions is not None and submitted >= target_submissions:
             break
@@ -635,6 +677,11 @@ def daily(
             ):
                 lead = refresh_saved_application(settings, lead.key)
             else:
+                if fresh_preparations >= max(0, settings.daily_prepare_limit):
+                    log(f"{lead.key}: deferred by daily AI preparation limit")
+                    application_blocked += 1
+                    continue
+                fresh_preparations += 1
                 lead = prepare_application(settings, lead.key)
             prepared.append(lead)
         except Exception as error:
