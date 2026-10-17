@@ -42,6 +42,11 @@ _SUCCESS_TEXT = re.compile(
     r"successfully submitted",
     re.I,
 )
+_EMAIL_VERIFICATION_TEXT = re.compile(
+    r"verification code was sent to|to submit your application, enter the .{0,30}code|"
+    r"security code.{0,100}confirm you're a human",
+    re.I | re.S,
+)
 _CLOSED_TEXT = re.compile(
     r"there are no current openings|job (?:is )?no longer available|"
     r"position (?:has been|is) filled|no longer accepting applications|posting is closed",
@@ -445,6 +450,11 @@ def apply_to_posting(
             body = page.locator("body").inner_text(timeout=5000)
             if _SUCCESS_TEXT.search(body):
                 return SubmissionResult("submitted", "Application confirmation detected")
+            if _EMAIL_VERIFICATION_TEXT.search(body):
+                _save_submission_diagnostic(page, browser_dir, lead)
+                return SubmissionResult(
+                    "uncertain", "Email verification code required after submit; verify manually"
+                )
             invalid = page.locator("input:invalid, textarea:invalid, select:invalid").count()
             if invalid:
                 return SubmissionResult(

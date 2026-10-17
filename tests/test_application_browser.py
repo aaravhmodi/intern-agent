@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from internship_agent.applications.browser import (
+    _EMAIL_VERIFICATION_TEXT,
     _SUCCESS_TEXT,
     _answer_for,
     _field_label,
@@ -21,6 +22,16 @@ from internship_agent.leads.schemas import (
     LeadKind,
     PreparedAnswer,
 )
+
+
+def test_greenhouse_email_verification_is_not_submission_confirmation() -> None:
+    text = (
+        "A verification code was sent to the applicant. "
+        "To submit your application, enter the 8-character code."
+    )
+    assert _EMAIL_VERIFICATION_TEXT.search(text)
+    assert not _SUCCESS_TEXT.search(text)
+    assert not _EMAIL_VERIFICATION_TEXT.search("Thank you for applying!")
 
 
 class FakeField:
