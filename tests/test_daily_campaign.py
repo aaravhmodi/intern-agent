@@ -38,7 +38,7 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
 
     submitted: list[str] = []
 
-    def prepare(_: Settings, key: str) -> Lead:
+    def prepare(_: Settings, key: str, *, budget: object = None) -> Lead:
         lead = next(item for item in leads if item.key == key)
         lead.application = ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[])
         return lead
@@ -55,7 +55,7 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
     monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
-    monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
+    monkeypatch.setattr(workflows, "score", lambda settings, postings, budget=None: [])
     monkeypatch.setattr(workflows, "prepare_application", prepare)
     monkeypatch.setattr(workflows, "submit_application", submit)
 
@@ -232,7 +232,9 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
     scored: list[str] = []
     prepared: list[str] = []
 
-    def score_new(_settings: Settings, candidates: list[Lead]) -> list[Lead]:
+    def score_new(
+        _settings: Settings, candidates: list[Lead], *, budget: object = None
+    ) -> list[Lead]:
         scored.extend(lead.key for lead in candidates)
         for lead in candidates:
             lead.fit = FitAssessment(
@@ -240,7 +242,7 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
             )
         return []
 
-    def prepare(_settings: Settings, key: str) -> Lead:
+    def prepare(_settings: Settings, key: str, *, budget: object = None) -> Lead:
         prepared.append(key)
         return next(lead for lead in leads if lead.key == key)
 
@@ -268,5 +270,10 @@ def test_usage_log_contains_counts_without_prompt_content(tmp_path) -> None:
     assert record["cached_input_tokens"] == 30
     assert record["output_tokens"] == 20
     assert set(record) == {
-        "at", "operation", "model", "input_tokens", "cached_input_tokens", "output_tokens"
+        "at",
+        "operation",
+        "model",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
     }

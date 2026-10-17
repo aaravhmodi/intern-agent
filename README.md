@@ -141,6 +141,10 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
   timers. The daily run scores only unscored postings, reuses prepared materials, and limits
   new scoring and preparation calls with `DAILY_SCORE_LIMIT` and `DAILY_PREPARE_LIMIT`.
+  A shared `DAILY_AI_BUDGET_USD` limit (default `$0.50`) checks each request before
+  sending it, reserving its maximum output cost at conservative Luna rates. The daily
+  job stops new AI work when the next request cannot fit. Other manual commands have
+  separate spending, and a change in OpenAI pricing requires updating the rate table.
   Token counts for scoring, answers, and cover letters are recorded without prompt content in
   `data/openai-usage.jsonl`.
 

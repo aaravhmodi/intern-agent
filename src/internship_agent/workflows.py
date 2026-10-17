@@ -20,6 +20,7 @@ from internship_agent.ai import (
     search_people,
     search_startups,
 )
+from internship_agent.ai_budget import BudgetExhausted, RunBudget
 from internship_agent.config import Settings
 from internship_agent.leads.answers import (
     AnswerBank,
@@ -58,10 +59,10 @@ def lead_store(settings: Settings) -> LeadStore:
     return LeadStore(settings.data_dir / "leads.json")
 
 
-def _openai(settings: Settings) -> OpenAI:
+def _openai(settings: Settings, *, no_retries: bool = False) -> OpenAI:
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=settings.openai_api_key)
+    return OpenAI(api_key=settings.openai_api_key, max_retries=0 if no_retries else 2)
 
 
 def _record_openai_usage(settings: Settings, operation: str, model: str, usage: Any) -> None:
@@ -89,7 +90,7 @@ def preference_store(settings: Settings) -> PreferenceStore:
     return PreferenceStore(settings.data_dir / "preferences.json")
 
 
-def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
+def score(settings: Settings, leads: list[Lead], *, budget: RunBudget | None = None) -> list[Lead]:
     """Score leads in place and store them, applying learned preferences.
 
     Fetches each posting's description first so rules like "requires French" can be
@@ -97,22 +98,27 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     """
     if not leads or not settings.openai_api_key:
         return []
-    client, resume, store = _openai(settings), resume_text(settings), lead_store(settings)
+    client = _openai(settings, no_retries=budget is not None)
+    resume, store = resume_text(settings), lead_store(settings)
     prefs = preference_store(settings).load()
     skipped: list[Lead] = []
     for lead in leads:
         if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
             lead.posting_text = fetch_posting_text(lead.posting_url)
-        result = assess_fit(
-            client,
-            settings.openai_model,
-            resume,
-            lead,
-            prefs,
-            usage_callback=lambda usage: _record_openai_usage(
-                settings, "score", settings.openai_model, usage
-            ),
-        )
+        try:
+            result = assess_fit(
+                client,
+                settings.openai_model,
+                resume,
+                lead,
+                prefs,
+                usage_callback=lambda usage: _record_openai_usage(
+                    settings, "score", settings.openai_model, usage
+                ),
+                budget=budget,
+            )
+        except BudgetExhausted:
+            break
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
@@ -382,7 +388,7 @@ def _incompatible_term(lead: Lead) -> bool:
     )
 
 
-def prepare_application(settings: Settings, key: str) -> Lead:
+def prepare_application(settings: Settings, key: str, *, budget: RunBudget | None = None) -> Lead:
     """Prepare application materials without changing a prior submission outcome."""
     store = lead_store(settings)
     lead = store.get(key)
@@ -413,7 +419,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
         drafts = {
             d.index: d
             for d in prepare_answers(
-                _openai(settings),
+                _openai(settings, no_retries=budget is not None),
                 settings.openai_writing_model,
                 resume_text(settings),
                 lead,
@@ -422,6 +428,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 usage_callback=lambda usage: _record_openai_usage(
                     settings, "answers", settings.openai_writing_model, usage
                 ),
+                budget=budget,
             )
         }
         for i, item in todo:
@@ -432,7 +439,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
                 item.note = draft.note if draft and draft.note else "Fill this in yourself."
             else:
                 item.answer, item.needs_user_input, item.note = cleaned, False, draft.note
-    client = _openai(settings)
+    client = _openai(settings, no_retries=budget is not None)
     cover_letter = prepare_cover_letter(
         client,
         settings.openai_writing_model,
@@ -442,6 +449,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
         usage_callback=lambda usage: _record_openai_usage(
             settings, "cover_letter", settings.openai_writing_model, usage
         ),
+        budget=budget,
     )
     lead.application = ApplicationPrep(
         prepared_at=datetime.now(UTC),
@@ -632,14 +640,17 @@ def daily(
     """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
     if target_submissions is not None and target_submissions < 1:
         raise ValueError("target_submissions must be positive")
+    budget = RunBudget(settings.daily_ai_budget_usd)
     new = scrape_jobs(settings, log)
     store = lead_store(settings)
     leads = store.load()
     unscored = [lead for lead in open_postings(leads) if lead.fit is None]
     score_limit = max(0, settings.daily_score_limit)
-    log(f"Scoring {min(len(unscored), score_limit)} new posting(s); "
-        f"{max(0, len(unscored) - score_limit)} deferred")
-    skipped = score(settings, unscored[:score_limit])
+    log(
+        f"Scoring {min(len(unscored), score_limit)} new posting(s); "
+        f"{max(0, len(unscored) - score_limit)} deferred"
+    )
+    skipped = score(settings, unscored[:score_limit], budget=budget)
     skipped_keys = {lead.key for lead in skipped}
     eligible = [
         lead
@@ -650,8 +661,7 @@ def daily(
         from internship_agent.applications.browser import _supported_url
 
         eligible = [
-            lead for lead in eligible
-            if lead.posting_url and _supported_url(lead.posting_url)
+            lead for lead in eligible if lead.posting_url and _supported_url(lead.posting_url)
         ]
     eligible.sort(key=lambda lead: -(lead.fit.score if lead.fit else 0))
     prepared: list[Lead] = []
@@ -682,8 +692,12 @@ def daily(
                     application_blocked += 1
                     continue
                 fresh_preparations += 1
-                lead = prepare_application(settings, lead.key)
+                lead = prepare_application(settings, lead.key, budget=budget)
             prepared.append(lead)
+        except BudgetExhausted:
+            log(f"Daily AI budget reached after {budget.calls} call(s); stopping new preparation")
+            application_blocked += 1
+            break
         except Exception as error:
             log(f"{lead.key}: could not prepare answers ({type(error).__name__})")
             application_blocked += 1
@@ -706,12 +720,18 @@ def daily(
         elif lead.application and lead.application.submission_status != "ready":
             application_blocked += 1
 
+    log(f"Daily AI maximum reserved: ${budget.reserved_usd:.4f} of ${budget.limit_usd:.2f}")
     pushed = 0
     if settings.ntfy_topic:
         pushes = [
             notify.summary_push(
-                new, prepared, settings.dashboard_url, submitted, application_blocked,
-                attempted=attempted, target=target_submissions,
+                new,
+                prepared,
+                settings.dashboard_url,
+                submitted,
+                application_blocked,
+                attempted=attempted,
+                target=target_submissions,
             )
         ]
         if target_submissions is None:
