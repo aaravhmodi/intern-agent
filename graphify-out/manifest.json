@@ -510,15 +510,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/verification_mail.py": {
-    "mtime": 1792274130.4046388,
-    "seen": 1792274190.49907,
-    "ast_hash": "a92a768e8d7705198f117f12be9cadbd",
+    "mtime": 1792274356.2303393,
+    "seen": 1792274372.3149853,
+    "ast_hash": "e27fca64e8e477194d74c89ef8c0f7ba",
     "semantic_hash": ""
   },
   "tests/test_verification_mail.py": {
-    "mtime": 1792274183.4844198,
-    "seen": 1792274190.49907,
-    "ast_hash": "f05a4bb63560d938455f18731c4f0fcf",
+    "mtime": 1792274356.2321532,
+    "seen": 1792274372.3149853,
+    "ast_hash": "926ae81d1213229956f017326710f16c",
     "semantic_hash": ""
   },
   "data/figure-verification.png": {

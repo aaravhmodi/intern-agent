@@ -258,9 +258,9 @@
     "semantic_hash": "c809069177249f969e3b667fcaa75111"
   },
   "src/internship_agent/workflows.py": {
-    "mtime": 1792213046.2281284,
-    "seen": 1792213058.1444044,
-    "ast_hash": "9e82eb64d10e49797d0d5e86328e263e",
+    "mtime": 1792274161.0226088,
+    "seen": 1792274190.49907,
+    "ast_hash": "64d3b844910b1d66ca0763c74f186418",
     "semantic_hash": ""
   },
   "src/internship_agent/x_search.py": {
@@ -444,15 +444,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792273673.4592538,
-    "seen": 1792273693.5523787,
-    "ast_hash": "f4273d60f6d37544d572a698506d64a3",
+    "mtime": 1792274161.014275,
+    "seen": 1792274190.49907,
+    "ast_hash": "7b20dc43f39665d13759874ed4138a45",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792273686.0661094,
-    "seen": 1792273693.5523787,
-    "ast_hash": "90db55cd22356f5c7fdcf8734ba746d7",
+    "mtime": 1792273694.9671068,
+    "seen": 1792274190.49907,
+    "ast_hash": "c145402a07cb22ccd1863dd270f5b2e9",
     "semantic_hash": ""
   },
   "tests/test_daily_campaign.py": {
@@ -501,6 +501,30 @@
     "mtime": 1792251687.7087927,
     "seen": 1792273693.5523787,
     "ast_hash": "be48236fd6bab679998577fa6a2e851b",
+    "semantic_hash": ""
+  },
+  "data/verify_figure.py": {
+    "mtime": 1792274053.43435,
+    "seen": 1792274190.49907,
+    "ast_hash": "4134db1246b49b7f3a52f8a9c6af7a80",
+    "semantic_hash": ""
+  },
+  "src/internship_agent/applications/verification_mail.py": {
+    "mtime": 1792274130.4046388,
+    "seen": 1792274190.49907,
+    "ast_hash": "a92a768e8d7705198f117f12be9cadbd",
+    "semantic_hash": ""
+  },
+  "tests/test_verification_mail.py": {
+    "mtime": 1792274183.4844198,
+    "seen": 1792274190.49907,
+    "ast_hash": "f05a4bb63560d938455f18731c4f0fcf",
+    "semantic_hash": ""
+  },
+  "data/figure-verification.png": {
+    "mtime": 1792274043.1715057,
+    "seen": 1792274190.49907,
+    "ast_hash": "42c263fedaace7198e116adc7a4ba435",
     "semantic_hash": ""
   }
 }

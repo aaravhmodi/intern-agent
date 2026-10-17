@@ -42,3 +42,13 @@ def test_application_email_uses_configured_gmail(tmp_path: Path) -> None:
     _use_gmail_for_applications(settings, answers)
     assert answers[0].answer == "candidate@gmail.com"
     assert answer_bank(settings).load()["email"] == "candidate@gmail.com"
+
+
+def test_extracts_greenhouse_mail_code_after_application_label() -> None:
+    now = datetime.now(UTC)
+    body = (
+        "Copy and paste this code into the Security code field on your application: "
+        "H5bGteWa After you enter the code, submit your application."
+    )
+    raw = message("Greenhouse <verify@us.greenhouse-mail.io>", "candidate@gmail.com", now, body)
+    assert _extract_code(raw, now, "candidate@gmail.com") == "H5bGteWa"

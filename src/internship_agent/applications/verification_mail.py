@@ -21,6 +21,10 @@ _CODE = re.compile(
     r"([A-Za-z0-9]{8})\b",
     re.I,
 )
+_GREENHOUSE_CODE = re.compile(
+    r"code field on your application:\s*([A-Za-z0-9]{8})\b",
+    re.I,
+)
 
 
 def _message_text(message: email.message.Message) -> str:
@@ -42,7 +46,12 @@ def _message_text(message: email.message.Message) -> str:
 def _extract_code(raw: bytes, since: datetime, recipient: str) -> str | None:
     message = email.message_from_bytes(raw)
     sender = parseaddr(message.get("From", ""))[1].lower()
-    if not (sender.endswith("@greenhouse.io") or sender.endswith(".greenhouse.io")):
+    if not (
+        sender.endswith("@greenhouse.io")
+        or sender.endswith(".greenhouse.io")
+        or sender.endswith("@greenhouse-mail.io")
+        or sender.endswith(".greenhouse-mail.io")
+    ):
         return None
     recipients = " ".join(
         value
@@ -59,7 +68,7 @@ def _extract_code(raw: bytes, since: datetime, recipient: str) -> str | None:
         return None
     subject = str(make_header(decode_header(message.get("Subject", ""))))
     body = _message_text(message)
-    match = _CODE.search(body) or _CODE.search(subject)
+    match = _GREENHOUSE_CODE.search(body) or _CODE.search(body) or _CODE.search(subject)
     if match is None:
         return None
     try:
