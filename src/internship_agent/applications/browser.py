@@ -306,6 +306,7 @@ def _fill_form(
             return f"Could not match saved answer to required selection: {label}"
 
     files = page.locator("input[type=file]")
+    resume_uploaded = False
     for index in reversed(range(files.count())):
         field = files.nth(index)
         info = field.evaluate(
@@ -316,8 +317,23 @@ def _fill_form(
         label = f"{info.get('label', '')} {info.get('id', '')} {info.get('name', '')}"
         if re.search(r"resume|cv", label, re.I) and resume_path.is_file():
             field.set_input_files(str(resume_path))
+            resume_uploaded = True
         elif info["required"]:
             return "Required file upload is not supported for this field"
+    if resume_uploaded:
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        try:
+            page.wait_for_function(
+                "name => document.body.innerText.includes(name) || "
+                "Array.from(document.querySelectorAll('input[type=file]')).some("
+                "el => el.files?.[0]?.name === name)",
+                arg=resume_path.name,
+                timeout=10000,
+            )
+        except PlaywrightTimeoutError:
+            return "Resume upload did not finish"
+        page.wait_for_timeout(400)
 
     if count == 0:
         return "No application fields found on the page"

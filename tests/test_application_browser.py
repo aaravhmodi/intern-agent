@@ -74,6 +74,12 @@ class FakePage:
     def get_by_role(self, _role: str) -> FakeLocator:
         return FakeLocator()
 
+    def wait_for_function(self, _script: str, *, arg: str, timeout: int) -> None:
+        assert arg == "resume.pdf" and timeout == 10000
+
+    def wait_for_timeout(self, _milliseconds: int) -> None:
+        pass
+
 
 def posting(url: str) -> Lead:
     lead = Lead(
