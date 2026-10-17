@@ -38,7 +38,8 @@ def _visible_captcha(page: Any) -> bool:
 
 _SUCCESS_TEXT = re.compile(
     r"thank you for (applying|your application)|application (was |has been )?received|"
-    r"we('ve| have) received your application|successfully submitted",
+    r"application (was |has been )?submitted|we('ve| have) received your application|"
+    r"successfully submitted",
     re.I,
 )
 _CLOSED_TEXT = re.compile(
@@ -87,6 +88,18 @@ def _numeric_answer(answer: str, label: str) -> str | None:
 
 def _posting_is_closed(text: str) -> bool:
     return bool(_CLOSED_TEXT.search(text))
+
+
+def _save_submission_diagnostic(page: Any, browser_dir: Path, lead: Lead) -> None:
+    """Keep a private screenshot of an uncertain post-submit state for review."""
+    try:
+        directory = browser_dir / "diagnostics"
+        directory.mkdir(parents=True, exist_ok=True)
+        name = _normalize(lead.key).replace(" ", "-")
+        page.screenshot(path=str(directory / f"{name}.png"), full_page=True)
+    except Exception:
+        # A diagnostic failure must not cause a second submission attempt.
+        pass
 
 
 def _supported_url(url: str) -> bool:
@@ -405,6 +418,12 @@ def apply_to_posting(
             body = page.locator("body").inner_text(timeout=5000)
             if _SUCCESS_TEXT.search(body):
                 return SubmissionResult("submitted", "Application confirmation detected")
+            invalid = page.locator("input:invalid, textarea:invalid, select:invalid").count()
+            if invalid:
+                return SubmissionResult(
+                    "blocked", f"Form reported {invalid} invalid field(s) after submit"
+                )
+            _save_submission_diagnostic(page, browser_dir, lead)
             if _visible_captcha(page):
                 return SubmissionResult(
                     "uncertain", "CAPTCHA appeared after submit; verify manually"

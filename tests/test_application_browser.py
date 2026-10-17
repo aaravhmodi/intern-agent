@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from internship_agent.applications.browser import (
+    _SUCCESS_TEXT,
     _answer_for,
     _field_label,
     _fill_form,
@@ -300,6 +301,11 @@ def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
 def test_closed_posting_text_is_detected() -> None:
     assert _posting_is_closed("There are no current openings.")
     assert not _posting_is_closed("Apply for this Job")
+
+
+def test_submission_confirmation_text_variants() -> None:
+    assert _SUCCESS_TEXT.search("Your application has been submitted")
+    assert _SUCCESS_TEXT.search("Thank you for applying")
 
 
 def test_fill_form_uses_prepared_answers_and_uploads_resume(tmp_path: Path) -> None:
