@@ -192,6 +192,26 @@ def test_fill_form_selects_saved_year_from_lever_radio_group(tmp_path: Path) -> 
     assert third.checked
 
 
+def test_fill_form_uses_lever_question_above_textarea(tmp_path: Path) -> None:
+    lead = posting("https://jobs.lever.co/acme/123")
+    assert lead.application is not None
+    lead.application.answers.append(
+        PreparedAnswer(
+            question=FormQuestion(label="What school are you attending?", required=True),
+            answer="University of Waterloo",
+        )
+    )
+    school = FakeField(
+        {
+            "tag": "textarea", "type": "textarea", "label": "",
+            "associatedLabel": "What school are you attending?", "required": True,
+            "name": "cards[abc][field0]", "value": "", "placeholder": "",
+        }
+    )
+    assert _fill_form(FakePage([school]), lead, tmp_path / "resume.pdf") is None
+    assert school.filled == "University of Waterloo"
+
+
 def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
     assert _numeric_answer("CAD 30 per hour or higher", "Desired Salary") == "30"
     assert _numeric_answer("Third year", "Year of study") == "3"

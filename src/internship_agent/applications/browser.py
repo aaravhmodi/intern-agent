@@ -152,7 +152,9 @@ def _fill_form(
             "document.getElementById(id)?.innerText || '').filter(Boolean).join(' '); "
             "if (explicit) return explicit; const group = el.closest("
             "'.application-question, .form-group, .form-field') || el.parentElement; "
-            "const label = group?.querySelector('.application-label, legend, label'); "
+            "const label = group?.querySelector('.application-label, legend, label') || "
+            "el.closest('.application-field')?.parentElement?.querySelector("
+            "'.application-label, legend, label'); "
             "return label?.innerText || ''; })(), "
             "required: el.required || el.getAttribute('aria-required') === 'true', "
             "ariaHidden: el.getAttribute('aria-hidden') === 'true', "
@@ -363,7 +365,7 @@ def apply_to_posting(
 
             submit = page.get_by_role("button", name=_SUBMIT_BUTTON)
             if submit.count() == 0:
-                submit = page.get_by_role("input", name=_SUBMIT_BUTTON)
+                submit = page.locator("input[type=submit]")
             if submit.count() == 0:
                 return SubmissionResult("blocked", "Could not identify the final submit button")
             submit.last.click()
