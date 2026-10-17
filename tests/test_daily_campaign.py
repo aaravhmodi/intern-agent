@@ -2,8 +2,12 @@ import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from internship_agent import workflows
+from internship_agent.applications import browser
 from internship_agent.config import Settings
+from internship_agent.dashboard.app import _view
 from internship_agent.leads.answers import AnswerBank
 from internship_agent.leads.schemas import (
     ApplicationPrep,
@@ -12,6 +16,39 @@ from internship_agent.leads.schemas import (
     Lead,
     PreparedAnswer,
 )
+
+
+@pytest.mark.parametrize("result_status", ["submitted", "uncertain", "blocked", "skipped"])
+def test_post_submit_state_is_persisted_for_tracker(
+    monkeypatch, tmp_path, result_status: str
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path,
+        auto_submit_applications=True,
+        gmail_address="",
+        gmail_app_password="",
+    )
+    lead = Lead(
+        kind="posting",
+        company="Example",
+        status="scored",
+        source_url="https://job-boards.greenhouse.io/example/jobs/1",
+        posting_url="https://job-boards.greenhouse.io/example/jobs/1",
+        posting_title="Software Intern Winter 2027",
+        application=ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[]),
+    )
+    workflows.lead_store(settings).save([lead])
+    monkeypatch.setattr(
+        browser,
+        "apply_to_posting",
+        lambda *_args, **_kwargs: browser.SubmissionResult(result_status, "Mock result"),
+    )
+    saved = workflows.submit_application(settings, lead.key)
+    tracker = _view(workflows.lead_store(settings).get(lead.key))
+    assert tracker["application"]["submission_status"] == result_status
+    assert tracker["status"] == ("applied" if result_status == "submitted" else "scored")
+    assert bool(saved.application.submitted_at) == (result_status == "submitted")
 
 
 def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:

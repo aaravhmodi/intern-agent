@@ -69,6 +69,25 @@ class SubmissionResult:
     detail: str
 
 
+def _post_submit_outcome(
+    body: str, *, invalid_fields: int = 0, captcha_visible: bool = False
+) -> SubmissionResult:
+    """Classify the page after the last submit click using visible evidence only."""
+    if _SUCCESS_TEXT.search(body):
+        return SubmissionResult("submitted", "Application confirmation detected")
+    if _EMAIL_VERIFICATION_TEXT.search(body):
+        return SubmissionResult("uncertain", "Email verification required after submit")
+    if invalid_fields:
+        return SubmissionResult(
+            "blocked", f"Form reported {invalid_fields} invalid field(s) after submit"
+        )
+    if captcha_visible:
+        return SubmissionResult("uncertain", "CAPTCHA appeared after submit; verify manually")
+    return SubmissionResult(
+        "uncertain", "Submit was clicked but no application confirmation was detected"
+    )
+
+
 def _normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
@@ -459,8 +478,8 @@ def apply_to_posting(
             submit.last.click()
             page.wait_for_timeout(1800)
             body = page.locator("body").inner_text(timeout=5000)
-            if _SUCCESS_TEXT.search(body):
-                return SubmissionResult("submitted", "Application confirmation detected")
+            if _post_submit_outcome(body).status == "submitted":
+                return _post_submit_outcome(body)
             if _EMAIL_VERIFICATION_TEXT.search(body):
                 if verification_code_provider is not None:
                     try:
@@ -477,7 +496,7 @@ def apply_to_posting(
                             final_submit.last.click()
                             page.wait_for_timeout(2200)
                             body = page.locator("body").inner_text(timeout=5000)
-                            if _SUCCESS_TEXT.search(body):
+                            if _post_submit_outcome(body).status == "submitted":
                                 return SubmissionResult(
                                     "submitted",
                                     "Application confirmation detected after email verification",
@@ -488,18 +507,13 @@ def apply_to_posting(
                     "Email verification was not confirmed after submit; verify manually",
                 )
             invalid = page.locator("input:invalid, textarea:invalid, select:invalid").count()
-            if invalid:
-                return SubmissionResult(
-                    "blocked", f"Form reported {invalid} invalid field(s) after submit"
-                )
-            _save_submission_diagnostic(page, browser_dir, lead)
-            if _visible_captcha(page):
-                return SubmissionResult(
-                    "uncertain", "CAPTCHA appeared after submit; verify manually"
-                )
-            return SubmissionResult(
-                "uncertain", "Submit was clicked but no application confirmation was detected"
+            outcome = _post_submit_outcome(
+                body, invalid_fields=invalid, captcha_visible=_visible_captcha(page)
             )
+            if outcome.status == "blocked":
+                return outcome
+            _save_submission_diagnostic(page, browser_dir, lead)
+            return outcome
     except PlaywrightError as exc:
         # Browser exception messages can contain URLs and form values; keep logs generic.
         return SubmissionResult("failed", f"Browser automation failed ({type(exc).__name__})")

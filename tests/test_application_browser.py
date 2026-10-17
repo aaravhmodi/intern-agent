@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from internship_agent.applications.browser import (
     _EMAIL_VERIFICATION_TEXT,
     _SUCCESS_TEXT,
@@ -9,6 +11,7 @@ from internship_agent.applications.browser import (
     _fill_form,
     _numeric_answer,
     _online_checks,
+    _post_submit_outcome,
     _posting_is_closed,
     _supported_url,
     _visible_captcha,
@@ -32,6 +35,27 @@ def test_greenhouse_email_verification_is_not_submission_confirmation() -> None:
     assert _EMAIL_VERIFICATION_TEXT.search(text)
     assert not _SUCCESS_TEXT.search(text)
     assert not _EMAIL_VERIFICATION_TEXT.search("Thank you for applying!")
+
+
+@pytest.mark.parametrize(
+    ("page_text", "expected"),
+    [
+        ("Thank you for applying to Acme!", "submitted"),
+        ("Your application has been submitted.", "submitted"),
+        ("We've received your application.", "submitted"),
+        ("A verification code was sent to your email.", "uncertain"),
+        ("Review your answers and click submit application.", "uncertain"),
+    ],
+)
+def test_post_submit_outcomes_across_ats_pages(page_text: str, expected: str) -> None:
+    assert _post_submit_outcome(page_text).status == expected
+
+
+def test_post_submit_invalid_and_challenge_states() -> None:
+    assert _post_submit_outcome("Please complete this field", invalid_fields=1).status == "blocked"
+    assert _post_submit_outcome("Verify you are human", captcha_visible=True).detail.startswith(
+        "CAPTCHA"
+    )
 
 
 class FakeField:

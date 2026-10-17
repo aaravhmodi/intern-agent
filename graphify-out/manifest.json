@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792166030.8518078,
-    "seen": 1792166073.9241054,
-    "ast_hash": "9ce2091da118cb22fff7a174eea01c33",
+    "mtime": 1792274947.124995,
+    "seen": 1792275019.7986047,
+    "ast_hash": "43de9a3c3dc70c0db11df1d47ce30989",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -444,21 +444,21 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792274535.673239,
-    "seen": 1792274571.1036367,
-    "ast_hash": "d10b68de3701636c50b4a6bd1ff9699c",
+    "mtime": 1792274988.4460008,
+    "seen": 1792275019.798115,
+    "ast_hash": "a12c657a8e914e72a96c2cf94d242012",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792274538.286371,
-    "seen": 1792274571.1036367,
-    "ast_hash": "091864474150df7910ce3ef79a176cd9",
+    "mtime": 1792274990.7589211,
+    "seen": 1792275019.798115,
+    "ast_hash": "96141ed284e788c36773cbaaf9c63156",
     "semantic_hash": ""
   },
   "tests/test_daily_campaign.py": {
-    "mtime": 1792274627.822258,
-    "seen": 1792274648.027976,
-    "ast_hash": "2387a3d2f430d882126d2138cb1730e2",
+    "mtime": 1792274990.7589211,
+    "seen": 1792275019.798115,
+    "ast_hash": "9b6d80a767e7b7d80815a0a05a58ce96",
     "semantic_hash": ""
   },
   "scripts/run-application-campaign-2026-10-16.sh": {
@@ -503,12 +503,6 @@
     "ast_hash": "be48236fd6bab679998577fa6a2e851b",
     "semantic_hash": ""
   },
-  "data/verify_figure.py": {
-    "mtime": 1792274053.43435,
-    "seen": 1792274190.49907,
-    "ast_hash": "4134db1246b49b7f3a52f8a9c6af7a80",
-    "semantic_hash": ""
-  },
   "src/internship_agent/applications/verification_mail.py": {
     "mtime": 1792274551.7780104,
     "seen": 1792274571.1036367,
@@ -531,6 +525,24 @@
     "mtime": 1792274509.950644,
     "seen": 1792274571.1036367,
     "ast_hash": "4dd611b28f1ed100108d9ffb94d20e5b",
+    "semantic_hash": ""
+  },
+  "data/bot-auto-application-preview.md": {
+    "mtime": 1792275010.4176054,
+    "seen": 1792275019.798115,
+    "ast_hash": "03a34c490ce2ffef27c4551fa175daa1",
+    "semantic_hash": ""
+  },
+  "data/tracker-bot-auto-application.png": {
+    "mtime": 1792274911.9896317,
+    "seen": 1792275019.7986047,
+    "ast_hash": "4182658babf68992cfea5d0005bfa684",
+    "semantic_hash": ""
+  },
+  "data/tracker-bot-auto-current.png": {
+    "mtime": 1792274902.4268687,
+    "seen": 1792275019.7986047,
+    "ast_hash": "3bdfba11f792eecd5a27e3fb1ae9cd54",
     "semantic_hash": ""
   }
 }
