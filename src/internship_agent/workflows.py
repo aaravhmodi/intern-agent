@@ -38,6 +38,7 @@ from internship_agent.leads.schemas import (
     Note,
     Person,
     Preference,
+    PreparedAnswer,
     QuestionKind,
     Region,
     Segment,
@@ -373,6 +374,18 @@ def answer_bank(settings: Settings) -> AnswerBank:
     return AnswerBank(settings.data_dir / "answer-bank.json")
 
 
+def _use_gmail_for_applications(settings: Settings, answers: list[PreparedAnswer]) -> None:
+    """Use the inbox that can receive verification codes for applicant email fields."""
+    if not settings.gmail_ready or not settings.gmail_address:
+        return
+    answer_bank(settings).remember("Email", settings.gmail_address)
+    for item in answers:
+        if normalize(item.question.label) in {"email", "email address", "e mail", "e mail address"}:
+            item.answer = settings.gmail_address
+            item.needs_user_input = False
+            item.note = "Configured application inbox."
+
+
 def _retryable_block(application: ApplicationPrep | None) -> bool:
     return bool(
         application
@@ -406,6 +419,7 @@ def prepare_application(settings: Settings, key: str) -> Lead:
     if not questions:
         questions = common_questions(lead.company)
     prepared = prefill(questions, answer_bank(settings))
+    _use_gmail_for_applications(settings, prepared)
     context = (
         settings.candidate_context_path.read_text(encoding="utf-8")
         if settings.candidate_context_path.exists()
@@ -549,6 +563,7 @@ def submit_application(
         )
         store.upsert(lead)
         return lead
+    _use_gmail_for_applications(settings, lead.application.answers)
     if _incompatible_term(lead):
         lead.application.submission_status = "skipped"
         lead.application.submission_detail = "Posting requires a term outside January-April 2027"
@@ -581,11 +596,24 @@ def submit_application(
         store.upsert(lead)
         return lead
 
+    from internship_agent.applications.verification_mail import wait_for_greenhouse_code
+
     result = apply_to_posting(
         lead,
         settings.resume_path,
         settings.application_browser_dir,
         bank=answer_bank(settings),
+        verification_code_provider=(
+            lambda started: (
+                wait_for_greenhouse_code(
+                    settings.gmail_address or "",
+                    settings.gmail_app_password.get_secret_value(),
+                    started,
+                )
+                if settings.gmail_ready and settings.gmail_app_password
+                else None
+            )
+        ),
         dry_run=dry_run,
         headless=headless,
     )

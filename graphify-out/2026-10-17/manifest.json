@@ -444,15 +444,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792251610.336794,
-    "seen": 1792251622.9970531,
-    "ast_hash": "a32517754a1463bfa24d5ad38d9a3f41",
+    "mtime": 1792273673.4592538,
+    "seen": 1792273693.5523787,
+    "ast_hash": "f4273d60f6d37544d572a698506d64a3",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792251608.383566,
-    "seen": 1792251622.9970531,
-    "ast_hash": "954358c6eb6f8cd66939e4818da8aa9a",
+    "mtime": 1792273686.0661094,
+    "seen": 1792273693.5523787,
+    "ast_hash": "90db55cd22356f5c7fdcf8734ba746d7",
     "semantic_hash": ""
   },
   "tests/test_daily_campaign.py": {
@@ -489,6 +489,18 @@
     "mtime": 1792251552.1540768,
     "seen": 1792251622.9970531,
     "ast_hash": "8156d472481460b1d57577edeaff1ffc",
+    "semantic_hash": ""
+  },
+  "data/figure-submission-debug.png": {
+    "mtime": 1792273665.6602223,
+    "seen": 1792273693.5523787,
+    "ast_hash": "f5f28a93c9861d9104cd498b518c252d",
+    "semantic_hash": ""
+  },
+  "data/kodiak-submission-debug.png": {
+    "mtime": 1792251687.7087927,
+    "seen": 1792273693.5523787,
+    "ast_hash": "be48236fd6bab679998577fa6a2e851b",
     "semantic_hash": ""
   }
 }

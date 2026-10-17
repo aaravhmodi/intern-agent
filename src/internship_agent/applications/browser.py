@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -354,6 +356,7 @@ def apply_to_posting(
     browser_dir: Path,
     *,
     bank: AnswerBank | None = None,
+    verification_code_provider: Callable[[datetime], str | None] | None = None,
     dry_run: bool = False,
     headless: bool = True,
 ) -> SubmissionResult:
@@ -445,15 +448,37 @@ def apply_to_posting(
                 submit = page.locator("input[type=submit]")
             if submit.count() == 0:
                 return SubmissionResult("blocked", "Could not identify the final submit button")
+            started_at = datetime.now(UTC)
             submit.last.click()
             page.wait_for_timeout(1800)
             body = page.locator("body").inner_text(timeout=5000)
             if _SUCCESS_TEXT.search(body):
                 return SubmissionResult("submitted", "Application confirmation detected")
             if _EMAIL_VERIFICATION_TEXT.search(body):
+                if verification_code_provider is not None:
+                    try:
+                        code = verification_code_provider(started_at)
+                    except Exception:
+                        # A mail failure follows a submit click; never make this retryable.
+                        code = None
+                    boxes = page.locator('input[maxlength="1"]')
+                    if code and re.fullmatch(r"[A-Za-z0-9]{8}", code) and boxes.count() == 8:
+                        for index, character in enumerate(code):
+                            boxes.nth(index).fill(character)
+                        final_submit = page.get_by_role("button", name=_SUBMIT_BUTTON)
+                        if final_submit.count() and final_submit.last.is_enabled():
+                            final_submit.last.click()
+                            page.wait_for_timeout(2200)
+                            body = page.locator("body").inner_text(timeout=5000)
+                            if _SUCCESS_TEXT.search(body):
+                                return SubmissionResult(
+                                    "submitted",
+                                    "Application confirmation detected after email verification",
+                                )
                 _save_submission_diagnostic(page, browser_dir, lead)
                 return SubmissionResult(
-                    "uncertain", "Email verification code required after submit; verify manually"
+                    "uncertain",
+                    "Email verification was not confirmed after submit; verify manually",
                 )
             invalid = page.locator("input:invalid, textarea:invalid, select:invalid").count()
             if invalid:
