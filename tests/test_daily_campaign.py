@@ -38,7 +38,7 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
 
     submitted: list[str] = []
 
-    def prepare(_: Settings, key: str, *, budget: object = None) -> Lead:
+    def prepare(_: Settings, key: str) -> Lead:
         lead = next(item for item in leads if item.key == key)
         lead.application = ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[])
         return lead
@@ -55,7 +55,7 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
     monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
-    monkeypatch.setattr(workflows, "score", lambda settings, postings, budget=None: [])
+    monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
     monkeypatch.setattr(workflows, "prepare_application", prepare)
     monkeypatch.setattr(workflows, "submit_application", submit)
 
@@ -206,7 +206,7 @@ def test_refresh_uses_saved_answer_without_regenerating_cover_letter(monkeypatch
     assert refreshed.application.submission_status == "pending"
 
 
-def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> None:
+def test_daily_scores_only_new_leads_and_prepares_every_eligible_posting(monkeypatch) -> None:
     leads = [
         Lead(
             kind="posting",
@@ -224,6 +224,24 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
         )
         for i in range(3)
     ]
+    leads.append(
+        Lead(
+            kind="posting",
+            company="Cached",
+            source_url="https://jobs.ashbyhq.com/cached/intern",
+            posting_url="https://jobs.ashbyhq.com/cached/intern",
+            posting_title="Software Intern",
+            fit=FitAssessment(
+                score=75, verdict="strong", reasons=[], concerns=[], talking_points=[]
+            ),
+            application=ApplicationPrep(
+                prepared_at=datetime.now(UTC),
+                source="common",
+                cover_letter="Saved letter",
+                answers=[],
+            ),
+        )
+    )
 
     class Store:
         def load(self) -> list[Lead]:
@@ -232,9 +250,7 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
     scored: list[str] = []
     prepared: list[str] = []
 
-    def score_new(
-        _settings: Settings, candidates: list[Lead], *, budget: object = None
-    ) -> list[Lead]:
+    def score_new(_settings: Settings, candidates: list[Lead]) -> list[Lead]:
         scored.extend(lead.key for lead in candidates)
         for lead in candidates:
             lead.fit = FitAssessment(
@@ -242,7 +258,7 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
             )
         return []
 
-    def prepare(_settings: Settings, key: str, *, budget: object = None) -> Lead:
+    def prepare(_settings: Settings, key: str) -> Lead:
         prepared.append(key)
         return next(lead for lead in leads if lead.key == key)
 
@@ -250,11 +266,15 @@ def test_daily_scores_only_new_leads_and_caps_new_preparations(monkeypatch) -> N
     monkeypatch.setattr(workflows, "lead_store", lambda _settings: Store())
     monkeypatch.setattr(workflows, "score", score_new)
     monkeypatch.setattr(workflows, "prepare_application", prepare)
-    report = workflows.daily(
-        Settings(_env_file=None, auto_submit_applications=False, daily_prepare_limit=1)
+    monkeypatch.setattr(
+        workflows,
+        "refresh_saved_application",
+        lambda _settings, key: next(lead for lead in leads if lead.key == key),
     )
+    report = workflows.daily(Settings(_env_file=None, auto_submit_applications=False))
     assert scored == [leads[2].key]
-    assert len(prepared) == len(report.prepared) == 1
+    assert len(prepared) == 3
+    assert len(report.prepared) == 4
 
 
 def test_usage_log_contains_counts_without_prompt_content(tmp_path) -> None:
@@ -269,6 +289,7 @@ def test_usage_log_contains_counts_without_prompt_content(tmp_path) -> None:
     assert record["input_tokens"] == 100
     assert record["cached_input_tokens"] == 30
     assert record["output_tokens"] == 20
+    assert record["estimated_usd"] == 0.0000173
     assert set(record) == {
         "at",
         "operation",
@@ -276,4 +297,5 @@ def test_usage_log_contains_counts_without_prompt_content(tmp_path) -> None:
         "input_tokens",
         "cached_input_tokens",
         "output_tokens",
+        "estimated_usd",
     }

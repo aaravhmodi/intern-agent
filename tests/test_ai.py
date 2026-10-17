@@ -50,6 +50,8 @@ def test_assess_fit_sends_resume_and_lead_and_validates() -> None:
     assert responses.kwargs["text_format"] is FitResult
     user_message = responses.kwargs["input"][1]["content"]
     assert "Python, FastAPI" in user_message and "Acme" in user_message
+    assert "email_status" not in user_message
+    assert "\\n  " not in user_message
 
 
 def test_assess_fit_raises_when_model_returns_nothing() -> None:

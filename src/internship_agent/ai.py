@@ -8,7 +8,6 @@ from typing import Any, Literal
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict
 
-from internship_agent.ai_budget import RunBudget
 from internship_agent.leads.schemas import (
     FitResult,
     Lead,
@@ -299,22 +298,28 @@ def format_preferences(prefs: list[Preference]) -> str:
 
 def _lead_context(lead: Lead) -> str:
     return lead.model_dump_json(
-        exclude={
-            "status",
-            "fit",
-            "draft",
-            "email",
-            "email_status",
-            "email_source",
-            "sent_at",
-            "sent_to",
-            "followups",
-            "replied_at",
-            "followups_stopped",
-            "application",
-            "people",  # drafts are addressed to contact_name only
+        include={
+            "kind",
+            "company",
+            "company_url",
+            "what_they_build",
+            "location",
+            "hiring_signals",
+            "source_url",
+            "contact_name",
+            "contact_role",
+            "round",
+            "amount_usd",
+            "announced_on",
+            "posting_title",
+            "posting_url",
+            "deadline",
+            "segment",
+            "region",
+            "posting_text",
         },
-        indent=2,
+        exclude_defaults=True,
+        exclude_none=True,
     )
 
 
@@ -326,20 +331,16 @@ def assess_fit(
     prefs: list[Preference] | None = None,
     *,
     usage_callback: Callable[[Any], None] | None = None,
-    budget: RunBudget | None = None,
 ) -> FitResult:
     instructions = FIT_INSTRUCTIONS.format(preferences=format_preferences(prefs or []))
-    messages = [
-        {"role": "system", "content": instructions},
-        {"role": "user", "content": f"RESUME:\n{resume}\n\nLEAD:\n{_lead_context(lead)}"},
-    ]
-    if budget:
-        budget.reserve(client, model, messages, 1500, FitResult)
     response = client.responses.parse(
         model=model,
         max_output_tokens=1500,
         **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
-        input=messages,
+        input=[
+            {"role": "system", "content": instructions},
+            {"role": "user", "content": f"RESUME:\n{resume}\n\nLEAD:\n{_lead_context(lead)}"},
+        ],
         text_format=FitResult,
     )
     if usage_callback and response.usage:
@@ -514,26 +515,22 @@ def prepare_answers(
     candidate_context: str = "",
     *,
     usage_callback: Callable[[Any], None] | None = None,
-    budget: RunBudget | None = None,
 ) -> list[AnswerDraft]:
     """Draft answers for (index, question description) pairs."""
     listing = "\n".join(f"[{i}] {text}" for i, text in questions)
-    messages = [
-        {"role": "system", "content": ANSWER_INSTRUCTIONS},
-        {
-            "role": "user",
-            "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
-            f"\n\nPOSTING:\n{_lead_context(lead)}"
-            f"\n\nQUESTIONS:\n{listing}",
-        },
-    ]
-    if budget:
-        budget.reserve(client, model, messages, 3000, AnswerDrafts)
     response = client.responses.parse(
         model=model,
         max_output_tokens=3000,
         **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
-        input=messages,
+        input=[
+            {"role": "system", "content": ANSWER_INSTRUCTIONS},
+            {
+                "role": "user",
+                "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
+                f"\n\nPOSTING:\n{_lead_context(lead)}"
+                f"\n\nQUESTIONS:\n{listing}",
+            },
+        ],
         text_format=AnswerDrafts,
     )
     if usage_callback and response.usage:
@@ -557,35 +554,31 @@ def prepare_cover_letter(
     lead: Lead,
     *,
     usage_callback: Callable[[Any], None] | None = None,
-    budget: RunBudget | None = None,
 ) -> str:
     """Write a tailored cover letter using only validated candidate and posting facts."""
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "Write a concise, specific cover letter for a Winter 2027 software "
-                "engineering internship. Use only facts in the resume, candidate context, "
-                "and job posting. Focus on the strongest matching experience, particularly "
-                "early-stage startup experience when relevant. Do not invent experience, "
-                "metrics, availability, work authorization, or claims about the employer. "
-                "Use first person, natural language, and a professional greeting and sign-off. "
-                "Return only the letter text."
-            ),
-        },
-        {
-            "role": "user",
-            "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
-            f"\n\nPOSTING:\n{_lead_context(lead)}",
-        },
-    ]
-    if budget:
-        budget.reserve(client, model, messages, 1000, CoverLetterDraft)
     response = client.responses.parse(
         model=model,
         max_output_tokens=1000,
         **({"reasoning": {"effort": "none"}} if model == "gpt-6-luna" else {}),
-        input=messages,
+        input=[
+            {
+                "role": "system",
+                "content": (
+                    "Write a concise, specific cover letter for a Winter 2027 software "
+                    "engineering internship. Use only facts in the resume, candidate context, "
+                    "and job posting. Focus on the strongest matching experience, particularly "
+                    "early-stage startup experience when relevant. Do not invent experience, "
+                    "metrics, availability, work authorization, or claims about the employer. "
+                    "Use first person, natural language, and a professional greeting and sign-off. "
+                    "Return only the letter text."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"RESUME:\n{resume}\n\nCANDIDATE CONTEXT:\n{candidate_context}"
+                f"\n\nPOSTING:\n{_lead_context(lead)}",
+            },
+        ],
         text_format=CoverLetterDraft,
     )
     if usage_callback and response.usage:

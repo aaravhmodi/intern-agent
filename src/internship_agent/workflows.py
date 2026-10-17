@@ -20,7 +20,6 @@ from internship_agent.ai import (
     search_people,
     search_startups,
 )
-from internship_agent.ai_budget import BudgetExhausted, RunBudget
 from internship_agent.config import Settings
 from internship_agent.leads.answers import (
     AnswerBank,
@@ -59,10 +58,10 @@ def lead_store(settings: Settings) -> LeadStore:
     return LeadStore(settings.data_dir / "leads.json")
 
 
-def _openai(settings: Settings, *, no_retries: bool = False) -> OpenAI:
+def _openai(settings: Settings) -> OpenAI:
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=settings.openai_api_key, max_retries=0 if no_retries else 2)
+    return OpenAI(api_key=settings.openai_api_key)
 
 
 def _record_openai_usage(settings: Settings, operation: str, model: str, usage: Any) -> None:
@@ -70,14 +69,26 @@ def _record_openai_usage(settings: Settings, operation: str, model: str, usage: 
     path = settings.data_dir / "openai-usage.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     details = getattr(usage, "input_tokens_details", None)
+    cached = getattr(details, "cached_tokens", 0) or 0
     record = {
         "at": datetime.now(UTC).isoformat(),
         "operation": operation,
         "model": model,
         "input_tokens": usage.input_tokens,
-        "cached_input_tokens": getattr(details, "cached_tokens", 0) or 0,
+        "cached_input_tokens": cached,
         "output_tokens": usage.output_tokens,
     }
+    if model == "gpt-6-luna":
+        long_context = usage.input_tokens > 272_000
+        record["estimated_usd"] = round(
+            (
+                (usage.input_tokens - cached) * (0.20 if long_context else 0.10)
+                + cached * (0.02 if long_context else 0.01)
+                + usage.output_tokens * (0.75 if long_context else 0.50)
+            )
+            / 1_000_000,
+            8,
+        )
     with path.open("a", encoding="utf-8") as log:
         log.write(json.dumps(record) + "\n")
 
@@ -90,7 +101,7 @@ def preference_store(settings: Settings) -> PreferenceStore:
     return PreferenceStore(settings.data_dir / "preferences.json")
 
 
-def score(settings: Settings, leads: list[Lead], *, budget: RunBudget | None = None) -> list[Lead]:
+def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     """Score leads in place and store them, applying learned preferences.
 
     Fetches each posting's description first so rules like "requires French" can be
@@ -98,27 +109,22 @@ def score(settings: Settings, leads: list[Lead], *, budget: RunBudget | None = N
     """
     if not leads or not settings.openai_api_key:
         return []
-    client = _openai(settings, no_retries=budget is not None)
-    resume, store = resume_text(settings), lead_store(settings)
+    client, resume, store = _openai(settings), resume_text(settings), lead_store(settings)
     prefs = preference_store(settings).load()
     skipped: list[Lead] = []
     for lead in leads:
         if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
             lead.posting_text = fetch_posting_text(lead.posting_url)
-        try:
-            result = assess_fit(
-                client,
-                settings.openai_model,
-                resume,
-                lead,
-                prefs,
-                usage_callback=lambda usage: _record_openai_usage(
-                    settings, "score", settings.openai_model, usage
-                ),
-                budget=budget,
-            )
-        except BudgetExhausted:
-            break
+        result = assess_fit(
+            client,
+            settings.openai_model,
+            resume,
+            lead,
+            prefs,
+            usage_callback=lambda usage: _record_openai_usage(
+                settings, "score", settings.openai_model, usage
+            ),
+        )
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
@@ -388,7 +394,7 @@ def _incompatible_term(lead: Lead) -> bool:
     )
 
 
-def prepare_application(settings: Settings, key: str, *, budget: RunBudget | None = None) -> Lead:
+def prepare_application(settings: Settings, key: str) -> Lead:
     """Prepare application materials without changing a prior submission outcome."""
     store = lead_store(settings)
     lead = store.get(key)
@@ -419,7 +425,7 @@ def prepare_application(settings: Settings, key: str, *, budget: RunBudget | Non
         drafts = {
             d.index: d
             for d in prepare_answers(
-                _openai(settings, no_retries=budget is not None),
+                _openai(settings),
                 settings.openai_writing_model,
                 resume_text(settings),
                 lead,
@@ -428,7 +434,6 @@ def prepare_application(settings: Settings, key: str, *, budget: RunBudget | Non
                 usage_callback=lambda usage: _record_openai_usage(
                     settings, "answers", settings.openai_writing_model, usage
                 ),
-                budget=budget,
             )
         }
         for i, item in todo:
@@ -439,7 +444,7 @@ def prepare_application(settings: Settings, key: str, *, budget: RunBudget | Non
                 item.note = draft.note if draft and draft.note else "Fill this in yourself."
             else:
                 item.answer, item.needs_user_input, item.note = cleaned, False, draft.note
-    client = _openai(settings, no_retries=budget is not None)
+    client = _openai(settings)
     cover_letter = prepare_cover_letter(
         client,
         settings.openai_writing_model,
@@ -449,7 +454,6 @@ def prepare_application(settings: Settings, key: str, *, budget: RunBudget | Non
         usage_callback=lambda usage: _record_openai_usage(
             settings, "cover_letter", settings.openai_writing_model, usage
         ),
-        budget=budget,
     )
     lead.application = ApplicationPrep(
         prepared_at=datetime.now(UTC),
@@ -603,6 +607,23 @@ class DailyReport:
     submitted: int = 0
     application_blocked: int = 0
     attempted: int = 0
+    estimated_ai_usd: float = 0.0
+
+
+def _run_ai_cost(settings: Settings, started: datetime) -> float:
+    """Add token-based Luna estimates for calls recorded during this run."""
+    path = settings.data_dir / "openai-usage.jsonl"
+    if not path.exists():
+        return 0.0
+    total = 0.0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+            if datetime.fromisoformat(record["at"]) >= started:
+                total += float(record.get("estimated_usd", 0))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return total
 
 
 def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None) -> list[Lead]:
@@ -640,17 +661,23 @@ def daily(
     """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
     if target_submissions is not None and target_submissions < 1:
         raise ValueError("target_submissions must be positive")
-    budget = RunBudget(settings.daily_ai_budget_usd)
+    started = datetime.now(UTC)
     new = scrape_jobs(settings, log)
     store = lead_store(settings)
     leads = store.load()
-    unscored = [lead for lead in open_postings(leads) if lead.fit is None]
-    score_limit = max(0, settings.daily_score_limit)
-    log(
-        f"Scoring {min(len(unscored), score_limit)} new posting(s); "
-        f"{max(0, len(unscored) - score_limit)} deferred"
-    )
-    skipped = score(settings, unscored[:score_limit], budget=budget)
+    unscored = [
+        lead
+        for lead in open_postings(leads)
+        if lead.fit is None and not _incompatible_term(lead) and not is_workday(lead)
+    ]
+    if settings.auto_submit_applications:
+        from internship_agent.applications.browser import _supported_url
+
+        unscored = [
+            lead for lead in unscored if lead.posting_url and _supported_url(lead.posting_url)
+        ]
+    log(f"Scoring {len(unscored)} new eligible posting(s)")
+    skipped = score(settings, unscored)
     skipped_keys = {lead.key for lead in skipped}
     eligible = [
         lead
@@ -668,7 +695,6 @@ def daily(
     submitted = 0
     application_blocked = 0
     attempted = 0
-    fresh_preparations = 0
     for lead in eligible:
         if target_submissions is not None and submitted >= target_submissions:
             break
@@ -680,24 +706,11 @@ def daily(
             application_blocked += 1
             continue
         try:
-            if (
-                lead.application
-                and lead.application.cover_letter
-                and lead.application.source == "form"
-            ):
+            if lead.application and lead.application.cover_letter:
                 lead = refresh_saved_application(settings, lead.key)
             else:
-                if fresh_preparations >= max(0, settings.daily_prepare_limit):
-                    log(f"{lead.key}: deferred by daily AI preparation limit")
-                    application_blocked += 1
-                    continue
-                fresh_preparations += 1
-                lead = prepare_application(settings, lead.key, budget=budget)
+                lead = prepare_application(settings, lead.key)
             prepared.append(lead)
-        except BudgetExhausted:
-            log(f"Daily AI budget reached after {budget.calls} call(s); stopping new preparation")
-            application_blocked += 1
-            break
         except Exception as error:
             log(f"{lead.key}: could not prepare answers ({type(error).__name__})")
             application_blocked += 1
@@ -720,7 +733,8 @@ def daily(
         elif lead.application and lead.application.submission_status != "ready":
             application_blocked += 1
 
-    log(f"Daily AI maximum reserved: ${budget.reserved_usd:.4f} of ${budget.limit_usd:.2f}")
+    estimated_ai_usd = _run_ai_cost(settings, started)
+    log(f"Estimated OpenAI cost this run: ${estimated_ai_usd:.4f}")
     pushed = 0
     if settings.ntfy_topic:
         pushes = [
@@ -732,6 +746,7 @@ def daily(
                 application_blocked,
                 attempted=attempted,
                 target=target_submissions,
+                estimated_ai_usd=estimated_ai_usd,
             )
         ]
         if target_submissions is None:
@@ -750,4 +765,5 @@ def daily(
         submitted=submitted,
         application_blocked=application_blocked,
         attempted=attempted,
+        estimated_ai_usd=estimated_ai_usd,
     )

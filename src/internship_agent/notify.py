@@ -89,6 +89,7 @@ def summary_push(
     *,
     attempted: int | None = None,
     target: int | None = None,
+    estimated_ai_usd: float | None = None,
 ) -> Push:
     ranked = sorted(prepared, key=lambda lead: -(lead.fit.score if lead.fit else 0))
     top = ", ".join(f"{lead.company} {lead.fit.score}" for lead in ranked[:3] if lead.fit)
@@ -106,9 +107,14 @@ def summary_push(
         )
     if top:
         message += f"\nTop: {top}"
+    if estimated_ai_usd is not None:
+        message += f"\nEstimated OpenAI cost: ${estimated_ai_usd:.4f}."
     return Push(
-        title=("Internship agent: application report" if target is not None
-               else "Internship agent: today's postings"),
+        title=(
+            "Internship agent: application report"
+            if target is not None
+            else "Internship agent: today's postings"
+        ),
         message=message,
         click=dashboard_url,
         tags=["sunrise"],

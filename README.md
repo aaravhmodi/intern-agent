@@ -139,14 +139,11 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
   a form without submitting it.
   The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
-  timers. The daily run scores only unscored postings, reuses prepared materials, and limits
-  new scoring and preparation calls with `DAILY_SCORE_LIMIT` and `DAILY_PREPARE_LIMIT`.
-  A shared `DAILY_AI_BUDGET_USD` limit (default `$0.50`) checks each request before
-  sending it, reserving its maximum output cost at conservative Luna rates. The daily
-  job stops new AI work when the next request cannot fit. Other manual commands have
-  separate spending, and a change in OpenAI pricing requires updating the rate table.
+  timers. The daily run scores only new eligible postings, reuses prepared materials,
+  and processes all eligible applications. Compact job context and GPT-6 Luna keep
+  AI token usage low.
   Token counts for scoring, answers, and cover letters are recorded without prompt content in
-  `data/openai-usage.jsonl`.
+  `data/openai-usage.jsonl`; the ntfy summary includes a token-based cost estimate.
 
 **Notes (bottom of the side panel).** Type why you're skipping something or what you want
 more of, e.g. "this one needs French, not applying". With a company selected, the note is saved

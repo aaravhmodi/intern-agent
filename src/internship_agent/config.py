@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_NPX = "npx.cmd" if sys.platform == "win32" else "npx"
@@ -49,9 +49,6 @@ class Settings(BaseSettings):
     daily_new_postings: int = 10
     daily_prepare: int = 6
     daily_min_score: int = 60
-    daily_score_limit: int = 20
-    daily_prepare_limit: int = 10
-    daily_ai_budget_usd: float = Field(default=0.50, ge=0, le=0.50)
     ntfy_server: str = "https://ntfy.sh"
     ntfy_topic: str | None = None
     dashboard_url: str | None = None
