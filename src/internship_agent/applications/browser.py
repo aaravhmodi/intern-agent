@@ -27,6 +27,8 @@ def _visible_captcha(page: Any) -> bool:
         if item.is_visible() and "badge" not in (item.get_attribute("class") or "").lower():
             return True
     return False
+
+
 _SUCCESS_TEXT = re.compile(
     r"thank you for (applying|your application)|application (was |has been )?received|"
     r"we('ve| have) received your application|successfully submitted",
@@ -175,17 +177,38 @@ def _fill_form(
         if info["type"] == "radio":
             answer = _answer_for(label, lead, bank)
             option = str(info.get("label", "")).strip()
-            if answer and option and (
-                _normalize(answer) == _normalize(option)
-                or _normalize(answer).startswith(_normalize(option) + " ")
+            if (
+                answer
+                and option
+                and (
+                    _normalize(answer) == _normalize(option)
+                    or _normalize(answer).startswith(_normalize(option) + " ")
+                )
             ):
                 field.check()
             continue
         if info["type"] == "checkbox":
             answer = _answer_for(label, lead, bank)
-            if answer and _normalize(answer) in {"yes", "true", "i agree"}:
+            option = _normalize(str(info.get("label") or info.get("value") or ""))
+            wanted = _normalize(answer) if answer else ""
+            if (
+                answer
+                and option
+                and (
+                    option == wanted
+                    or option in wanted.split(" and ")
+                    or option in wanted
+                    and option not in {"on", "yes", "no"}
+                )
+            ):
                 field.check()
-            elif info["required"] and not field.is_checked():
+            elif (
+                answer
+                and wanted in {"yes", "true", "i agree"}
+                and (option in {"", "on"} or "agree" in option or "consent" in option)
+            ):
+                field.check()
+            elif not answer and info["required"] and not field.is_checked():
                 return f"Required consent/selection needs review: {label or 'unlabeled field'}"
             continue
         if info["type"] in {"submit", "button", "reset"}:
@@ -199,9 +222,7 @@ def _fill_form(
                 options = field.locator("option").all_text_contents()
                 option = next((o for o in options if _normalize(o) == _normalize(answer)), None)
                 if option is None:
-                    option = next(
-                        (o for o in options if _normalize(answer) in _normalize(o)), None
-                    )
+                    option = next((o for o in options if _normalize(answer) in _normalize(o)), None)
                 if option:
                     field.select_option(label=option)
                     continue

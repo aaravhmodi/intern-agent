@@ -159,13 +159,19 @@ def test_answer_mapping_uses_saved_answer_for_live_form_fields(tmp_path: Path) -
 
 
 def test_field_label_does_not_expose_generated_lever_field_ids() -> None:
-    assert _field_label(
-        {"name": "cards[abc-123][field0]", "associatedLabel": "Which year of studies?"}
-    ) == "Which year of studies?"
+    assert (
+        _field_label(
+            {"name": "cards[abc-123][field0]", "associatedLabel": "Which year of studies?"}
+        )
+        == "Which year of studies?"
+    )
     assert _field_label({"name": "cards[abc-123][field0]"}) == ""
-    assert _field_label(
-        {"label": "Third", "associatedLabel": "Which year of studies are you currently in?"}
-    ) == "Which year of studies are you currently in?"
+    assert (
+        _field_label(
+            {"label": "Third", "associatedLabel": "Which year of studies are you currently in?"}
+        )
+        == "Which year of studies are you currently in?"
+    )
 
 
 def test_fill_form_selects_saved_year_from_lever_radio_group(tmp_path: Path) -> None:
@@ -181,9 +187,14 @@ def test_fill_form_selects_saved_year_from_lever_radio_group(tmp_path: Path) -> 
     )
     first = FakeField(
         {
-            "tag": "input", "type": "radio", "label": "First",
+            "tag": "input",
+            "type": "radio",
+            "label": "First",
             "associatedLabel": "Which year of studies are you currently in?",
-            "required": True, "name": "year", "value": "First", "placeholder": "",
+            "required": True,
+            "name": "year",
+            "value": "First",
+            "placeholder": "",
         }
     )
     third = FakeField({**first.info, "label": "Third", "value": "Third"})
@@ -203,13 +214,47 @@ def test_fill_form_uses_lever_question_above_textarea(tmp_path: Path) -> None:
     )
     school = FakeField(
         {
-            "tag": "textarea", "type": "textarea", "label": "",
-            "associatedLabel": "What school are you attending?", "required": True,
-            "name": "cards[abc][field0]", "value": "", "placeholder": "",
+            "tag": "textarea",
+            "type": "textarea",
+            "label": "",
+            "associatedLabel": "What school are you attending?",
+            "required": True,
+            "name": "cards[abc][field0]",
+            "value": "",
+            "placeholder": "",
         }
     )
     assert _fill_form(FakePage([school]), lead, tmp_path / "resume.pdf") is None
     assert school.filled == "University of Waterloo"
+
+
+def test_fill_form_selects_only_four_month_availability(tmp_path: Path) -> None:
+    lead = posting("https://jobs.lever.co/acme/123")
+    assert lead.application is not None
+    lead.application.answers.append(
+        PreparedAnswer(
+            question=FormQuestion(label="Please indicate your availability", required=True),
+            answer="January 2027 through April 2027 (4 months)",
+        )
+    )
+    fields = [
+        FakeField(
+            {
+                "tag": "input",
+                "type": "checkbox",
+                "label": option,
+                "associatedLabel": "Please indicate your availability",
+                "required": True,
+                "name": "availability",
+                "value": option,
+                "placeholder": "",
+            }
+        )
+        for option in ("4 months", "8 months")
+    ]
+    assert _fill_form(FakePage(fields), lead, tmp_path / "resume.pdf") is None
+    assert fields[0].checked
+    assert not fields[1].checked
 
 
 def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:
