@@ -8,12 +8,14 @@ from internship_agent.leads.schemas import FormQuestion, PreparedAnswer
 from internship_agent.workflows import _use_gmail_for_applications, answer_bank
 
 
-def message(sender: str, recipient: str, at: datetime, body: str) -> bytes:
+def message(
+    sender: str, recipient: str, at: datetime, body: str, subject: str = "Verify your application"
+) -> bytes:
     mail = EmailMessage()
     mail["From"] = sender
     mail["To"] = recipient
     mail["Date"] = at.strftime("%a, %d %b %Y %H:%M:%S %z")
-    mail["Subject"] = "Verify your application"
+    mail["Subject"] = subject
     mail.set_content(body)
     return mail.as_bytes()
 
@@ -50,5 +52,12 @@ def test_extracts_greenhouse_mail_code_after_application_label() -> None:
         "Copy and paste this code into the Security code field on your application: "
         "H5bGteWa After you enter the code, submit your application."
     )
-    raw = message("Greenhouse <verify@us.greenhouse-mail.io>", "candidate@gmail.com", now, body)
-    assert _extract_code(raw, now, "candidate@gmail.com") == "H5bGteWa"
+    raw = message(
+        "Greenhouse <verify@us.greenhouse-mail.io>",
+        "candidate@gmail.com",
+        now,
+        body,
+        "Security code for your application to Bot Auto",
+    )
+    assert _extract_code(raw, now, "candidate@gmail.com", "Bot Auto") == "H5bGteWa"
+    assert _extract_code(raw, now, "candidate@gmail.com", "Another Company") is None

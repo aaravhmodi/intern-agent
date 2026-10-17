@@ -400,7 +400,9 @@ def _incompatible_term(lead: Lead) -> bool:
     return bool(
         re.search(
             r"\b(?:8|eight)[\s-]*month\b|\bjanuary\s*[-\u2013]\s*august\s*2027\b|"
-            r"\b(?:summer|fall|autumn)\s*2027\b",
+            r"\b(?:summer|fall|autumn)\s*2027\b|"
+            r"\b(?:spring|summer|fall|autumn|winter)"
+            r"(?:\s*[/\-]\s*(?:spring|summer|fall|autumn|winter))?\s*2026\b",
             text,
             re.I,
         )
@@ -609,6 +611,7 @@ def submit_application(
                     settings.gmail_address or "",
                     settings.gmail_app_password.get_secret_value(),
                     started,
+                company=lead.company,
                 )
                 if settings.gmail_ready and settings.gmail_app_password
                 else None

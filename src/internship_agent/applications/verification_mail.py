@@ -43,7 +43,7 @@ def _message_text(message: email.message.Message) -> str:
     return re.sub(r"\s+", " ", " ".join(chunks))
 
 
-def _extract_code(raw: bytes, since: datetime, recipient: str) -> str | None:
+def _extract_code(raw: bytes, since: datetime, recipient: str, company: str = "") -> str | None:
     message = email.message_from_bytes(raw)
     sender = parseaddr(message.get("From", ""))[1].lower()
     if not (
@@ -67,6 +67,10 @@ def _extract_code(raw: bytes, since: datetime, recipient: str) -> str | None:
     except (TypeError, ValueError, OverflowError):
         return None
     subject = str(make_header(decode_header(message.get("Subject", ""))))
+    if company and re.sub(r"[^a-z0-9]+", " ", company.lower()).strip() not in re.sub(
+        r"[^a-z0-9]+", " ", subject.lower()
+    ):
+        return None
     body = _message_text(message)
     match = _GREENHOUSE_CODE.search(body) or _CODE.search(body) or _CODE.search(subject)
     if match is None:
@@ -78,7 +82,12 @@ def _extract_code(raw: bytes, since: datetime, recipient: str) -> str | None:
 
 
 def wait_for_greenhouse_code(
-    address: str, password: str, since: datetime, *, timeout_seconds: int = 90
+    address: str,
+    password: str,
+    since: datetime,
+    *,
+    company: str = "",
+    timeout_seconds: int = 180,
 ) -> str | None:
     """Poll Gmail read-only. Code and message contents never enter logs or persistent storage."""
     deadline = time.monotonic() + timeout_seconds
@@ -89,6 +98,7 @@ def wait_for_greenhouse_code(
         if status != "OK":
             return None
         while time.monotonic() < deadline:
+            inbox.noop()
             status, result = inbox.search(None, "SINCE", since.strftime("%d-%b-%Y"))
             if status == "OK" and result and result[0]:
                 for message_id in reversed(result[0].split()[-30:]):
@@ -100,7 +110,9 @@ def wait_for_greenhouse_code(
                         continue
                     for part in parts:
                         if isinstance(part, tuple) and isinstance(part[1], bytes):
-                            if code := _extract_code(part[1], since, address):
+                            if code := _extract_code(
+                                part[1], since - timedelta(minutes=1), address, company
+                            ):
                                 return code
             time.sleep(min(5, max(0, deadline - time.monotonic())))
     return None

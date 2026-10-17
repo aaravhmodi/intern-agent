@@ -135,6 +135,9 @@ def test_incompatible_eight_month_term_is_rejected() -> None:
         posting_text="This is an 8-month co-op term. (January - August 2027)",
     )
     assert workflows._incompatible_term(lead)
+    assert workflows._incompatible_term(
+        lead.model_copy(update={"posting_title": "Intern (Fall/Winter 2026)", "posting_text": ""})
+    )
     assert not workflows._incompatible_term(
         lead.model_copy(update={"posting_text": "A 16-week internship (JAN - APRIL)."})
     )

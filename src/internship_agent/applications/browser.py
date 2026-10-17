@@ -54,6 +54,11 @@ _CLOSED_TEXT = re.compile(
     r"position (?:has been|is) filled|no longer accepting applications|posting is closed",
     re.I,
 )
+_WRONG_TERM_TEXT = re.compile(
+    r"\b(?:spring|summer|fall|autumn|winter)(?:\s*[/\-]\s*(?:spring|summer|fall|autumn|winter))?"
+    r"\s*2026\b|\b(?:summer|fall|autumn)\s*2027\b",
+    re.I,
+)
 _APPLY_BUTTON = re.compile(r"^(apply( now)?|apply for this (job|role)|start application)$", re.I)
 _SUBMIT_BUTTON = re.compile(r"^(submit( application)?|send application|apply( now)?)$", re.I)
 
@@ -129,6 +134,8 @@ def _online_checks(page: Any, lead: Lead, body_text: str) -> str | None:
     minimum = min(len(title_words), max(2, len(title_words) // 2))
     if title_words and len(title_words & visible_words) < minimum:
         return "Live page does not match the saved job title"
+    if _WRONG_TERM_TEXT.search(body_text[:350]):
+        return "Live job title advertises a term outside January-April 2027"
     unsafe_fields = page.locator(
         "input[type=password], input[autocomplete='cc-number'], "
         "input[autocomplete='cc-csc'], input[name*='credit_card' i], "

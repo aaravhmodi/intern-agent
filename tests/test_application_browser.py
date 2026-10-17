@@ -139,6 +139,8 @@ def test_three_live_checks_before_submit() -> None:
     assert "approved HTTPS" in (_online_checks(LivePage("https://evil.example"), lead, text) or "")
     assert "job title" in (_online_checks(live, lead, "Unrelated opportunity") or "")
     assert "payment" in (_online_checks(LivePage(live.url, 1), lead, text) or "")
+    wrong_term = "Software Engineering Intern (Fall/Winter 2026) at Acme"
+    assert "term" in (_online_checks(live, lead, wrong_term) or "")
 
 
 def test_hidden_recaptcha_support_nodes_do_not_block() -> None:
