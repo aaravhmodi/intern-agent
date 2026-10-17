@@ -67,6 +67,8 @@ class FakePage:
     def locator(self, selector: str) -> FakeLocator:
         if selector.startswith("input:invalid"):
             return FakeLocator()
+        if selector == "input[type=file]":
+            return FakeLocator([f for f in self.fields if f.info.get("type") == "file"])
         return FakeLocator(self.fields)
 
     def get_by_role(self, _role: str) -> FakeLocator:
@@ -290,6 +292,26 @@ def test_fill_form_defers_react_select_input_to_combobox_pass(tmp_path: Path) ->
         }
     )
     assert _fill_form(FakePage([proxy]), lead, tmp_path / "resume.pdf") is None
+
+
+def test_greenhouse_resume_upload_uses_input_id_when_label_says_attach(tmp_path: Path) -> None:
+    lead = posting("https://job-boards.greenhouse.io/acme/jobs/123")
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"fixture")
+    upload = FakeField(
+        {
+            "tag": "input",
+            "type": "file",
+            "label": "Attach",
+            "id": "resume",
+            "name": "",
+            "required": False,
+            "value": "",
+            "placeholder": "",
+        }
+    )
+    assert _fill_form(FakePage([upload]), lead, resume) is None
+    assert upload.uploaded == str(resume)
 
 
 def test_numeric_input_format_uses_saved_salary_and_study_values() -> None:

@@ -193,10 +193,7 @@ def _fill_form(
             continue
         label = _field_label(info)
         if info["type"] == "file":
-            if re.search(r"resume|cv upload", label, re.I) and resume_path.is_file():
-                field.set_input_files(str(resume_path))
-            elif info["required"]:
-                return "Required file upload is not supported for this field"
+            # Upload last: React replaces the input after upload, changing nth() indices.
             continue
         if info["type"] == "radio":
             answer = _answer_for(label, lead, bank)
@@ -307,6 +304,20 @@ def _fill_form(
             target.click()
         elif info["required"]:
             return f"Could not match saved answer to required selection: {label}"
+
+    files = page.locator("input[type=file]")
+    for index in reversed(range(files.count())):
+        field = files.nth(index)
+        info = field.evaluate(
+            "el => ({id: el.id || '', name: el.name || '', "
+            "label: el.labels ? Array.from(el.labels).map(x => x.innerText).join(' ') : '', "
+            "required: el.required || el.getAttribute('aria-required') === 'true'})"
+        )
+        label = f"{info.get('label', '')} {info.get('id', '')} {info.get('name', '')}"
+        if re.search(r"resume|cv", label, re.I) and resume_path.is_file():
+            field.set_input_files(str(resume_path))
+        elif info["required"]:
+            return "Required file upload is not supported for this field"
 
     if count == 0:
         return "No application fields found on the page"
