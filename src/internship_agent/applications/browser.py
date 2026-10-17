@@ -20,12 +20,19 @@ _CAPTCHA_SELECTOR = (
 
 
 def _visible_captcha(page: Any) -> bool:
-    """Ignore hidden reCAPTCHA support nodes; stop for an actual visible challenge."""
+    """Ignore passive reCAPTCHA widgets; stop for an actual visible challenge."""
     matches = page.locator(_CAPTCHA_SELECTOR)
     for index in range(matches.count()):
         item = matches.nth(index)
-        if item.is_visible() and "badge" not in (item.get_attribute("class") or "").lower():
-            return True
+        if not item.is_visible():
+            continue
+        css = (item.get_attribute("class") or "").lower()
+        src = (item.get_attribute("src") or "").lower()
+        if any(name in css for name in ("grecaptcha-badge", "grecaptcha-logo")):
+            continue
+        if "recaptcha" in src and "/anchor" in src:
+            continue
+        return True
     return False
 
 
@@ -391,13 +398,13 @@ def apply_to_posting(
                 return SubmissionResult("blocked", "Could not identify the final submit button")
             submit.last.click()
             page.wait_for_timeout(1800)
+            body = page.locator("body").inner_text(timeout=5000)
+            if _SUCCESS_TEXT.search(body):
+                return SubmissionResult("submitted", "Application confirmation detected")
             if _visible_captcha(page):
                 return SubmissionResult(
                     "uncertain", "CAPTCHA appeared after submit; verify manually"
                 )
-            body = page.locator("body").inner_text(timeout=5000)
-            if _SUCCESS_TEXT.search(body):
-                return SubmissionResult("submitted", "Application confirmation detected")
             return SubmissionResult(
                 "uncertain", "Submit was clicked but no application confirmation was detected"
             )

@@ -123,15 +123,16 @@ def test_three_live_checks_before_submit() -> None:
 
 def test_hidden_recaptcha_support_nodes_do_not_block() -> None:
     class CaptchaElement:
-        def __init__(self, visible: bool, css_class: str = "") -> None:
+        def __init__(self, visible: bool, css_class: str = "", src: str = "") -> None:
             self.visible = visible
             self.css_class = css_class
+            self.src = src
 
         def is_visible(self) -> bool:
             return self.visible
 
         def get_attribute(self, name: str) -> str | None:
-            return self.css_class if name == "class" else None
+            return {"class": self.css_class, "src": self.src}.get(name)
 
     class CaptchaPage:
         def __init__(self, elements: list[CaptchaElement]) -> None:
@@ -140,9 +141,25 @@ def test_hidden_recaptcha_support_nodes_do_not_block() -> None:
         def locator(self, _selector: str) -> FakeLocator:
             return FakeLocator(self.elements)
 
-    support = CaptchaPage([CaptchaElement(False), CaptchaElement(True, "grecaptcha-badge")])
+    support = CaptchaPage(
+        [
+            CaptchaElement(False),
+            CaptchaElement(True, "grecaptcha-badge"),
+            CaptchaElement(True, "grecaptcha-logo"),
+            CaptchaElement(True, src="https://www.recaptcha.net/recaptcha/enterprise/anchor?k=abc"),
+        ]
+    )
     assert not _visible_captcha(support)
     assert _visible_captcha(CaptchaPage([CaptchaElement(True, "challenge")]))
+    assert _visible_captcha(
+        CaptchaPage(
+            [
+                CaptchaElement(
+                    True, src="https://www.recaptcha.net/recaptcha/enterprise/bframe?k=abc"
+                )
+            ]
+        )
+    )
 
 
 def test_answer_mapping_requires_unambiguous_question_match() -> None:
