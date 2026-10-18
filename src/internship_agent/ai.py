@@ -138,7 +138,7 @@ ANSWER_INSTRUCTIONS = (
     """\
 You prepare answers to a job application's questions for a University of Waterloo student
 applying to a Winter 2027 (January-April, 4-month) software-engineering internship. Use only
-facts from the resume, candidate context, and focus notes; map them to the requirements in the
+facts from the resume and candidate context; map them to the requirements in the
 posting text.
 For each question index, return:
 - answer: for long-text questions, 80-180 words, first person, concrete, leading with the
@@ -147,18 +147,14 @@ For each question index, return:
   verbatim; for multi-select, option texts copied verbatim and separated by "; ";
   for yes/no, "Yes" or "No";
   for dates, the format the question asks for (e.g. MM/DD/YYYY), otherwise YYYY-MM.
-- needs_user_input: true when the resume, candidate context, and focus notes do not contain
+- needs_user_input: true when the resume and candidate context do not contain
   the answer (for example a LinkedIn or GitHub URL, or any personal fact), with answer empty.
 - note: at most one short sentence on what the answer draws on, or what the candidate must
   check.
 Use candidate-confirmed facts in the candidate context when they differ from the resume.
 Repository-verified projects in that context are valid evidence even when absent from the
 resume. Select the strongest match for each question; do not repeat one example mechanically.
-Never invent anything else.
-
-FOCUS NOTES:
-"""
-    + OUTREACH_FOCUS
+Never invent anything else."""
 )
 
 STARTUP_SEARCH_INSTRUCTIONS = """\

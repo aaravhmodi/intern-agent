@@ -13,6 +13,7 @@ from internship_agent.applications.browser import (
     _online_checks,
     _post_submit_outcome,
     _posting_is_closed,
+    _react_select_answer,
     _supported_url,
     _visible_captcha,
     apply_to_posting,
@@ -44,6 +45,7 @@ def test_greenhouse_email_verification_is_not_submission_confirmation() -> None:
         ("Your application has been submitted.", "submitted"),
         ("We've received your application.", "submitted"),
         ("A verification code was sent to your email.", "uncertain"),
+        ("Your form needs corrections: Missing entry for required field", "blocked"),
         ("Review your answers and click submit application.", "uncertain"),
     ],
 )
@@ -55,6 +57,14 @@ def test_post_submit_invalid_and_challenge_states() -> None:
     assert _post_submit_outcome("Please complete this field", invalid_fields=1).status == "blocked"
     assert _post_submit_outcome("Verify you are human", captcha_visible=True).detail.startswith(
         "CAPTCHA"
+    )
+
+
+def test_bachelor_degree_maps_to_greenhouse_degree_choice() -> None:
+    answer = "Bachelor of Applied Science in Systems Design Engineering"
+    assert _react_select_answer("Degree*", answer) == (
+        "Bachelor",
+        "Bachelor's Degree",
     )
 
 
@@ -219,6 +229,20 @@ def test_answer_mapping_uses_saved_answer_for_live_form_fields(tmp_path: Path) -
     bank = AnswerBank(tmp_path / "answer-bank.json")
     bank.remember("School*", "University of Waterloo")
     assert _answer_for("School*", lead, bank) == "University of Waterloo"
+
+
+def test_short_country_label_does_not_match_work_authorization_answer(tmp_path: Path) -> None:
+    lead = posting("https://boards.greenhouse.io/acme/jobs/123")
+    assert lead.application is not None
+    lead.application.answers.append(
+        PreparedAnswer(
+            question=FormQuestion(label="Are you authorized to work in this country?"),
+            answer="Yes",
+        )
+    )
+    bank = AnswerBank(tmp_path / "answer-bank.json")
+    bank.remember("Country*", "Canada")
+    assert _answer_for("Country*", lead, bank) == "Canada"
 
 
 def test_field_label_does_not_expose_generated_lever_field_ids() -> None:

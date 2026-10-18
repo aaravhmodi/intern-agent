@@ -1,7 +1,7 @@
 # Graph Report - winter-2027-internship-agent  (2026-10-17)
 
 ## Corpus Check
-- 75 files · ~187,008 words
+- 75 files · ~191,676 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 4, .service 3, .timer 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a7dd04c1`
+- Built from commit: `1ab0d0f9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -271,7 +271,7 @@ Nodes (3): Bot Auto application preview, Drafted cover letter, Values filled on 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Lead` connect `Lead` to `test_followups.py`, `simplify.py`, `app.py`, `Settings`, `leads/schemas.py`, `browser.py`, `run_followups`, `leads/cli.py`, `test_application_browser.py`, `startups.py`, `find_startups`, `test_dashboard.py`, `re`, `test_outreach.py`, `AnswerBank`, `test_leads.py`, `find-founders.md`, `find_more_postings`, `followups.py`, `workflows.py`, `fit_to_limit`, `test_daily_campaign.py`, `rank`, `test_notes.py`, `daily`, `ai.py`?**
-  _High betweenness centrality (0.123) - this node is a cross-community bridge._
+  _High betweenness centrality (0.120) - this node is a cross-community bridge._
 - **Are the 79 inferred relationships involving `Lead` (e.g. with `Posting lead JSON appended to data/leads-inbox.json` and `assess_fit()`) actually correct?**
   _`Lead` has 79 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cmd`, `internship-agent`, `compose.yaml: the dashboard on a home server` to the rest of the system?**
@@ -279,7 +279,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `simplify.py` be split into smaller, more focused modules?**
   _Cohesion score 0.06387921022067364 - nodes in this community are weakly interconnected._
 - **Why does `Settings` connect `Settings` to `test_followups.py`, `pathlib`, `get_settings`, `test_daily_campaign.py`, `run_followups`, `client.py`, `internship_agent/cli.py`, `test_notes.py`, `make_workflows.py`, `daily`, `leads/cli.py`, `test_people.py`, `find_startups`, `re`, `AnswerBank`, `test_leads.py`, `find_more_postings`, `workflows.py`?**
-  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+  _High betweenness centrality (0.053) - this node is a cross-community bridge._
 - **Are the 53 inferred relationships involving `Settings` (e.g. with `dashboard service, reachable only over Tailscale` and `_logged_subject()`) actually correct?**
   _`Settings` has 53 INFERRED edges - model-reasoned connections that need verification._
 - **Should `app.py` be split into smaller, more focused modules?**

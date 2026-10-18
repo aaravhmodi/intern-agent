@@ -49,6 +49,11 @@ _EMAIL_VERIFICATION_TEXT = re.compile(
     r"security code.{0,100}confirm you're a human",
     re.I | re.S,
 )
+_FORM_ERROR_TEXT = re.compile(
+    r"your form needs corrections|missing entry for required field|"
+    r"please correct the following errors",
+    re.I,
+)
 _CLOSED_TEXT = re.compile(
     r"there are no current openings|job (?:is )?no longer available|"
     r"position (?:has been|is) filled|no longer accepting applications|posting is closed",
@@ -77,6 +82,8 @@ def _post_submit_outcome(
         return SubmissionResult("submitted", "Application confirmation detected")
     if _EMAIL_VERIFICATION_TEXT.search(body):
         return SubmissionResult("uncertain", "Email verification required after submit")
+    if _FORM_ERROR_TEXT.search(body):
+        return SubmissionResult("blocked", "Application form reported missing or invalid fields")
     if invalid_fields:
         return SubmissionResult(
             "blocked", f"Form reported {invalid_fields} invalid field(s) after submit"
@@ -115,6 +122,13 @@ def _numeric_answer(answer: str, label: str) -> str | None:
             values = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
             return str(values[ordinal.group(1).lower()])
     return None
+
+
+def _react_select_answer(label: str, answer: str) -> tuple[str, str]:
+    """Map a verified degree description to Greenhouse's degree-level choice."""
+    if "degree" in _normalize(label) and "bachelor" in _normalize(answer):
+        return "Bachelor", "Bachelor's Degree"
+    return answer, answer
 
 
 def _posting_is_closed(text: str) -> bool:
@@ -181,7 +195,9 @@ def _answer_for(label: str, lead: Lead, bank: AnswerBank | None = None) -> str |
     matches = [
         answer
         for question, answer in answers
-        if question and (question in wanted or wanted in question)
+        if question
+        and min(len(question.split()), len(wanted.split())) >= 3
+        and (question in wanted or wanted in question)
     ]
     if len(set(matches)) == 1:
         return matches[0]
@@ -313,15 +329,16 @@ def _fill_form(
             if info["required"] and not info["value"].strip():
                 return f"Required selection needs a verified answer: {label or 'unlabeled field'}"
             continue
+        query, wanted_answer = _react_select_answer(label, answer)
         combo.click()
-        combo.fill(answer)
+        combo.fill(query)
         page.wait_for_timeout(500)
         options = page.get_by_role("option")
         target = None
         for option_index in range(options.count()):
             option = options.nth(option_index)
             option_text = option.inner_text().strip()
-            if _normalize(option_text) == _normalize(answer):
+            if _normalize(option_text) == _normalize(wanted_answer):
                 target = option
                 break
         if target is None:
@@ -329,7 +346,8 @@ def _fill_form(
                 option = options.nth(option_index)
                 option_text = _normalize(option.inner_text())
                 if option_text and (
-                    option_text in _normalize(answer) or _normalize(answer) in option_text
+                    option_text in _normalize(wanted_answer)
+                    or _normalize(wanted_answer) in option_text
                 ):
                     target = option
                     break
