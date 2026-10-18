@@ -690,6 +690,7 @@ def daily(
     log: Callable[[str], None] = lambda _: None,
     *,
     target_submissions: int | None = None,
+    lowest_first: bool = False,
 ) -> DailyReport:
     """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
     if target_submissions is not None and target_submissions < 1:
@@ -723,7 +724,7 @@ def daily(
         eligible = [
             lead for lead in eligible if lead.posting_url and _supported_url(lead.posting_url)
         ]
-    eligible.sort(key=lambda lead: -(lead.fit.score if lead.fit else 0))
+    eligible.sort(key=lambda lead: lead.fit.score if lead.fit else 0, reverse=not lowest_first)
     prepared: list[Lead] = []
     submitted = 0
     application_blocked = 0

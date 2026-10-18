@@ -101,6 +101,15 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     )
     assert report.submitted == report.attempted == len(submitted) == 2
     assert len(report.prepared) == 2
+    assert submitted == [leads[0].key, leads[1].key]
+
+    submitted.clear()
+    workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=True),
+        target_submissions=2,
+        lowest_first=True,
+    )
+    assert submitted == [leads[2].key, leads[1].key]
 
 
 def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:

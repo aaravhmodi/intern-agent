@@ -319,9 +319,11 @@ def _fill_form(
         )
         if info["tag"] == "select":
             continue
+        # Ashby comboboxes have no aria-labelledby; their label is in the field entry.
         label = combo.evaluate(
             "(el, ids) => ids.map(id => document.getElementById(id)?.innerText || '')"
-            ".filter(Boolean).join(' ')",
+            ".filter(Boolean).join(' ') || el.closest('.ashby-application-form-field-entry')"
+            "?.querySelector('label')?.innerText || ''",
             info["labelledBy"],
         )
         answer = _answer_for(label, lead, bank)
@@ -355,6 +357,18 @@ def _fill_form(
             target.click()
         elif info["required"]:
             return f"Could not match saved answer to required selection: {label}"
+
+    # Ashby yes/no questions are toggle buttons, not inputs, so the field pass never sees them.
+    toggles = page.locator(".ashby-application-form-field-entry:has(.ashby-application-form-input-yesno)")
+    for index in range(toggles.count()):
+        entry = toggles.nth(index)
+        label_node = entry.locator("label").first
+        label = label_node.inner_text().strip() if label_node.count() else ""
+        answer = _normalize(_answer_for(label, lead, bank) or "").split(" ")[0]
+        if answer in {"yes", "no"}:
+            entry.locator(f"button[data-option={answer}]").click()
+        elif entry.locator("label[class*=required]").count():
+            return f"Required yes/no question needs a verified answer: {label}"
 
     files = page.locator("input[type=file]")
     resume_uploaded = False

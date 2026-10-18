@@ -99,7 +99,9 @@ def wait_for_greenhouse_code(
             return None
         while time.monotonic() < deadline:
             inbox.noop()
-            status, result = inbox.search(None, "SINCE", since.strftime("%d-%b-%Y"))
+            # IMAP SINCE is a date in Gmail's own timezone, not UTC; _extract_code checks exact time.
+            day = (since - timedelta(days=1)).strftime("%d-%b-%Y")
+            status, result = inbox.search(None, "SINCE", day)
             if status == "OK" and result and result[0]:
                 for message_id in reversed(result[0].split()[-30:]):
                     if message_id in seen:

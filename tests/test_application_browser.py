@@ -105,13 +105,43 @@ class FakeLocator:
         return self.fields[index]
 
 
+class FakeToggle:
+    """An Ashby yes/no field entry: a label plus Yes/No buttons."""
+
+    def __init__(self, label: str, required: bool = True) -> None:
+        self.label, self.required, self.clicked = label, required, ""
+
+    def count(self) -> int:
+        return 1
+
+    @property
+    def first(self) -> "FakeToggle":
+        return self
+
+    def inner_text(self) -> str:
+        return self.label
+
+    def click(self) -> None:
+        pass
+
+    def locator(self, selector: str) -> "FakeToggle | FakeLocator":
+        if selector.startswith("button[data-option="):
+            self.clicked = selector.split("=")[1].rstrip("]")
+        if selector == "label[class*=required]" and not self.required:
+            return FakeLocator()
+        return self
+
+
 class FakePage:
-    def __init__(self, fields: list[FakeField]) -> None:
+    def __init__(self, fields: list[FakeField], toggles: list[FakeToggle] | None = None) -> None:
         self.fields = fields
+        self.toggles = toggles or []
 
     def locator(self, selector: str) -> FakeLocator:
         if selector.startswith("input:invalid"):
             return FakeLocator()
+        if selector.startswith(".ashby-application-form-field-entry"):
+            return FakeLocator(self.toggles)  # type: ignore[arg-type]
         if selector == "input[type=file]":
             return FakeLocator([f for f in self.fields if f.info.get("type") == "file"])
         return FakeLocator(self.fields)
@@ -313,6 +343,27 @@ def test_fill_form_uses_lever_question_above_textarea(tmp_path: Path) -> None:
     )
     assert _fill_form(FakePage([school]), lead, tmp_path / "resume.pdf") is None
     assert school.filled == "University of Waterloo"
+
+
+def test_fill_form_clicks_ashby_yes_no_and_blocks_unknown_required(tmp_path: Path) -> None:
+    lead = posting("https://jobs.ashbyhq.com/acme/123")
+    assert lead.application is not None
+    lead.application.answers.append(
+        PreparedAnswer(
+            question=FormQuestion(label="Are you legally eligible to work in Canada?"),
+            answer="Yes, I am a Canadian citizen",
+        )
+    )
+    known = FakeToggle("Are you legally eligible to work in Canada?")
+    assert _fill_form(FakePage([], [known]), lead, tmp_path / "resume.pdf") == (
+        "No application fields found on the page"
+    )
+    assert known.clicked == "yes"
+    unknown = FakeToggle("Do you have a driver's licence?")
+    assert "driver" in (_fill_form(FakePage([], [unknown]), lead, tmp_path / "r.pdf") or "")
+    optional = FakeToggle("Do you have a driver's licence?", required=False)
+    assert _fill_form(FakePage([], [optional]), lead, tmp_path / "r.pdf") is not None
+    assert optional.clicked == ""
 
 
 def test_fill_form_selects_only_four_month_availability(tmp_path: Path) -> None:

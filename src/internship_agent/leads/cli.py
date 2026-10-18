@@ -233,6 +233,9 @@ def application_campaign(
     for_date: Annotated[
         str | None, typer.Option(help="Run only on this YYYY-MM-DD date (configured zone).")
     ] = None,
+    lowest_first: Annotated[
+        bool, typer.Option(help="Work through the lowest fit scores first.")
+    ] = False,
 ) -> None:
     """Run a dated application campaign and send its result through ntfy."""
     settings = get_settings()
@@ -251,7 +254,9 @@ def application_campaign(
         console.print("[red]AUTO_SUBMIT_APPLICATIONS is disabled.[/red]")
         raise typer.Exit(1)
     try:
-        report = daily(settings, log=console.print, target_submissions=target)
+        report = daily(
+            settings, log=console.print, target_submissions=target, lowest_first=lowest_first
+        )
     except Exception as error:
         console.print(f"Campaign stopped ({type(error).__name__}).")
         notify.send(

@@ -194,6 +194,8 @@ let state = { leads: [], view: "startups", q: "", selected: null, sender: null, 
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = iso => new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
+const appLine = a => a.submitted_at ? `Applied ${when(a.submitted_at)}` : `Application: ${a.submission_status}`;
 const $ = id => document.getElementById(id);
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 4000); }
 async function api(path, body) {
@@ -249,7 +251,7 @@ function renderRows() {
     <div class="row ${state.selected === l.key ? "on" : ""} ${DONE.has(l.status) ? "done" : ""}" data-key="${esc(l.key)}">
       <div class="fit ${l.fit ? l.fit.verdict : ""}">${l.fit ? l.fit.score : "–"}</div>
       <div><div class="co">${esc(l.company)}</div><div class="sub">${esc(subtitle(l))}</div>
-        ${l.application?.submission_status && l.application.submission_status !== "pending" ? `<div class="sub">Application: ${esc(l.application.submission_status)}</div>` : ""}</div>
+        ${l.application?.submission_status && l.application.submission_status !== "pending" ? `<div class="sub">${esc(appLine(l.application))}</div>` : ""}</div>
       <div class="who">${esc(l.contact_name || (l.email ? l.email : "No contact yet"))}</div>
       <div class="status ${esc(l.status)}">${esc(l.sent_at ? "emailed" : l.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
@@ -295,7 +297,7 @@ function applicationSection(l) {
   }).join("");
   return `<section><h4>Application answers</h4>
     <div class="hint">${origin} ${need ? `<b>${need}</b> need your input; what you type there is remembered for future applications.` : "Everything is filled in."}</div>
-    ${app.submission_status && app.submission_status !== "pending" ? `<div class="hint"><b>Application: ${esc(app.submission_status)}</b> ${esc(app.submission_detail || "")}${app.submitted_at ? ` · Confirmed ${esc(app.submitted_at.slice(0, 16).replace("T", " "))} UTC` : ""}</div>` : ""}
+    ${app.submission_status && app.submission_status !== "pending" ? `<div class="hint"><b>Application: ${esc(app.submission_status)}</b> ${esc(app.submission_detail || "")}${app.submitted_at ? ` · Applied ${esc(when(app.submitted_at))}` : ""}</div>` : ""}
     ${app.cover_letter ? `<div class="qa"><div class="qa-label"><span>Tailored cover letter</span><button class="btn" data-copy-letter>Copy</button></div><textarea class="long" id="cover-letter">${esc(app.cover_letter)}</textarea></div>` : ""}
     ${items}
     <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" || app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>

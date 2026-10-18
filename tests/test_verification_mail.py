@@ -93,7 +93,9 @@ def test_mail_poll_refreshes_inbox_until_new_code_arrives(monkeypatch) -> None:
         def noop(self):
             self.refreshes += 1
 
-        def search(self, *_args):
+        def search(self, *args):
+            # A UTC date can be a day ahead of Gmail's mailbox date (evening in the Americas).
+            assert args[-1] == (now - timedelta(days=1)).strftime("%d-%b-%Y")
             self.searches += 1
             return "OK", [b"" if self.searches == 1 else b"42"]
 
