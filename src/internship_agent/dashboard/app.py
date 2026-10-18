@@ -5,11 +5,12 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
 from internship_agent.ai import draft_outreach
+from internship_agent.applications.browser import screenshot_path
 from internship_agent.config import get_settings
 from internship_agent.followup_run import run_followups
 from internship_agent.leads.refill import DONE, open_postings
@@ -137,7 +138,13 @@ class SendRequest(BaseModel):
 def _view(lead: Lead) -> dict[str, Any]:
     data = lead.model_dump(mode="json")
     segment = effective_segment(lead)
-    data.update(key=lead.key, x_url=lead.x_url, segment=segment.value if segment else None)
+    proof = screenshot_path(get_settings().application_browser_dir, lead, "confirmations")
+    data.update(
+        key=lead.key,
+        x_url=lead.x_url,
+        segment=segment.value if segment else None,
+        has_proof=proof.is_file(),
+    )
     return data
 
 
@@ -329,6 +336,15 @@ def save(request: SaveAnswersRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}
+
+
+@app.get("/api/application/proof")
+def application_proof(key: str) -> FileResponse:
+    """Screenshot of the employer's confirmation page, taken right after submitting."""
+    path = screenshot_path(get_settings().application_browser_dir, _get(key), "confirmations")
+    if not path.is_file():
+        raise HTTPException(404, "No confirmation screenshot for this application")
+    return FileResponse(path, media_type="image/png")
 
 
 @app.post("/api/application/auto")

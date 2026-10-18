@@ -179,3 +179,21 @@ def test_auto_apply_prepares_then_submits(
     store.upsert(lead)
     assert client.post("/api/application/auto", json={"key": lead.key}).status_code == 200
     assert calls == [("prepare", True), ("submit", True)]
+
+
+def test_confirmation_screenshot_is_served_as_proof(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from internship_agent.applications.browser import screenshot_path
+
+    monkeypatch.setenv("APPLICATION_BROWSER_DIR", str(tmp_path / "application-browser"))
+    lead = LeadStore(tmp_path / "leads.json").load()[0]
+    url = "/api/application/proof"
+    assert client.get(url, params={"key": lead.key}).status_code == 404
+    assert client.get("/api/leads").json()["leads"][0]["has_proof"] is False
+    path = screenshot_path(tmp_path / "application-browser", lead, "confirmations")
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"\x89PNG fake")
+    response = client.get(url, params={"key": lead.key})
+    assert response.status_code == 200 and response.headers["content-type"] == "image/png"
+    assert client.get("/api/leads").json()["leads"][0]["has_proof"] is True

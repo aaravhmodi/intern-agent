@@ -175,6 +175,9 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   Lever forms a day, lowest fit score first, and skips terms outside January-April.
   **Auto-apply** on a job applies to that one job even outside January-April: its term,
   availability and date answers and the cover letter are rewritten to match that posting.
+  After a submit, the job shows a result card: **✓ Submitted** with the time, the employer's
+  own confirmation line and a screenshot of their confirmation page (kept in
+  `data/application-browser/confirmations/`), or the reason it wasn't submitted.
   **Wasn't submitted, allow retry** reopens an `uncertain` attempt after you have checked
   your email and the job site. Workday, CAPTCHA pages, unsupported sites, and forms
   with missing required answers are left for you; the ntfy summary reports submitted and

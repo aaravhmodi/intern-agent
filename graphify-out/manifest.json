@@ -66,9 +66,9 @@
     "semantic_hash": "09d3d6c4bc787b4c0c92a7f6ec4d2a8c"
   },
   "src/internship_agent/dashboard/app.py": {
-    "mtime": 1792349391.7223165,
-    "seen": 1792349483.5251932,
-    "ast_hash": "e07b4ec896aba96a78ef4fb9f3c678bb",
+    "mtime": 1792350106.4089303,
+    "seen": 1792350235.4671056,
+    "ast_hash": "68b94c7bee81980cbaf09a28a91825f2",
     "semantic_hash": ""
   },
   "src/internship_agent/followup_run.py": {
@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "tests/test_dashboard.py": {
-    "mtime": 1792349444.708387,
-    "seen": 1792349483.5251932,
-    "ast_hash": "6ba70165e30bd686652e540aa1e8b4d8",
+    "mtime": 1792350172.4921148,
+    "seen": 1792350235.4671056,
+    "ast_hash": "a46842893499f66bdac78222daad92aa",
     "semantic_hash": ""
   },
   "tests/test_followups.py": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792349480.7369356,
-    "seen": 1792349483.5251932,
-    "ast_hash": "ff78ae344cf5209539495829f013b9c1",
+    "mtime": 1792350232.5820656,
+    "seen": 1792350235.4671056,
+    "ast_hash": "6dfbe8517cc0cf8e865a63c1e9d8c6d0",
     "semantic_hash": ""
   },
   "compose.yaml": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792348316.9972017,
-    "seen": 1792348376.7644587,
-    "ast_hash": "45b4b701506154147c144d30d32de623",
+    "mtime": 1792350146.236668,
+    "seen": 1792350235.4671056,
+    "ast_hash": "1d71a71c7f6c8d77c7b370ab78ad51d0",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -444,15 +444,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
-    "mtime": 1792349391.5247571,
-    "seen": 1792349483.5251932,
-    "ast_hash": "69508f14ccb973843399423f791d5038",
+    "mtime": 1792350118.6192634,
+    "seen": 1792350235.4671056,
+    "ast_hash": "14bb76efc7220b596926ba5ff9499490",
     "semantic_hash": ""
   },
   "tests/test_application_browser.py": {
-    "mtime": 1792340017.7307296,
-    "seen": 1792340125.398827,
-    "ast_hash": "cb2755c89ece24563e29f983a68e4e38",
+    "mtime": 1792350156.3818767,
+    "seen": 1792350235.4671056,
+    "ast_hash": "ee2a10aa863a559945656368a9459bc3",
     "semantic_hash": ""
   },
   "tests/test_daily_campaign.py": {

@@ -504,3 +504,11 @@ def test_workday_is_skipped_without_opening_a_browser(tmp_path: Path) -> None:
     )
     assert result.status == "skipped"
     assert "Workday" in result.detail
+
+
+def test_confirmation_quote_keeps_the_employers_line() -> None:
+    from internship_agent.applications.browser import _confirmation_quote
+
+    body = "Acme Careers\nThank you for applying to Acme! We'll be in touch.\nBack to jobs"
+    assert _confirmation_quote(body) == "Thank you for applying to Acme! We'll be in touch."
+    assert _confirmation_quote("Security code required") == ""

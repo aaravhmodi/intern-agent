@@ -126,6 +126,13 @@
   .tag { display: inline-block; font-size: 11px; border-radius: 4px; padding: 1px 6px; background: var(--warn-bg); color: var(--warn); margin-left: 6px; }
   .tag.ok { background: var(--accent-soft); color: var(--hi); }
   .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .result { margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--tone);
+            border-radius: 8px; background: var(--panel); }
+  .result.ok { --tone: var(--hi); } .result.warn { --tone: var(--mid); } .result.bad { --tone: var(--lo); }
+  .result .head { font-weight: 600; color: var(--tone); }
+  .result .why { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .result img { display: block; width: 100%; max-height: 220px; object-fit: cover; object-position: top;
+                margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; }
   .counter { float: right; color: var(--faint); }
   .placeholder { padding: 48px 24px; color: var(--muted); }
   #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper);
@@ -275,6 +282,22 @@ function peopleSection(l) {
     <div class="actions"><button class="btn ${people.length ? "" : "primary"}" id="people">${people.length ? "Look again" : "Find people"}</button></div>
   </section>`;
 }
+// What happened on the last submit, with the employer's confirmation page as proof.
+function resultCard(l, app) {
+  const s = app.submission_status;
+  if (!s || s === "pending") return "";
+  const [tone, head] = {
+    submitted: ["ok", `✓ Submitted${app.submitted_at ? ` · ${when(app.submitted_at)}` : ""}`],
+    uncertain: ["warn", "Not confirmed: check your email before retrying"],
+    ready: ["warn", "Filled in, not submitted (dry run)"],
+    skipped: ["bad", "Skipped"],
+  }[s] || ["bad", "Not submitted"];
+  const proof = l.has_proof ? `/api/application/proof?key=${encodeURIComponent(l.key)}` : "";
+  return `<div class="result ${tone}"><div class="head">${esc(head)}</div>
+    ${app.submission_detail ? `<div class="why">${esc(app.submission_detail)}</div>` : ""}
+    ${proof ? `<a href="${proof}" target="_blank" rel="noopener" title="Open the full confirmation page screenshot"><img src="${proof}&t=${encodeURIComponent(app.submitted_at || "")}" alt="The employer's confirmation page after submitting"></a>` : ""}
+  </div>`;
+}
 function applicationSection(l) {
   const app = l.application;
   if (!app) return `<section><h4>Application answers</h4>
@@ -297,7 +320,7 @@ function applicationSection(l) {
   }).join("");
   return `<section><h4>Application answers</h4>
     <div class="hint">${origin} ${need ? `<b>${need}</b> need your input; what you type there is remembered for future applications.` : "Everything is filled in."}</div>
-    ${app.submission_status && app.submission_status !== "pending" ? `<div class="hint"><b>Application: ${esc(app.submission_status)}</b> ${esc(app.submission_detail || "")}${app.submitted_at ? ` · Applied ${esc(when(app.submitted_at))}` : ""}</div>` : ""}
+    ${resultCard(l, app)}
     ${app.cover_letter ? `<div class="qa"><div class="qa-label"><span>Tailored cover letter</span><button class="btn" data-copy-letter>Copy</button></div><textarea class="long" id="cover-letter">${esc(app.cover_letter)}</textarea></div>` : ""}
     ${items}
     <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" ? `<button class="btn" id="retry-app" title="Only after checking your email and the job site">Wasn't submitted, allow retry</button>` : app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button><button class="btn primary" id="auto-app" title="Prepare answers and submit in one step">Auto-apply</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>
@@ -438,9 +461,11 @@ $("detail").addEventListener("click", async e => {
       b.disabled = true;
       await api("/api/application/save", { key: l.key, answers }); toast("Saved. Personal answers will be reused next time."); await load();
     } else if (b.id === "auto-app") {
-      b.disabled = true; b.textContent = "Preparing and submitting...";
+      b.disabled = true; b.textContent = "Submitting… this can take up to 3 minutes";
       const app = (await api("/api/application/auto", { key: l.key })).lead.application;
-      toast(`Application ${app.submission_status}: ${app.submission_detail}`); await load();
+      toast(app.submission_status === "submitted" ? "✓ Submitted. Proof is in the Application section." : `Not submitted: ${app.submission_detail}`);
+      await load();
+      document.querySelector(".result")?.scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (b.id === "retry-app") {
       await api("/api/application/retry", { key: l.key }); toast("Reopened. You can submit it again."); await load();
     } else if (b.id === "submit-app") {

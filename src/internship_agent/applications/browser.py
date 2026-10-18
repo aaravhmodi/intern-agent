@@ -135,16 +135,37 @@ def _posting_is_closed(text: str) -> bool:
     return bool(_CLOSED_TEXT.search(text))
 
 
-def _save_submission_diagnostic(page: Any, browser_dir: Path, lead: Lead) -> None:
-    """Keep a private screenshot of an uncertain post-submit state for review."""
+def screenshot_path(browser_dir: Path, lead: Lead, folder: str) -> Path:
+    """Where a lead's post-submit screenshot lives: diagnostics/ or confirmations/."""
+    return browser_dir / folder / f"{_normalize(lead.key).replace(' ', '-')}.png"
+
+
+def _save_screenshot(page: Any, browser_dir: Path, lead: Lead, folder: str) -> None:
+    """Keep a private screenshot of the post-submit page for review or as proof."""
     try:
-        directory = browser_dir / "diagnostics"
-        directory.mkdir(parents=True, exist_ok=True)
-        name = _normalize(lead.key).replace(" ", "-")
-        page.screenshot(path=str(directory / f"{name}.png"), full_page=True)
+        path = screenshot_path(browser_dir, lead, folder)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(path), full_page=True)
     except Exception:
-        # A diagnostic failure must not cause a second submission attempt.
+        # A screenshot failure must not cause a second submission attempt.
         pass
+
+
+def _confirmation_quote(body: str) -> str:
+    """The employer's own confirmation line, kept as proof of what the page said."""
+    match = _SUCCESS_TEXT.search(body)
+    if match is None:
+        return ""
+    start = body.rfind("\n", 0, match.start()) + 1
+    end = body.find("\n", match.end())
+    line = " ".join(body[start : end if end != -1 else len(body)].split())
+    return line[:200]
+
+
+def _confirmed(page: Any, browser_dir: Path, lead: Lead, body: str, how: str) -> SubmissionResult:
+    _save_screenshot(page, browser_dir, lead, "confirmations")
+    quote = _confirmation_quote(body)
+    return SubmissionResult("submitted", f'{how}: "{quote}"' if quote else how)
 
 
 def _supported_url(url: str) -> bool:
@@ -515,7 +536,7 @@ def apply_to_posting(
             page.wait_for_timeout(1800)
             body = page.locator("body").inner_text(timeout=5000)
             if _post_submit_outcome(body).status == "submitted":
-                return _post_submit_outcome(body)
+                return _confirmed(page, browser_dir, lead, body, "Employer confirmed")
             if _EMAIL_VERIFICATION_TEXT.search(body):
                 if verification_code_provider is not None:
                     try:
@@ -537,11 +558,14 @@ def apply_to_posting(
                                 if _SUCCESS_TEXT.search(body):
                                     break
                             if _post_submit_outcome(body).status == "submitted":
-                                return SubmissionResult(
-                                    "submitted",
-                                    "Application confirmation detected after email verification",
+                                return _confirmed(
+                                    page,
+                                    browser_dir,
+                                    lead,
+                                    body,
+                                    "Employer confirmed after email verification",
                                 )
-                _save_submission_diagnostic(page, browser_dir, lead)
+                _save_screenshot(page, browser_dir, lead, "diagnostics")
                 return SubmissionResult(
                     "uncertain",
                     "Email verification was not confirmed after submit; verify manually",
@@ -552,7 +576,7 @@ def apply_to_posting(
             )
             if outcome.status == "blocked":
                 return outcome
-            _save_submission_diagnostic(page, browser_dir, lead)
+            _save_screenshot(page, browser_dir, lead, "diagnostics")
             return outcome
     except PlaywrightError as exc:
         # Browser exception messages can contain URLs and form values; keep logs generic.
