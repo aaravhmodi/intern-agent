@@ -151,3 +151,16 @@ def test_retry_reopens_only_uncertain_applications(client: TestClient, tmp_path:
     store.upsert(lead)
     response = client.post("/api/application/retry", json={"key": lead.key})
     assert response.json()["lead"]["application"]["submission_status"] == "pending"
+
+
+def test_auto_apply_prepares_then_submits(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    lead = LeadStore(tmp_path / "leads.json").load()[0]
+    monkeypatch.setattr(dashboard, "prepare_application", lambda _s, key: calls.append("prepare"))
+    monkeypatch.setattr(
+        dashboard, "submit_application", lambda _s, key: calls.append("submit") or lead
+    )
+    assert client.post("/api/application/auto", json={"key": lead.key}).status_code == 200
+    assert calls == ["prepare", "submit"]

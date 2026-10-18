@@ -290,7 +290,7 @@ function applicationSection(l) {
   const app = l.application;
   if (!app) return `<section><h4>Application answers</h4>
     <div class="hint">I'll read this posting's application questions and draft answers from the job requirements and your experience.</div>
-    <div class="actions"><button class="btn primary" id="prep">Prepare answers</button></div></section>`;
+    <div class="actions"><button class="btn" id="prep">Prepare answers</button><button class="btn primary" id="auto-app" title="Prepare answers and submit in one step">Auto-apply</button></div></section>`;
   const need = app.answers.filter(a => a.needs_user_input && a.question.kind !== "file").length;
   const origin = app.source === "form" ? "From this posting's real application form." : "This site only shows its form after you sign in, so these are answers to the usual questions.";
   const items = app.answers.map((a, i) => {
@@ -311,7 +311,7 @@ function applicationSection(l) {
     ${app.submission_status && app.submission_status !== "pending" ? `<div class="hint"><b>Application: ${esc(app.submission_status)}</b> ${esc(app.submission_detail || "")}${app.submitted_at ? ` · Applied ${esc(when(app.submitted_at))}` : ""}</div>` : ""}
     ${app.cover_letter ? `<div class="qa"><div class="qa-label"><span>Tailored cover letter</span><button class="btn" data-copy-letter>Copy</button></div><textarea class="long" id="cover-letter">${esc(app.cover_letter)}</textarea></div>` : ""}
     ${items}
-    <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" ? `<button class="btn" id="retry-app" title="Only after checking your email and the job site">Wasn't submitted, allow retry</button>` : app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>
+    <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" ? `<button class="btn" id="retry-app" title="Only after checking your email and the job site">Wasn't submitted, allow retry</button>` : app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button><button class="btn primary" id="auto-app" title="Prepare answers and submit in one step">Auto-apply</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>
   </section>`;
 }
 function renderDetail() {
@@ -449,6 +449,10 @@ $("detail").addEventListener("click", async e => {
       const answers = [...document.querySelectorAll("[data-ans]")].map(t => ({ index: Number(t.dataset.ans), answer: t.value }));
       b.disabled = true;
       await api("/api/application/save", { key: l.key, answers }); toast("Saved. Personal answers will be reused next time."); await load();
+    } else if (b.id === "auto-app") {
+      b.disabled = true; b.textContent = "Preparing and submitting...";
+      const app = (await api("/api/application/auto", { key: l.key })).lead.application;
+      toast(`Application ${app.submission_status}: ${app.submission_detail}`); await load();
     } else if (b.id === "retry-app") {
       await api("/api/application/retry", { key: l.key }); toast("Reopened. You can submit it again."); await load();
     } else if (b.id === "submit-app") {

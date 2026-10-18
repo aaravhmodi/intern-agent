@@ -30,6 +30,7 @@ from internship_agent.workflows import (
     lead_store,
     preference_store,
     prepare_application,
+    refresh_saved_application,
     rescore_open,
     resume_text,
     save_answers,
@@ -338,6 +339,22 @@ def save(request: SaveAnswersRequest) -> dict[str, Any]:
     edits = {e.index: e.answer[:5000] for e in request.answers}
     try:
         lead = save_answers(get_settings(), request.key, edits)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
+
+
+@app.post("/api/application/auto")
+def auto_apply(request: KeyRequest) -> dict[str, Any]:
+    """One click: prepare (or refresh) answers like the daily run, then submit."""
+    settings = get_settings()
+    lead = _get(request.key)
+    try:
+        if lead.application and lead.application.cover_letter:
+            refresh_saved_application(settings, request.key)
+        else:
+            prepare_application(settings, request.key)
+        lead = submit_application(settings, request.key)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}

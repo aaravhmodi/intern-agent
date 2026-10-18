@@ -66,9 +66,9 @@
     "semantic_hash": "09d3d6c4bc787b4c0c92a7f6ec4d2a8c"
   },
   "src/internship_agent/dashboard/app.py": {
-    "mtime": 1792343640.8644402,
-    "seen": 1792343658.1832998,
-    "ast_hash": "cd703cb949582ae87ab8ed82683d9c44",
+    "mtime": 1792347039.470311,
+    "seen": 1792347058.7925806,
+    "ast_hash": "68824d4b6cf07e781d3cc245cd9ceb41",
     "semantic_hash": ""
   },
   "src/internship_agent/followup_run.py": {
@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "tests/test_dashboard.py": {
-    "mtime": 1792343646.4754174,
-    "seen": 1792343658.1832998,
-    "ast_hash": "1ff4dd5afb57da5fc357247ac44e1c7c",
+    "mtime": 1792347046.403161,
+    "seen": 1792347058.7925806,
+    "ast_hash": "3f5ed64f7def2920719c36060ff5d9e3",
     "semantic_hash": ""
   },
   "tests/test_followups.py": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792343640.8654406,
-    "seen": 1792343658.1832998,
-    "ast_hash": "2fa99483cf1a300372a155c8921027a7",
+    "mtime": 1792347039.470311,
+    "seen": 1792347058.7925806,
+    "ast_hash": "750decd9ca8c558e4b640744239c6780",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -468,9 +468,9 @@
     "semantic_hash": ""
   },
   "scripts/run-daily-applications.sh": {
-    "mtime": 1792340109.3285935,
-    "seen": 1792340125.398827,
-    "ast_hash": "7ec7379d892f2e6c0a928e67a495e3a6",
+    "mtime": 1792347039.4713101,
+    "seen": 1792347058.7925806,
+    "ast_hash": "87cf41500d2dc5f5fcaf39c5826fd8f2",
     "semantic_hash": ""
   },
   "scripts/run-daily-job-scrape.sh": {
