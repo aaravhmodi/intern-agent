@@ -136,3 +136,18 @@ def test_send_guess_requires_confirmation_then_records(
     again = client.post("/api/send", json={**body, "confirm_unverified": True})
     assert again.status_code == 400 and "Already emailed" in again.json()["detail"]
     assert sent == ["jane@acme.com"]
+
+
+def test_retry_reopens_only_uncertain_applications(client: TestClient, tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from internship_agent.leads.schemas import ApplicationPrep
+
+    store = LeadStore(tmp_path / "leads.json")
+    lead = store.load()[0]
+    lead.application = ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[])
+    assert client.post("/api/application/retry", json={"key": lead.key}).status_code == 400
+    lead.application.submission_status = "uncertain"
+    store.upsert(lead)
+    response = client.post("/api/application/retry", json={"key": lead.key})
+    assert response.json()["lead"]["application"]["submission_status"] == "pending"

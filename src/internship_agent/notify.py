@@ -1,7 +1,10 @@
 """Phone push notifications through ntfy (https://ntfy.sh). Only ever sends to your own topic."""
 
 import json
+import urllib.parse
 import urllib.request
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -131,3 +134,31 @@ def send(server: str, topic: str, push: Push) -> None:
     )
     with urllib.request.urlopen(request, timeout=15):
         pass
+
+
+def history(server: str, topic: str, archive: Path) -> list[dict[str, Any]]:
+    """Every message on the topic from any publisher (agent, n8n), newest first.
+
+    shortcut: ntfy.sh keeps messages ~12h, so anything published and expired between
+    dashboard visits is never archived; poll on a schedule if that gap matters.
+    """
+    saved: dict[str, dict[str, Any]] = {}
+    if archive.exists():
+        for line in archive.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                item = json.loads(line)
+                saved[item["id"]] = item
+    url = f"{server.rstrip('/')}/{urllib.parse.quote(topic)}/json?poll=1&since=all"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            fresh = [json.loads(line) for line in response.read().decode("utf-8").splitlines()]
+    except OSError:
+        fresh = []  # ntfy unreachable: still show what was archived
+    new = [m for m in fresh if m.get("event") == "message" and m["id"] not in saved]
+    if new:
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        with archive.open("a", encoding="utf-8") as out:
+            for message in new:
+                out.write(json.dumps(message) + "\n")
+                saved[message["id"]] = message
+    return sorted(saved.values(), key=lambda m: m.get("time", 0), reverse=True)

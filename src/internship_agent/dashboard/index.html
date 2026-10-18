@@ -188,9 +188,10 @@ const VIEWS = {
   contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
   skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
   rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
+  messages: { title: "Phone messages (ntfy)", group: "Activity", label: "Messages", test: () => false },
 };
 const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads" };
-let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "", messages: [] };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -219,7 +220,7 @@ function renderNav() {
   let group = null;
   for (const [id, v] of Object.entries(VIEWS)) {
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : state.leads.filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : id === "messages" ? state.messages.length : state.leads.filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -228,6 +229,15 @@ function renderNav() {
 function visible() {
   const v = VIEWS[state.view];
   return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
+}
+function renderMessages() {
+  $("view-count").textContent = state.messages.length;
+  $("rows").innerHTML = state.messages.length ? state.messages.map(m => `
+    <div class="rule">
+      <div class="sub">${esc(when(m.time * 1000))}</div>
+      <div><div class="co" style="white-space:normal">${esc(m.title || "(no title)")}</div><div class="sub" style="white-space:pre-wrap">${esc(m.message)}</div></div>
+      ${m.click ? `<a class="btn" href="${esc(m.click)}" target="_blank" rel="noopener">Open</a>` : "<span></span>"}
+    </div>`).join("") : `<div class="empty">No messages yet. Set NTFY_TOPIC in .env to see the agent's phone pushes here.</div>`;
 }
 function renderRules() {
   $("view-count").textContent = state.prefs.length;
@@ -245,6 +255,7 @@ function renderRows() {
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
   if (state.view === "rules") return renderRules();
+  if (state.view === "messages") return renderMessages();
   const items = visible();
   $("view-count").textContent = items.length;
   $("rows").innerHTML = items.length ? items.map(l => `
@@ -300,7 +311,7 @@ function applicationSection(l) {
     ${app.submission_status && app.submission_status !== "pending" ? `<div class="hint"><b>Application: ${esc(app.submission_status)}</b> ${esc(app.submission_detail || "")}${app.submitted_at ? ` · Applied ${esc(when(app.submitted_at))}` : ""}</div>` : ""}
     ${app.cover_letter ? `<div class="qa"><div class="qa-label"><span>Tailored cover letter</span><button class="btn" data-copy-letter>Copy</button></div><textarea class="long" id="cover-letter">${esc(app.cover_letter)}</textarea></div>` : ""}
     ${items}
-    <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" || app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>
+    <div class="actions"><button class="btn primary" id="save-ans">Save answers</button>${app.submission_status === "uncertain" ? `<button class="btn" id="retry-app" title="Only after checking your email and the job site">Wasn't submitted, allow retry</button>` : app.submission_status === "submitted" ? "" : `<button class="btn primary" id="submit-app">Submit application</button>`}<button class="btn" id="prep">Re-read questions and redo</button></div>
   </section>`;
 }
 function renderDetail() {
@@ -387,6 +398,7 @@ function renderDetail() {
 $("nav").addEventListener("click", e => {
   const b = e.target.closest("[data-view]"); if (!b) return;
   state.view = b.dataset.view; renderNav(); renderRows();
+  if (state.view === "messages") api("/api/messages").then(d => { state.messages = d.messages; renderNav(); renderRows(); }).catch(err => toast(err.message));
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
@@ -437,6 +449,8 @@ $("detail").addEventListener("click", async e => {
       const answers = [...document.querySelectorAll("[data-ans]")].map(t => ({ index: Number(t.dataset.ans), answer: t.value }));
       b.disabled = true;
       await api("/api/application/save", { key: l.key, answers }); toast("Saved. Personal answers will be reused next time."); await load();
+    } else if (b.id === "retry-app") {
+      await api("/api/application/retry", { key: l.key }); toast("Reopened. You can submit it again."); await load();
     } else if (b.id === "submit-app") {
       b.disabled = true; b.textContent = "Checking and submitting...";
       const result = await api("/api/application/submit", { key: l.key });

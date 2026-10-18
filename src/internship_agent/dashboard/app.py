@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
+from internship_agent import notify
 from internship_agent.ai import draft_outreach
 from internship_agent.config import get_settings
 from internship_agent.followup_run import run_followups
@@ -170,6 +171,19 @@ def leads() -> dict[str, Any]:
     }
 
 
+@app.get("/api/messages")
+def messages() -> dict[str, Any]:
+    """Pub/sub history of the ntfy topic, archived locally so it outlives ntfy's cache."""
+    settings = get_settings()
+    if not settings.ntfy_topic:
+        return {"messages": [], "topic": None}
+    archive = settings.data_dir / "ntfy-messages.jsonl"
+    return {
+        "messages": notify.history(settings.ntfy_server, settings.ntfy_topic, archive),
+        "topic": settings.ntfy_topic,
+    }
+
+
 @app.post("/api/status")
 def set_status(update: StatusUpdate) -> dict[str, Any]:
     """Record a status. Marking a posting applied tops the open list back up."""
@@ -326,6 +340,19 @@ def save(request: SaveAnswersRequest) -> dict[str, Any]:
         lead = save_answers(get_settings(), request.key, edits)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
+
+
+@app.post("/api/application/retry")
+def allow_retry(request: KeyRequest) -> dict[str, Any]:
+    """You checked an uncertain attempt never reached the employer: allow one more submit."""
+    settings = get_settings()
+    lead = _get(request.key)
+    if lead.application is None or lead.application.submission_status != "uncertain":
+        raise HTTPException(400, "Only an uncertain application can be reopened")
+    lead.application.submission_status = "pending"
+    lead.application.submission_detail = ""
+    lead_store(settings).upsert(lead)
     return {"lead": _view(lead)}
 
 

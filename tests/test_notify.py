@@ -80,3 +80,28 @@ def test_campaign_summary_reports_actual_result_and_shortfall() -> None:
     assert "submission attempts: 8" in push.message
     assert "blocked/failed: 5" in push.message
     assert "shortfall: 17" in push.message
+
+
+def test_history_archives_topic_messages_and_survives_ntfy_outage(tmp_path, monkeypatch) -> None:
+    import io
+    import json
+
+    from internship_agent import notify
+
+    lines = [
+        {"id": "a", "time": 1, "event": "message", "title": "Old", "message": "x"},
+        {"id": "o", "time": 2, "event": "open"},
+        {"id": "b", "time": 3, "event": "message", "title": "New", "message": "y"},
+    ]
+    body = "\n".join(json.dumps(line) for line in lines).encode()
+    monkeypatch.setattr(notify.urllib.request, "urlopen", lambda *_a, **_k: io.BytesIO(body))
+    archive = tmp_path / "ntfy-messages.jsonl"
+    assert [m["id"] for m in notify.history("https://ntfy.sh", "t", archive)] == ["b", "a"]
+    notify.history("https://ntfy.sh", "t", archive)
+    assert len(archive.read_text().splitlines()) == 2  # no duplicates on re-poll
+
+    def down(*_a, **_k):
+        raise OSError("offline")
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", down)
+    assert [m["id"] for m in notify.history("https://ntfy.sh", "t", archive)] == ["b", "a"]
