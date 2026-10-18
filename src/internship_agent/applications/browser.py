@@ -359,7 +359,9 @@ def _fill_form(
             return f"Could not match saved answer to required selection: {label}"
 
     # Ashby yes/no questions are toggle buttons, not inputs, so the field pass never sees them.
-    toggles = page.locator(".ashby-application-form-field-entry:has(.ashby-application-form-input-yesno)")
+    toggles = page.locator(
+        ".ashby-application-form-field-entry:has(.ashby-application-form-input-yesno)"
+    )
     for index in range(toggles.count()):
         entry = toggles.nth(index)
         label_node = entry.locator("label").first

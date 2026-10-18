@@ -139,8 +139,7 @@ def send(server: str, topic: str, push: Push) -> None:
 def history(server: str, topic: str, archive: Path) -> list[dict[str, Any]]:
     """Every message on the topic from any publisher (agent, n8n), newest first.
 
-    shortcut: ntfy.sh keeps messages ~12h, so anything published and expired between
-    dashboard visits is never archived; poll on a schedule if that gap matters.
+    ntfy.sh keeps messages ~12h; the dashboard re-archives every 5 minutes so none are lost.
     """
     saved: dict[str, dict[str, Any]] = {}
     if archive.exists():

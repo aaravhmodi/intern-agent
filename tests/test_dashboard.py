@@ -164,3 +164,14 @@ def test_auto_apply_prepares_then_submits(
     )
     assert client.post("/api/application/auto", json={"key": lead.key}).status_code == 200
     assert calls == ["prepare", "submit"]
+
+
+def test_messages_include_iso_dates_for_home_dashboard(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NTFY_TOPIC", "topic")
+    monkeypatch.setattr(
+        dashboard.notify, "history", lambda *_a: [{"id": "a", "time": 0, "title": "Hi"}]
+    )
+    (message,) = client.get("/api/messages").json()["messages"]
+    assert message["date"] == "1970-01-01T00:00:00+00:00"

@@ -515,7 +515,10 @@ async function sendNote() {
 }
 $("chat-send").addEventListener("click", sendNote);
 $("chat-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendNote(); } });
-load().catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
+// Links like /#messages (from the home-server dashboard) open that view directly.
+if (VIEWS[location.hash.slice(1)]) state.view = location.hash.slice(1);
+load().then(() => state.view === "messages" && api("/api/messages").then(d => { state.messages = d.messages; renderNav(); renderRows(); }))
+  .catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
 </script>
 </body>
 </html>

@@ -1,6 +1,10 @@
-from collections.abc import Awaitable, Callable
-from datetime import date
+import threading
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -38,7 +42,30 @@ from internship_agent.workflows import (
     submit_application,
 )
 
-app = FastAPI(title="Internship Agent", version="0.2.0")
+
+def _messages_archive() -> Path:
+    return get_settings().data_dir / "ntfy-messages.jsonl"
+
+
+def _archive_messages_forever() -> None:
+    """Copy the ntfy topic every 5 minutes so no message expires from ntfy's ~12h cache unseen."""
+    while True:
+        settings = get_settings()
+        if settings.ntfy_topic:
+            try:
+                notify.history(settings.ntfy_server, settings.ntfy_topic, _messages_archive())
+            except Exception:  # a bad poll must not kill the archiver; the next one retries
+                pass
+        time.sleep(300)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    threading.Thread(target=_archive_messages_forever, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Internship Agent", version="0.2.0", lifespan=_lifespan)
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "testserver"}
 _ALLOWED_HOSTS = _LOCAL_HOSTS | set(get_settings().dashboard_allowed_hosts)
@@ -178,9 +205,13 @@ def messages() -> dict[str, Any]:
     settings = get_settings()
     if not settings.ntfy_topic:
         return {"messages": [], "topic": None}
-    archive = settings.data_dir / "ntfy-messages.jsonl"
+    history = notify.history(settings.ntfy_server, settings.ntfy_topic, _messages_archive())
+    # ISO dates let the home-server dashboard show "2 hours ago".
     return {
-        "messages": notify.history(settings.ntfy_server, settings.ntfy_topic, archive),
+        "messages": [
+            {**m, "date": datetime.fromtimestamp(m.get("time", 0), UTC).isoformat()}
+            for m in history
+        ],
         "topic": settings.ntfy_topic,
     }
 
