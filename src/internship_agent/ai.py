@@ -142,17 +142,19 @@ facts from the resume, candidate context, and focus notes; map them to the requi
 posting text.
 For each question index, return:
 - answer: for long-text questions, 80-180 words, first person, concrete, leading with the
-  impact story from the focus notes and tying it to this role's requirements; for short text,
-  a brief direct answer; for single-select, exactly one option text copied verbatim; for
-  multi-select, option texts copied verbatim and separated by "; "; for yes/no, "Yes" or "No";
+  most relevant verified experience or project and tying it to this role's requirements;
+  for short text, a brief direct answer; for single-select, exactly one option text copied
+  verbatim; for multi-select, option texts copied verbatim and separated by "; ";
+  for yes/no, "Yes" or "No";
   for dates, the format the question asks for (e.g. MM/DD/YYYY), otherwise YYYY-MM.
-- needs_user_input: true when the resume and focus notes do not contain the answer (for
-  example a LinkedIn or GitHub URL, or any personal fact), with answer left empty.
+- needs_user_input: true when the resume, candidate context, and focus notes do not contain
+  the answer (for example a LinkedIn or GitHub URL, or any personal fact), with answer empty.
 - note: at most one short sentence on what the answer draws on, or what the candidate must
   check.
-Facts you may use: University of Waterloo, BASc Systems Design Engineering, expected
-graduation May 2029; prior internships: CIBC (Aug-Dec 2025) and Upside Robotics (Jan-Aug 2026),
-so the last internship was Upside Robotics; portfolio aaravmodi.ca. Never invent anything else.
+Use candidate-confirmed facts in the candidate context when they differ from the resume.
+Repository-verified projects in that context are valid evidence even when absent from the
+resume. Select the strongest match for each question; do not repeat one example mechanically.
+Never invent anything else.
 
 FOCUS NOTES:
 """
@@ -566,7 +568,9 @@ def prepare_cover_letter(
                 "content": (
                     "Write a concise, specific cover letter for a Winter 2027 software "
                     "engineering internship. Use only facts in the resume, candidate context, "
-                    "and job posting. Focus on the strongest matching experience, particularly "
+                    "and job posting. Include repository-verified projects from candidate "
+                    "context when they fit the role, even if absent from the resume. Focus on "
+                    "the strongest matching experience, particularly "
                     "early-stage startup experience when relevant. Do not invent experience, "
                     "metrics, availability, work authorization, or claims about the employer. "
                     "Use first person, natural language, and a professional greeting and sign-off. "

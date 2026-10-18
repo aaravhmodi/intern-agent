@@ -42,9 +42,9 @@
     "semantic_hash": "2a1b3eda762e9cd981c9134d8112698a"
   },
   "src/internship_agent/ai.py": {
-    "mtime": 1792213046.2281284,
-    "seen": 1792213058.1444044,
-    "ast_hash": "4b1999f20330f1606f7feb1b38483711",
+    "mtime": 1792275292.0872087,
+    "seen": 1792275297.4137444,
+    "ast_hash": "d1fee648c23959ab15bc533d96f7e234",
     "semantic_hash": ""
   },
   "src/internship_agent/cli.py": {
@@ -438,9 +438,9 @@
     "semantic_hash": ""
   },
   "candidate_context.md": {
-    "mtime": 1792125372.733494,
-    "seen": 1792125386.0195484,
-    "ast_hash": "8656c105e52e251ad2a1bac5f7cb4348",
+    "mtime": 1792275278.278477,
+    "seen": 1792275297.4137444,
+    "ast_hash": "79099aa63f13bfa2adfdd6537a03d737",
     "semantic_hash": ""
   },
   "src/internship_agent/applications/browser.py": {
@@ -543,6 +543,12 @@
     "mtime": 1792274902.4268687,
     "seen": 1792275019.7986047,
     "ast_hash": "3bdfba11f792eecd5a27e3fb1ae9cd54",
+    "semantic_hash": ""
+  },
+  "data/tracker-bot-auto-updated.png": {
+    "mtime": 1792275045.7721207,
+    "seen": 1792275297.4137444,
+    "ast_hash": "a5fd7c7312e004ecb8d9c70c3e81ac10",
     "semantic_hash": ""
   }
 }
