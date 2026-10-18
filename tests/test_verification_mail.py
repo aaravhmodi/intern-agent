@@ -62,6 +62,15 @@ def test_extracts_greenhouse_mail_code_after_application_label() -> None:
     )
     assert _extract_code(raw, now, "candidate@gmail.com", "Bot Auto") == "H5bGteWa"
     assert _extract_code(raw, now, "candidate@gmail.com", "Another Company") is None
+    # Boards often use a short name: "Kodiak" in the subject for the "Kodiak Robotics" lead.
+    short = message(
+        "Greenhouse <verify@us.greenhouse-mail.io>",
+        "candidate@gmail.com",
+        now,
+        body,
+        "Security code for your application to Kodiak",
+    )
+    assert _extract_code(short, now, "candidate@gmail.com", "Kodiak Robotics") == "H5bGteWa"
 
 
 def test_mail_poll_refreshes_inbox_until_new_code_arrives(monkeypatch) -> None:

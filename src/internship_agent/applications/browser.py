@@ -526,8 +526,12 @@ def apply_to_posting(
                         final_submit = page.get_by_role("button", name=_SUBMIT_BUTTON)
                         if final_submit.count() and final_submit.last.is_enabled():
                             final_submit.last.click()
-                            page.wait_for_timeout(2200)
-                            body = page.locator("body").inner_text(timeout=5000)
+                            # Some boards take several seconds to show the confirmation page.
+                            for _ in range(10):
+                                page.wait_for_timeout(1500)
+                                body = page.locator("body").inner_text(timeout=5000)
+                                if _SUCCESS_TEXT.search(body):
+                                    break
                             if _post_submit_outcome(body).status == "submitted":
                                 return SubmissionResult(
                                     "submitted",

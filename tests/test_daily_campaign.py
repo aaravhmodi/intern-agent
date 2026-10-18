@@ -196,6 +196,9 @@ def test_incompatible_eight_month_term_is_rejected() -> None:
     assert not workflows._incompatible_term(
         lead.model_copy(update={"posting_text": "A 16-week internship (JAN - APRIL)."})
     )
+    assert not workflows._incompatible_term(
+        lead.model_copy(update={"posting_text": "4 - 8 month work-term beginning Jan 2027."})
+    )
 
 
 def test_saving_answers_preserves_uncertain_submission(monkeypatch, tmp_path) -> None:

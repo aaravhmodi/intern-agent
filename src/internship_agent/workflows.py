@@ -399,7 +399,8 @@ def _incompatible_term(lead: Lead) -> bool:
     text = f"{lead.posting_title} {lead.posting_text}"
     return bool(
         re.search(
-            r"\b(?:8|eight)[\s-]*month\b|\b8\s*[-\u2013]\s*12\s*month\b|"
+            # "4 - 8 month" offers a 4-month term, so only a standalone 8 months is too long.
+            r"(?<!4 - )(?<!4-)\b(?:8|eight)[\s-]*month\b|\b8\s*[-\u2013]\s*12\s*month\b|"
             r"\b12[\s-]*week\b|\bjanuary\s*[-\u2013]\s*(?:june|august)\s*2027\b|"
             r"\bjanuary\s*2027\s*(?:through|to|[-\u2013])\s*june\s*2027\b|"
             r"\b(?:summer|fall|autumn)\s*2027\b|"

@@ -67,9 +67,9 @@ def _extract_code(raw: bytes, since: datetime, recipient: str, company: str = ""
     except (TypeError, ValueError, OverflowError):
         return None
     subject = str(make_header(decode_header(message.get("Subject", ""))))
-    if company and re.sub(r"[^a-z0-9]+", " ", company.lower()).strip() not in re.sub(
-        r"[^a-z0-9]+", " ", subject.lower()
-    ):
+    # Subjects use the board's short name ("Kodiak" for "Kodiak Robotics"), so match the first word.
+    first_word = re.sub(r"[^a-z0-9]+", " ", company.lower()).split()[:1]
+    if first_word and first_word[0] not in re.sub(r"[^a-z0-9]+", " ", subject.lower()).split():
         return None
     body = _message_text(message)
     match = _GREENHOUSE_CODE.search(body) or _CODE.search(body) or _CODE.search(subject)
