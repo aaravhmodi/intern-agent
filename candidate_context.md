@@ -15,7 +15,7 @@ Use this file, the configured resume, and the public sources linked below to pre
 - No active offers; no referral. Background-check consent: yes. Interview recording/data processing consent: yes.
 - Current employer and role: Enerzen, Founding Software Engineer.
 - Salary expectation: CAD $30/hour or higher when required.
-- Work authorization: candidate confirms Canadian citizenship and authorization to work in Canada without sponsorship. For the United States, candidate confirms currently legally authorized to work and that future employer sponsorship will be required. Do not infer authorization for other countries.
+- Work authorization: candidate confirms Canadian citizenship and authorization to work in Canada without sponsorship. For U.S. applications, answer **No** to U.S. citizenship, **Yes** to current legal work eligibility/authorization as the candidate states it, and **Yes** to needing employer sponsorship now or in the future. Answer **No** to needing sponsorship in Canada. Do not treat Canadian citizenship as U.S. permanent residence, a security clearance, or authorization for another country; leave those questions unanswered unless separately confirmed.
 - Candidate asks that jobs requiring a transcript be skipped for automatic application. GPA, test scores, transcript, and optional demographic questions remain unanswered; do not apply when a transcript is required.
 - Contact from public resume/site: aarav.modi@uwaterloo.ca; 437-553-9632.
 - Portfolio: https://aaravmodi.ca/
