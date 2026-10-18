@@ -19,9 +19,7 @@ from internship_agent.leads.sending import SendBlocked
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.workflows import (
-    daily as run_daily,
-)
-from internship_agent.workflows import (
+    _incompatible_term,
     find_more_postings,
     find_people,
     find_startups,
@@ -35,6 +33,9 @@ from internship_agent.workflows import (
     save_answers,
     send_email,
     submit_application,
+)
+from internship_agent.workflows import (
+    daily as run_daily,
 )
 
 app = FastAPI(title="Internship Agent", version="0.2.0")
@@ -332,15 +333,21 @@ def save(request: SaveAnswersRequest) -> dict[str, Any]:
 
 @app.post("/api/application/auto")
 def auto_apply(request: KeyRequest) -> dict[str, Any]:
-    """One click: prepare (or refresh) answers like the daily run, then submit."""
+    """One click: prepare (or refresh) answers like the daily run, then submit.
+
+    You picked this job, so it applies even outside January-April; for such a posting the
+    answers and cover letter are re-prepared to match the posting's own term and dates.
+    """
     settings = get_settings()
     lead = _get(request.key)
     try:
-        if lead.application and lead.application.cover_letter:
+        if _incompatible_term(lead):
+            prepare_application(settings, request.key, accept_posting_term=True)
+        elif lead.application and lead.application.cover_letter:
             refresh_saved_application(settings, request.key)
         else:
             prepare_application(settings, request.key)
-        lead = submit_application(settings, request.key)
+        lead = submit_application(settings, request.key, accept_posting_term=True)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}

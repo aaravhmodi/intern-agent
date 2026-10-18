@@ -412,8 +412,27 @@ def _incompatible_term(lead: Lead) -> bool:
     )
 
 
-def prepare_application(settings: Settings, key: str) -> Lead:
-    """Prepare application materials without changing a prior submission outcome."""
+# Questions a posting's own term answers (availability, duration, dates), not the answer bank.
+_TERM_QUESTION = re.compile(
+    r"availab|\bterm\b|duration|how long|\bmonths?\b|start date|end date|internship period",
+    re.I,
+)
+_ACCEPT_TERM_NOTE = (
+    "FOR THIS APPLICATION ONLY: the candidate has chosen to apply on this posting's own term "
+    "and dates. Answer availability, duration and start/end-date questions to match the "
+    "posting, and do not mention a four-month or January-April limit. This overrides any "
+    "term or date preference stated above."
+)
+
+
+def prepare_application(
+    settings: Settings, key: str, *, accept_posting_term: bool = False
+) -> Lead:
+    """Prepare application materials without changing a prior submission outcome.
+
+    accept_posting_term: you chose a posting outside January-April, so term questions and the
+    cover letter follow the posting's dates instead of the saved four-month answers.
+    """
     store = lead_store(settings)
     lead = store.get(key)
     prior_application = lead.application
@@ -430,6 +449,18 @@ def prepare_application(settings: Settings, key: str) -> Lead:
         if settings.candidate_context_path.exists()
         else ""
     )
+    if accept_posting_term:
+        context += f"\n\n{_ACCEPT_TERM_NOTE}"
+        for index, item in enumerate(prepared):
+            label = item.question.label
+            if (
+                item.note == "From your saved answers."
+                and _TERM_QUESTION.search(label)
+                and "interview" not in label.lower()
+            ):
+                prepared[index] = PreparedAnswer(
+                    question=item.question, needs_user_input=True, note="ai"
+                )
     todo = [(i, p) for i, p in enumerate(prepared) if p.note == "ai"]
     if todo:
         listing = [
@@ -548,9 +579,17 @@ def refresh_saved_application(settings: Settings, key: str) -> Lead:
 
 
 def submit_application(
-    settings: Settings, key: str, *, dry_run: bool = False, headless: bool = True
+    settings: Settings,
+    key: str,
+    *,
+    dry_run: bool = False,
+    headless: bool = True,
+    accept_posting_term: bool = False,
 ) -> Lead:
-    """Submit one prepared application through a persistent, user-authenticated browser."""
+    """Submit one prepared application through a persistent, user-authenticated browser.
+
+    accept_posting_term skips the January-April check; only a job you picked by hand sets it.
+    """
     from internship_agent.applications.browser import apply_to_posting
 
     if not settings.auto_submit_applications and not dry_run:
@@ -569,7 +608,7 @@ def submit_application(
         store.upsert(lead)
         return lead
     _use_gmail_for_applications(settings, lead.application.answers)
-    if _incompatible_term(lead):
+    if not accept_posting_term and _incompatible_term(lead):
         lead.application.submission_status = "skipped"
         lead.application.submission_detail = "Posting requires a term outside January-April 2027"
         store.upsert(lead)
@@ -622,6 +661,7 @@ def submit_application(
         ),
         dry_run=dry_run,
         headless=headless,
+        check_term=not accept_posting_term,
     )
     lead.application.submission_status = result.status
     lead.application.submission_detail = result.detail

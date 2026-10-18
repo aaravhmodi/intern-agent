@@ -156,11 +156,26 @@ def test_retry_reopens_only_uncertain_applications(client: TestClient, tmp_path:
 def test_auto_apply_prepares_then_submits(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[str] = []
-    lead = LeadStore(tmp_path / "leads.json").load()[0]
-    monkeypatch.setattr(dashboard, "prepare_application", lambda _s, key: calls.append("prepare"))
-    monkeypatch.setattr(
-        dashboard, "submit_application", lambda _s, key: calls.append("submit") or lead
-    )
+    calls: list[tuple[str, bool]] = []
+    store = LeadStore(tmp_path / "leads.json")
+    lead = store.load()[0]
+
+    def prepare(_s: object, key: str, *, accept_posting_term: bool = False) -> None:
+        calls.append(("prepare", accept_posting_term))
+
+    def submit(_s: object, key: str, *, accept_posting_term: bool = False) -> Lead:
+        calls.append(("submit", accept_posting_term))
+        return lead
+
+    monkeypatch.setattr(dashboard, "prepare_application", prepare)
+    monkeypatch.setattr(dashboard, "submit_application", submit)
     assert client.post("/api/application/auto", json={"key": lead.key}).status_code == 200
-    assert calls == ["prepare", "submit"]
+    # A job you picked by hand is never blocked by the January-April filter.
+    assert calls == [("prepare", False), ("submit", True)]
+
+    # Outside January-April: answers are re-prepared to the posting's own term.
+    calls.clear()
+    lead.posting_text = "This is an 8-month co-op term (January - August 2027)."
+    store.upsert(lead)
+    assert client.post("/api/application/auto", json={"key": lead.key}).status_code == 200
+    assert calls == [("prepare", True), ("submit", True)]

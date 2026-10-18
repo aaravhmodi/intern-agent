@@ -158,7 +158,7 @@ def _supported_url(url: str) -> bool:
     )
 
 
-def _online_checks(page: Any, lead: Lead, body_text: str) -> str | None:
+def _online_checks(page: Any, lead: Lead, body_text: str, *, check_term: bool = True) -> str | None:
     """Check the live destination, role, and form before any submission click."""
     if not _supported_url(page.url):
         return "Live page left the approved HTTPS application site"
@@ -167,7 +167,7 @@ def _online_checks(page: Any, lead: Lead, body_text: str) -> str | None:
     minimum = min(len(title_words), max(2, len(title_words) // 2))
     if title_words and len(title_words & visible_words) < minimum:
         return "Live page does not match the saved job title"
-    if _WRONG_TERM_TEXT.search(body_text[:350]):
+    if check_term and _WRONG_TERM_TEXT.search(body_text[:350]):
         return "Live job title advertises a term outside January-April 2027"
     unsafe_fields = page.locator(
         "input[type=password], input[autocomplete='cc-number'], "
@@ -419,6 +419,7 @@ def apply_to_posting(
     verification_code_provider: Callable[[datetime], str | None] | None = None,
     dry_run: bool = False,
     headless: bool = True,
+    check_term: bool = True,
 ) -> SubmissionResult:
     """Fill a supported ATS form and submit after all visible required fields are satisfied."""
     from playwright.sync_api import Error as PlaywrightError
@@ -446,7 +447,7 @@ def apply_to_posting(
             body_text = page.locator("body").inner_text(timeout=5000)
             if _posting_is_closed(body_text):
                 return SubmissionResult("skipped", "Posting is closed or no longer available")
-            if reason := _online_checks(page, lead, body_text):
+            if reason := _online_checks(page, lead, body_text, check_term=check_term):
                 return SubmissionResult("blocked", reason)
             if _visible_captcha(page):
                 return SubmissionResult("blocked", "CAPTCHA detected; manual completion required")
@@ -476,7 +477,8 @@ def apply_to_posting(
                     except PlaywrightTimeoutError:
                         pass
 
-            if reason := _online_checks(page, lead, page.locator("body").inner_text(timeout=5000)):
+            live_text = page.locator("body").inner_text(timeout=5000)
+            if reason := _online_checks(page, lead, live_text, check_term=check_term):
                 return SubmissionResult("blocked", reason)
 
             required_transcript = any(

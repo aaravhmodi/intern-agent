@@ -91,7 +91,7 @@ flowchart LR
 | Answers | `workflows.prepare_application`, `leads/answers.py`, `sources/application_form.py` | Reads the posting's real form; personal questions come from `data/answer-bank.json`, the rest are AI-written |
 | Submission | `applications/browser.py`, `applications/verification_mail.py` | Fills and submits the form in a saved browser profile; reads Greenhouse's emailed code from Gmail; marks anything it can't confirm `uncertain` and never retries it on its own |
 | Daily run | `workflows.daily`, `leads application-campaign` | Scrape, score new postings, then submit 20 applications, lowest fit first; one ntfy summary |
-| Dashboard | `dashboard/app.py`, `dashboard/index.html` | Browse leads, edit drafts and answers, Auto-apply one job, reopen an attempt you confirmed never sent |
+| Dashboard | `dashboard/app.py`, `dashboard/index.html` | Browse leads, edit drafts and answers, Auto-apply one job (on its own term), reopen an attempt you confirmed never sent |
 | Outreach | `mailer.py`, `leads/sending.py`, `followup_run.py` | Gmail sends after a confirming click; follow-ups at most twice per person |
 
 **On the server** (a MacBook on Tailscale), Docker Compose runs the dashboard at
@@ -172,8 +172,10 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
 - **Applications**: run `uv run playwright install chromium`, then
   `uv run internship-agent leads browser-login` once to sign in to the job sites you use.
   The daily run prepares tailored answers and submits 20 complete Greenhouse, Ashby, and
-  Lever forms a day, lowest fit score first. **Auto-apply** on a job does the same for one
-  job; **Wasn't submitted, allow retry** reopens an `uncertain` attempt after you have checked
+  Lever forms a day, lowest fit score first, and skips terms outside January-April.
+  **Auto-apply** on a job applies to that one job even outside January-April: its term,
+  availability and date answers and the cover letter are rewritten to match that posting.
+  **Wasn't submitted, allow retry** reopens an `uncertain` attempt after you have checked
   your email and the job site. Workday, CAPTCHA pages, unsupported sites, and forms
   with missing required answers are left for you; the ntfy summary reports submitted and
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
