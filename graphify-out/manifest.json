@@ -66,9 +66,9 @@
     "semantic_hash": "09d3d6c4bc787b4c0c92a7f6ec4d2a8c"
   },
   "src/internship_agent/dashboard/app.py": {
-    "mtime": 1792348007.522704,
-    "seen": 1792348056.3408797,
-    "ast_hash": "6c50f42e43220ea0b451ab29b8445957",
+    "mtime": 1792348321.9807465,
+    "seen": 1792348376.7644587,
+    "ast_hash": "016ba21b0ebf9f581a8dc523e4753ec9",
     "semantic_hash": ""
   },
   "src/internship_agent/followup_run.py": {
@@ -174,9 +174,9 @@
     "semantic_hash": "1e0a898124408e7edc1cb00f1c408c51"
   },
   "src/internship_agent/notify.py": {
-    "mtime": 1792347987.3479707,
-    "seen": 1792348056.3408797,
-    "ast_hash": "b93095ab0abbfd42cace6b406068ec97",
+    "mtime": 1792348316.988004,
+    "seen": 1792348376.7644587,
+    "ast_hash": "a697524de5de7f1884bd5c78347e2d08",
     "semantic_hash": ""
   },
   "src/internship_agent/outlook/__init__.py": {
@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "tests/test_dashboard.py": {
-    "mtime": 1792347987.3499699,
-    "seen": 1792348056.3408797,
-    "ast_hash": "856a671ddc83f18f006b18152ab3cf6f",
+    "mtime": 1792348316.9977043,
+    "seen": 1792348376.7644587,
+    "ast_hash": "2e6ff6de660c4b697e20d183ee21a94d",
     "semantic_hash": ""
   },
   "tests/test_followups.py": {
@@ -312,9 +312,9 @@
     "semantic_hash": "33118474cc9ef65ed2d803919620b025"
   },
   "tests/test_notify.py": {
-    "mtime": 1792343294.4757383,
-    "seen": 1792343658.1832998,
-    "ast_hash": "744b534818efa164b8941c4e5bf3e164",
+    "mtime": 1792348316.9977043,
+    "seen": 1792348376.7644587,
+    "ast_hash": "b60c888e267e1dd81902e0806e951743",
     "semantic_hash": ""
   },
   "tests/test_outlook_client.py": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792213032.0885122,
-    "seen": 1792213058.1444044,
-    "ast_hash": "5bc803f21aca16bf5a0b555255aa92f5",
+    "mtime": 1792348364.931413,
+    "seen": 1792348376.7644587,
+    "ast_hash": "62dd6952013649552d72762ae597a4b6",
     "semantic_hash": ""
   },
   "compose.yaml": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792347987.346115,
-    "seen": 1792348056.3408797,
-    "ast_hash": "bfa96eef5a5e006fb54a773bf28deb96",
+    "mtime": 1792348316.9972017,
+    "seen": 1792348376.7644587,
+    "ast_hash": "45b4b701506154147c144d30d32de623",
     "semantic_hash": ""
   },
   "docs/images/application.png": {

@@ -2,8 +2,8 @@
 
 # Winter 2027 Internship Agent
 
-**Finds the internships worth my time, scores each against my resume, and drafts the outreach.**<br>
-I review every message and send it myself; it never applies or sends on its own.
+**Finds the internships worth my time, scores each against my resume, drafts the outreach, and applies.**<br>
+Outreach emails are sent only after I confirm; applications go out daily for complete Greenhouse, Ashby and Lever forms.
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
@@ -11,7 +11,7 @@ I review every message and send it myself; it never applies or sends on its own.
 ![Outlook: read-only](https://img.shields.io/badge/Outlook-read--only-0078D4?style=flat-square)
 ![Local-first](https://img.shields.io/badge/local--first-1f4d35?style=flat-square)
 
-[What it does](#what-it-does) · [Dashboard](#dashboard) · [Outlook](#outlook-integration-mcp) · [Development](#development)
+[What it does](#what-it-does) · [Architecture](#architecture) · [Dashboard](#dashboard) · [Outlook](#outlook-integration-mcp) · [Development](#development)
 
 <img src="docs/images/demo.gif" width="900" alt="Opening a startup to see its fit score and email draft, then a posting's prepared application answers, then the learned rules">
 
@@ -62,6 +62,44 @@ Written from the resume for a posting's real form. Eligible, complete forms can 
 **It learns from your notes.** "This one needs French, not applying" becomes a rule, and every later lead is scored against it.
 
 <p align="center"><img src="docs/images/rules.png" width="720" alt="Rules learned from notes: two skip rules and one boost rule"></p>
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Sources
+    SIM[SimplifyJobs<br/>off-season list]
+    BOARDS[Startup job boards<br/>Greenhouse · Ashby · Lever]
+    WEB[OpenAI web search<br/>recent funding rounds]
+  end
+  SIM & BOARDS & WEB --> STORE[(data/leads.json)]
+  STORE --> SCORE[Fit score vs resume<br/>+ your learned rules]
+  SCORE --> PREP[Answers + cover letter<br/>answer bank, then AI]
+  PREP --> SUBMIT[Playwright submits<br/>the real form]
+  GMAIL[Gmail IMAP] -- Greenhouse security code --> SUBMIT
+  SUBMIT --> STORE
+  STORE --> DASH[Tracker dashboard<br/>FastAPI · :8765]
+  SUBMIT --> NTFY[ntfy push<br/>to phone]
+  NTFY --> MSGS[Phone messages page<br/>home-dashboard repo · :8090]
+```
+
+| Part | Where | What it does |
+|---|---|---|
+| Sources | `sources/simplify.py`, `sources/startup_jobs.py`, `sources/startups.py` | Collect Winter 2027 postings and recently funded startups; every lead keeps its source URL |
+| Lead store | `leads/store.py`, `leads/schemas.py` | One JSON file (`data/leads.json`) holding leads, fit, drafts and application state |
+| Scoring | `workflows.score`, `ai.py`, `leads/preferences.py` | Fit 0-100 from the resume and posting text; your notes become skip/boost rules |
+| Answers | `workflows.prepare_application`, `leads/answers.py`, `sources/application_form.py` | Reads the posting's real form; personal questions come from `data/answer-bank.json`, the rest are AI-written |
+| Submission | `applications/browser.py`, `applications/verification_mail.py` | Fills and submits the form in a saved browser profile; reads Greenhouse's emailed code from Gmail; marks anything it can't confirm `uncertain` and never retries it on its own |
+| Daily run | `workflows.daily`, `leads application-campaign` | Scrape, score new postings, then submit 20 applications, lowest fit first; one ntfy summary |
+| Dashboard | `dashboard/app.py`, `dashboard/index.html` | Browse leads, edit drafts and answers, Auto-apply one job, reopen an attempt you confirmed never sent |
+| Outreach | `mailer.py`, `leads/sending.py`, `followup_run.py` | Gmail sends after a confirming click; follow-ups at most twice per person |
+
+**On the server** (a MacBook on Tailscale), Docker Compose runs the dashboard at
+`http://100.76.57.23:8765`. Pushing to `main` deploys within a minute. Systemd timers run
+`scripts/run-daily-job-scrape.sh` at 7:30 AM and `scripts/run-daily-applications.sh` at 8:00 AM
+Toronto time. n8n handles replies and follow-ups. Every ntfy push, from this agent or any other
+app, is kept and shown by the separate messages service in the
+[home-dashboard](https://github.com/aaravhmodi/home-dashboard) repo.
 
 ## Current setup
 
@@ -133,14 +171,15 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   the profile before you send. New startups get this automatically when they are found.
 - **Applications**: run `uv run playwright install chromium`, then
   `uv run internship-agent leads browser-login` once to sign in to the job sites you use.
-  The daily run prepares tailored answers and attempts browser submission for complete
-  Greenhouse, Ashby, and Lever forms. Workday, CAPTCHA pages, unsupported sites, and forms
+  The daily run prepares tailored answers and submits 20 complete Greenhouse, Ashby, and
+  Lever forms a day, lowest fit score first. **Auto-apply** on a job does the same for one
+  job; **Wasn't submitted, allow retry** reopens an `uncertain` attempt after you have checked
+  your email and the job site. Workday, CAPTCHA pages, unsupported sites, and forms
   with missing required answers are left for you; the ntfy summary reports submitted and
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
   a form without submitting it.
   The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
-  timers. The daily run scores only new eligible postings, reuses prepared materials,
-  and processes all eligible applications. Compact job context and GPT-6 Luna keep
+  timers. The daily run scores only new eligible postings and reuses prepared materials. Compact job context and GPT-6 Luna keep
   AI token usage low.
   Token counts for scoring, answers, and cover letters are recorded without prompt content in
   `data/openai-usage.jsonl`; the ntfy summary includes a token-based cost estimate.
@@ -154,8 +193,9 @@ whenever leads are scored: scoring reads each posting's description, lowers or r
 for downrank/boost rules, and auto-skips leads that clearly break a skip rule (company-wide
 boilerplate does not count). "Re-check to-do leads" re-scores everything against your rules.
 
-The server only answers requests from localhost and rejects cross-site requests, because it
-can send email.
+The server only answers requests from localhost (and the hosts in `DASHBOARD_ALLOWED_HOSTS`,
+the Tailscale address on the home server) and rejects cross-site requests, because it can send
+email and submit applications.
 
 ## Founder leads (X.com)
 
