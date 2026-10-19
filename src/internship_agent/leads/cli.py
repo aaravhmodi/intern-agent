@@ -21,6 +21,7 @@ from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
     CHANNELS,
     daily,
+    find_form_d_startups,
     find_more_postings,
     find_startups,
     prepare_application,
@@ -225,6 +226,15 @@ def scrape_jobs_cmd() -> None:
     settings = get_settings()
     new = scrape_jobs(settings, log=console.print)
     console.print(f"Scraped {len(new)} new posting(s).")
+
+
+@leads_app.command("form-d")
+def form_d_cmd(
+    days: Annotated[int, typer.Option(help="How many past days of filings to read.")] = 3,
+) -> None:
+    """Add US tech startups that just filed an SEC Form D, with their site and an email."""
+    new = find_form_d_startups(get_settings(), days=days, log=console.print)
+    console.print(f"Added {len(new)} lead(s) from Form D filings.")
 
 
 @leads_app.command("application-campaign")

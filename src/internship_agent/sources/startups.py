@@ -54,6 +54,19 @@ def page_names(url: str, company: str, person: str) -> bool:
     return names(html.unescape(body.decode("utf-8", "ignore")), company, person)
 
 
+def page_text(url: str) -> str:
+    """The page's text, or "" if it doesn't load."""
+    if not url.startswith(("https://", "http://")):
+        return ""
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body: bytes = response.read()
+    except Exception:
+        return ""
+    return html.unescape(body.decode("utf-8", "ignore"))
+
+
 def to_leads(
     findings: list[StartupFinding],
     today: date,

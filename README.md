@@ -183,7 +183,8 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   with missing required answers are left for you; the ntfy summary reports submitted and
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
   a form without submitting it.
-  The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
+  The server scrapes at 7:30 AM Toronto (then adds Form D founder leads, below) and runs
+  applications at 8:00 AM through systemd
   timers (20 lowest-scored by default; `--skip-strong` leaves green strong fits for you).
   The daily run scores only new eligible postings and reuses prepared materials. Compact job context and GPT-6 Luna keep
   AI token usage low.
@@ -218,6 +219,17 @@ Find founders who recently raised (pre-seed to Series A) and might take a Winter
    after you send it yourself, run `leads mark <key> contacted` (or `skipped`).
 
 Leads, the resume text cache and the inbox file stay local and are git-ignored.
+
+## Founder leads (SEC Form D)
+
+`uv run internship-agent leads form-d` reads the SEC's free daily index of Form D filings
+(no key or account; `GMAIL_ADDRESS` is sent as the contact the SEC asks for) and keeps US tech
+companies incorporated in the last five years that raised $250K–$50M. The officer who signed
+the filing is the contact. One OpenAI web search per new company finds its website (dropped if
+the site doesn't name the company) and the founder's own email if a public page shows it;
+otherwise the email is a `first@domain` guess marked unverified. New leads get open roles from
+their job board and a fit score. The server runs it after the 7:30 AM scrape, reading the last
+three days of filings; each new company costs about a cent.
 
 ## Other connectors
 

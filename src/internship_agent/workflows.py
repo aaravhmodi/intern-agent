@@ -14,6 +14,7 @@ from internship_agent import mailer, notify
 from internship_agent.ai import (
     STATUS_FROM_NOTE,
     assess_fit,
+    find_company_site,
     interpret_note,
     prepare_answers,
     prepare_cover_letter,
@@ -47,7 +48,7 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, merge
 from internship_agent.resume import load_resume_text
-from internship_agent.sources import simplify, startups
+from internship_agent.sources import form_d, simplify, startups
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
@@ -333,6 +334,58 @@ def find_startups(
     return new
 
 
+def find_form_d_startups(
+    settings: Settings, days: int = 3, log: Callable[[str], None] = lambda _: None
+) -> list[Lead]:
+    """US tech startups that filed a Form D in the last few days, with a site and an email.
+
+    Filings are free; each new company costs one web search to find its website. Companies
+    already in the tracker are skipped before that search.
+    """
+    if not settings.gmail_address:
+        raise ValueError("Set GMAIL_ADDRESS: the SEC asks for a contact address")
+    client, store = _openai(settings), lead_store(settings)
+    known = {form_d.company_name(lead.company).lower() for lead in store.load()}
+    found: list[Lead] = []
+    for back in range(1, days + 1):
+        day = date.today() - timedelta(days=back)
+        filings = form_d.filings(day, settings.gmail_address)
+        log(f"{day}: {len(filings)} tech Form D filing(s)")
+        for filing in filings:
+            if filing.company.lower() in known:
+                continue
+            # shortcut: a company with no site found is searched again on each of the
+            # `days` runs that cover its filing; remember misses if that cost matters.
+            known.add(filing.company.lower())
+            site, usage = find_company_site(
+                client,
+                settings.openai_model,
+                filing.company,
+                filing.location,
+                filing.contact_name,
+                filing.people,
+            )
+            _record_openai_usage(settings, "form-d-site", settings.openai_model, usage)
+            first_word = filing.company.split()[0]
+            if not site or not site.company_url:
+                log(f"{filing.company}: no website found")
+                continue
+            if not startups.page_names(site.company_url, filing.company, first_word):
+                log(f"{filing.company}: {site.company_url} doesn't name the company")
+                continue
+            found.append(form_d.to_lead(filing, site))
+    existing = store.load()
+    leads, added = merge(existing, found)
+    new = leads[len(existing) :]
+    roles = [p for f in new for p in startup_postings(f)]
+    leads, _ = merge(leads, roles)
+    store.save(leads)
+    log(f"+{added} startups, +{len(roles)} open roles")
+    new = store.load()[len(existing) :]
+    score(settings, new)
+    return new
+
+
 def send_email(
     settings: Settings,
     key: str,
@@ -425,9 +478,7 @@ _ACCEPT_TERM_NOTE = (
 )
 
 
-def prepare_application(
-    settings: Settings, key: str, *, accept_posting_term: bool = False
-) -> Lead:
+def prepare_application(settings: Settings, key: str, *, accept_posting_term: bool = False) -> Lead:
     """Prepare application materials without changing a prior submission outcome.
 
     accept_posting_term: you chose a posting outside January-April, so term questions and the
@@ -653,7 +704,7 @@ def submit_application(
                     settings.gmail_address or "",
                     settings.gmail_app_password.get_secret_value(),
                     started,
-                company=lead.company,
+                    company=lead.company,
                 )
                 if settings.gmail_ready and settings.gmail_app_password
                 else None

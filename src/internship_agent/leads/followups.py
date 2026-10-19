@@ -11,14 +11,15 @@ from datetime import datetime, timedelta
 from internship_agent.leads.schemas import Lead, LeadStatus
 
 # What each follow-up says, in order. {first} is their first name and {company} the
-# company. The first goes out five to seven days after the email, always the week after
+# company. Plain, same-tone reminders: no apologising and no "no problem if not".
+# The first goes out five to seven days after the email, always the week after
 # it, so "last week" is right whatever the time zone.
 TEMPLATES = (
     """\
 Hi {first},
 
-Following up on my note from last week in case it got buried. I'm still very interested in a \
-Winter 2027 (Jan–Apr) software engineering internship at {company}.
+Following up on my email from last week about a Winter 2027 (Jan–Apr) software engineering \
+internship at {company}.
 
 Would a 15-minute call work sometime in the next week or two?
 
@@ -26,8 +27,9 @@ Aarav""",
     """\
 Hi {first},
 
-One last note from me. If {company} isn't taking a Winter 2027 intern, no problem at all, \
-and thanks for reading. If that changes, I'd be glad to talk.
+Following up again on a Winter 2027 (Jan–Apr) software engineering internship at {company}.
+
+Do you have 15 minutes to talk next week?
 
 Aarav""",
 )
