@@ -1,7 +1,7 @@
 # Graph Report - winter-2027-internship-agent  (2026-10-19)
 
 ## Corpus Check
-- 78 files · ~195,878 words
+- 78 files · ~195,962 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 4, .service 3, .timer 3)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `cec0e51c`
+- Built from commit: `9b9d83b3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -267,7 +267,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `simplify.py` be split into smaller, more focused modules?**
   _Cohesion score 0.1076923076923077 - nodes in this community are weakly interconnected._
 - **Why does `Settings` connect `Settings` to `daily`, `ai.py`, `command`, `test_daily_campaign.py`, `internship_agent/cli.py`, `load_resume_text`, `json`, `FormQuestion`, `get_settings`, `find_more_postings`, `run_followups`, `send_email`, `client.py`, `find_startups`, `Lead`, `workflows.py`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
 - **Are the 54 inferred relationships involving `Settings` (e.g. with `dashboard service, reachable only over Tailscale` and `_logged_subject()`) actually correct?**
   _`Settings` has 54 INFERRED edges - model-reasoned connections that need verification._
 - **Should `ai.py` be split into smaller, more focused modules?**

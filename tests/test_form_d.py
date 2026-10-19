@@ -103,8 +103,14 @@ def test_the_site_must_name_someone_on_the_filing_or_its_legal_name(
     assert lead.email_source == "https://vernex.ai/team"
     assert lead.segment is Segment.EARLY and lead.source_url == URL
 
-    # Only the legal name: still theirs, but no published address, so a guess.
+    # Only the legal name: still theirs, but no published address, so a guess. The site
+    # redirects to its web host, on a port; the email stays on the domain they own.
     del sites["https://vernex.ai/"]
+    monkeypatch.setattr(
+        form_d,
+        "_fetch",
+        lambda url: (url.replace("vernex.io", "x.azurestaticapps.net:443"), sites.get(url, "")),
+    )
     site = form_d.find_site(filing)
     assert site is not None and site.url == "https://vernex.io/"
     lead = form_d.to_lead(filing, site)

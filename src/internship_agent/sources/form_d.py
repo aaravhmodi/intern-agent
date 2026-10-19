@@ -186,8 +186,12 @@ def _check(domain: str, filing: Filing) -> tuple[int, Site] | None:
     final, home = _fetch(f"https://{domain}/")
     if not home or _fold(filing.company.split()[0]) not in _fold(home):
         return None
-    parts = urlsplit(final)
-    root = f"{parts.scheme}://{parts.netloc}"
+    host = urlsplit(final).hostname or domain
+    # A redirect to a host that isn't theirs (e.g. x.azurestaticapps.net) keeps the domain
+    # they registered, which is the one their email uses.
+    if re.findall(r"[a-z0-9]+", _fold(filing.company))[0] not in host:
+        host = domain
+    root = f"https://{host}"
     pages = {final: home}
     for path in ABOUT_PATHS:
         url, page = _fetch(f"{root}/{path}")
@@ -235,7 +239,7 @@ def founder_email(
 
 
 def to_lead(filing: Filing, site: Site) -> Lead:
-    domain = urlsplit(site.url).netloc.lower().removeprefix("www.")
+    domain = (urlsplit(site.url).hostname or "").removeprefix("www.")
     email, status, source = founder_email(filing.contact_name, domain, site.pages)
     return Lead(
         kind=LeadKind.FOUNDER,

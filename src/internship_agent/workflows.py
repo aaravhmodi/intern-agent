@@ -358,7 +358,10 @@ def find_form_d_startups(
             if not site:
                 log(f"{filing.company}: no website that names them")
                 continue
-            found.append(form_d.to_lead(filing, site))
+            try:
+                found.append(form_d.to_lead(filing, site))
+            except ValueError as error:  # one odd site must not lose the whole run
+                log(f"{filing.company}: skipped ({error})")
     existing = store.load()
     leads, added = merge(existing, found)
     new = leads[len(existing) :]
