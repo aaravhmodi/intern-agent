@@ -2,7 +2,6 @@ from datetime import date
 
 import pytest
 
-from internship_agent.ai import CompanySite
 from internship_agent.leads.schemas import EmailStatus, Segment
 from internship_agent.sources import form_d
 
@@ -82,28 +81,34 @@ def test_daily_index_lists_new_filings_only() -> None:
     assert form_d.index_url(date(2026, 10, 16)).endswith("/2026/QTR4/form.20261016.idx")
 
 
-def test_an_email_is_published_only_if_the_page_shows_it(
+def test_the_site_must_name_someone_on_the_filing_or_its_legal_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     filing = form_d.parse_filing(FILING, URL, date(2026, 10, 16))
     assert filing is not None
-    site = CompanySite(
-        company_url="https://www.vernex.io/",
-        what_they_build="Tools",
-        email="dmitry@vernex.io",
-        email_source="https://vernex.io/team",
-    )
-    monkeypatch.setattr(form_d, "page_text", lambda url: "Contact dmitry@vernex.io")
+    sites = {
+        # A same-name company that names nobody from the filing.
+        "https://vernex.com/": "<title>Vernex</title> Wire harnesses",
+        "https://vernex.ai/": '<meta name="description" content="AI tools"> Vernex',
+        "https://vernex.ai/team": "Dmitry Kafidov, CEO. Write to dmitry.k@vernex.ai",
+        "https://vernex.io/": "Vernex. (c) 2026 Vernex, Inc.",
+    }
+    monkeypatch.setattr(form_d, "_fetch", lambda url: (url, sites.get(url, "")))
+    site = form_d.find_site(filing)
+    assert site is not None and site.url == "https://vernex.ai/"
+    assert site.what_they_build == "AI tools"
+
     lead = form_d.to_lead(filing, site)
-    assert (lead.email, lead.email_status) == ("dmitry@vernex.io", EmailStatus.PUBLISHED)
+    assert (lead.email, lead.email_status) == ("dmitry.k@vernex.ai", EmailStatus.PUBLISHED)
+    assert lead.email_source == "https://vernex.ai/team"
     assert lead.segment is Segment.EARLY and lead.source_url == URL
 
-    # The model claimed an address the page doesn't show: fall back to an unverified guess.
-    monkeypatch.setattr(form_d, "page_text", lambda url: "no emails here")
+    # Only the legal name: still theirs, but no published address, so a guess.
+    del sites["https://vernex.ai/"]
+    site = form_d.find_site(filing)
+    assert site is not None and site.url == "https://vernex.io/"
     lead = form_d.to_lead(filing, site)
     assert (lead.email, lead.email_status) == ("dmitry@vernex.io", EmailStatus.PATTERN)
 
-    # A shared inbox on the page is not the founder's address.
-    monkeypatch.setattr(form_d, "page_text", lambda url: "Press: media@vernex.io")
-    lead = form_d.to_lead(filing, site.model_copy(update={"email": "media@vernex.io"}))
-    assert (lead.email, lead.email_status) == ("dmitry@vernex.io", EmailStatus.PATTERN)
+    del sites["https://vernex.io/"]
+    assert form_d.find_site(filing) is None

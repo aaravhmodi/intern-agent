@@ -225,11 +225,13 @@ Leads, the resume text cache and the inbox file stay local and are git-ignored.
 `uv run internship-agent leads form-d` reads the SEC's free daily index of Form D filings
 (no key or account; `GMAIL_ADDRESS` is sent as the contact the SEC asks for) and keeps US tech
 companies incorporated in the last five years that raised $250K–$50M. The officer who signed
-the filing is the contact. One OpenAI web search per new company finds its website (dropped if
-the site doesn't name the company) and the founder's own email if a public page shows it;
-otherwise the email is a `first@domain` guess marked unverified. New leads get open roles from
-their job board and a fit score. The server runs it after the 7:30 AM scrape, reading the last
-three days of filings; each new company costs about a cent.
+the filing is the contact. The website is found without a search engine or AI: likely domains
+(`motaris.ai`, `getknowable.ai`, …) are tried directly, and one only counts if it, or its
+about/team page, names someone on the filing or shows the legal name ("Motaris Inc"). The
+founder's email is published if that site shows an address with their name in it; otherwise
+it is a `first@domain` guess marked unverified. New leads get open roles from their job board
+and the usual fit score (the only OpenAI use). The server runs it after the 7:30 AM scrape,
+reading the last three days of filings; `--days 30` backfills a month.
 
 ## Other connectors
 

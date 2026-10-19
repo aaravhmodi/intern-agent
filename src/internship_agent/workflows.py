@@ -14,7 +14,6 @@ from internship_agent import mailer, notify
 from internship_agent.ai import (
     STATUS_FROM_NOTE,
     assess_fit,
-    find_company_site,
     interpret_note,
     prepare_answers,
     prepare_cover_letter,
@@ -339,12 +338,12 @@ def find_form_d_startups(
 ) -> list[Lead]:
     """US tech startups that filed a Form D in the last few days, with a site and an email.
 
-    Filings are free; each new company costs one web search to find its website. Companies
-    already in the tracker are skipped before that search.
+    Finding the website and email is free (likely domains are tried directly); only the
+    usual fit score of each new lead uses OpenAI.
     """
     if not settings.gmail_address:
         raise ValueError("Set GMAIL_ADDRESS: the SEC asks for a contact address")
-    client, store = _openai(settings), lead_store(settings)
+    store = lead_store(settings)
     known = {form_d.company_name(lead.company).lower() for lead in store.load()}
     found: list[Lead] = []
     for back in range(1, days + 1):
@@ -354,24 +353,10 @@ def find_form_d_startups(
         for filing in filings:
             if filing.company.lower() in known:
                 continue
-            # shortcut: a company with no site found is searched again on each of the
-            # `days` runs that cover its filing; remember misses if that cost matters.
             known.add(filing.company.lower())
-            site, usage = find_company_site(
-                client,
-                settings.openai_model,
-                filing.company,
-                filing.location,
-                filing.contact_name,
-                filing.people,
-            )
-            _record_openai_usage(settings, "form-d-site", settings.openai_model, usage)
-            first_word = filing.company.split()[0]
-            if not site or not site.company_url:
-                log(f"{filing.company}: no website found")
-                continue
-            if not startups.page_names(site.company_url, filing.company, first_word):
-                log(f"{filing.company}: {site.company_url} doesn't name the company")
+            site = form_d.find_site(filing)
+            if not site:
+                log(f"{filing.company}: no website that names them")
                 continue
             found.append(form_d.to_lead(filing, site))
     existing = store.load()

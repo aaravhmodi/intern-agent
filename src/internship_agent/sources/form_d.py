@@ -6,26 +6,31 @@ The SEC asks automated clients to name themselves with a contact address and to 
 no more than 10 requests a second.
 """
 
+import html
 import re
 import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
 from urllib.parse import urlsplit
 
-from internship_agent.ai import CompanySite
 from internship_agent.leads.emails import guess_email
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadKind, Region, Segment
-from internship_agent.sources.startups import page_text
+from internship_agent.sources.startups import _fold
 
 ARCHIVES = "https://www.sec.gov/Archives/"
 TECH = {"Computers", "Other Technology", "Telecommunications"}
 # Roughly pre-seed to Series B: smaller is friends and family, larger is a late-stage company.
 MIN_USD, MAX_USD = 250_000, 50_000_000
 EARLY_BELOW_USD = 5_000_000
-_SUFFIX = re.compile(r",?\s+(inc|incorporated|llc|corp|corporation|co|ltd|pbc)\.?$", re.I)
+_LEGAL = r"(inc|incorporated|llc|corp|corporation|co|ltd|pbc)"
+_SUFFIX = re.compile(rf",?\s+{_LEGAL}\.?$", re.I)
+TLDS = ("com", "ai", "io", "co", "app", "bot", "tech", "dev", "xyz")
+PREFIXES = ("", "get", "try", "use")
+ABOUT_PATHS = ("about", "team", "about-us", "company")
 
 
 @dataclass
@@ -136,14 +141,90 @@ def filings(day: date, contact: str) -> list[Filing]:
     return found
 
 
+@dataclass
+class Site:
+    url: str
+    what_they_build: str
+    pages: dict[str, str]  # url -> html of the pages read
+
+
+def candidate_domains(company: str) -> list[str]:
+    """Likely domains, most likely first: knowablelabs.com ... getknowable.ai ..."""
+    words = re.findall(r"[a-z0-9]+", _fold(company))
+    bases = dict.fromkeys(["".join(words), words[0]])
+    return [f"{p}{b}.{t}" for b in bases for p in PREFIXES for t in TLDS]
+
+
+def _fetch(url: str) -> tuple[str, str]:
+    """The final URL after redirects and the page, or ("", "") if it doesn't load."""
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            body: bytes = response.read()
+            return response.geturl(), html.unescape(body.decode("utf-8", "ignore"))
+    except Exception:
+        return "", ""
+
+
+def _has_name(text: str, person: str) -> bool:
+    parts = _fold(person).split()
+    return len(parts) > 1 and all(re.search(rf"\b{re.escape(p)}\b", text) for p in parts)
+
+
+def _description(page: str) -> str:
+    for tag in re.findall(r"<meta[^>]+>", page, re.I):
+        if re.search(r"""(name|property)=["'](og:)?description["']""", tag, re.I):
+            content = re.search(r"""content=["']([^"']*)""", tag, re.I)
+            if content and content.group(1).strip():
+                return content.group(1).strip()[:300]
+    title = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+    return title.group(1).strip()[:300] if title else ""
+
+
+def _check(domain: str, filing: Filing) -> tuple[int, Site] | None:
+    """2 if the site names someone on the filing, 1 if its legal name; None if neither."""
+    final, home = _fetch(f"https://{domain}/")
+    if not home or _fold(filing.company.split()[0]) not in _fold(home):
+        return None
+    parts = urlsplit(final)
+    root = f"{parts.scheme}://{parts.netloc}"
+    pages = {final: home}
+    for path in ABOUT_PATHS:
+        url, page = _fetch(f"{root}/{path}")
+        if page:
+            pages[url] = page
+    text = _fold(" ".join(pages.values()))
+    if any(_has_name(text, person) for person in filing.people):
+        rank = 2
+    elif re.search(rf"\b{re.escape(_fold(filing.company))},?\s+{_LEGAL}\b", text):
+        rank = 1
+    else:
+        return None
+    return rank, Site(root + "/", _description(home), pages)
+
+
+def find_site(filing: Filing) -> Site | None:
+    """The company's own website, found by trying likely domains; no search engine or AI.
+
+    Many companies share a name, so a site only counts if it names someone on the filing
+    or shows the company's legal name ("Motaris Inc"). Sites that name nobody are missed.
+    """
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        checks = pool.map(lambda domain: _check(domain, filing), candidate_domains(filing.company))
+        hits = [hit for hit in checks if hit]
+    hits.sort(key=lambda hit: -hit[0])  # stable: equal ranks keep the likelier domain first
+    return hits[0][1] if hits else None
+
+
 def founder_email(
-    name: str, domain: str, published: str | None, source: str | None
+    name: str, domain: str, pages: dict[str, str]
 ) -> tuple[str | None, EmailStatus, str]:
-    """A published address only if it is theirs and the cited page shows it; else a guess."""
-    local = (published or "").split("@")[0].lower()
-    theirs = any(len(part) > 1 and part.lower() in local for part in name.split())
-    if published and source and theirs and published.lower() in page_text(source).lower():
-        return published.lower(), EmailStatus.PUBLISHED, source
+    """Their own address if their site shows it; otherwise a guess."""
+    for url, page in pages.items():
+        for address in re.findall(rf"[\w.+-]+@{re.escape(domain)}", page, re.I):
+            local = address.split("@")[0].lower()
+            if any(len(part) > 1 and part in local for part in _fold(name).split()):
+                return address.lower(), EmailStatus.PUBLISHED, url
     try:
         # shortcut: first@ is the most common format at small startups; a verifier
         # (e.g. Hunter's free tier) would pick the right one.
@@ -153,16 +234,13 @@ def founder_email(
     return guess, EmailStatus.PATTERN, "Guessed first@ format; check before sending"
 
 
-def to_lead(filing: Filing, site: CompanySite) -> Lead:
-    assert site.company_url
-    domain = urlsplit(site.company_url).netloc.lower().removeprefix("www.")
-    email, status, source = founder_email(
-        filing.contact_name, domain, site.email, site.email_source
-    )
+def to_lead(filing: Filing, site: Site) -> Lead:
+    domain = urlsplit(site.url).netloc.lower().removeprefix("www.")
+    email, status, source = founder_email(filing.contact_name, domain, site.pages)
     return Lead(
         kind=LeadKind.FOUNDER,
         company=filing.company,
-        company_url=site.company_url,
+        company_url=site.url,
         what_they_build=site.what_they_build,
         location=filing.location,
         source_url=filing.url,

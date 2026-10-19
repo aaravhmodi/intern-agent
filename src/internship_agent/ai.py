@@ -134,8 +134,7 @@ FOCUS NOTES:
     + OUTREACH_FOCUS
 )
 
-ANSWER_INSTRUCTIONS = (
-    """\
+ANSWER_INSTRUCTIONS = """\
 You prepare answers to a job application's questions for a University of Waterloo student
 applying to a Winter 2027 (January-April, 4-month) software-engineering internship. Use only
 facts from the resume and candidate context; map them to the requirements in the
@@ -155,7 +154,6 @@ Use candidate-confirmed facts in the candidate context when they differ from the
 Repository-verified projects in that context are valid evidence even when absent from the
 resume. Select the strongest match for each question; do not repeat one example mechanically.
 Never invent anything else."""
-)
 
 STARTUP_SEARCH_INSTRUCTIONS = """\
 Use web search to find startups that publicly announced a funding round between {start} and
@@ -247,26 +245,6 @@ class PeopleFindings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     people: list[PersonFinding]
-
-
-COMPANY_SITE_INSTRUCTIONS = """\
-Use web search to find the official website of a young US company that just filed an SEC Form
-D to raise money. Return its own homepage as company_url (not LinkedIn, Crunchbase, PitchBook,
-a news site or a directory) only when you are confident it is this company: the name matches
-and, ideally, the site or a search result ties it to one of the people listed. Many companies
-share a name; if unsure, return null. what_they_build: one plain sentence from the site, else
-empty. email: the contact person's own address (not info@, media@ or another shared inbox),
-only if it appears verbatim on a public page, with that page's URL as email_source; never
-build or guess an address."""
-
-
-class CompanySite(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    company_url: str | None
-    what_they_build: str
-    email: str | None
-    email_source: str | None
 
 
 class StartupFinding(BaseModel):
@@ -474,26 +452,6 @@ def search_people(
     if response.output_parsed is None:
         return []
     return PeopleFindings.model_validate(response.output_parsed.model_dump()).people
-
-
-def find_company_site(
-    client: OpenAI, model: str, company: str, location: str, contact: str, people: list[str]
-) -> tuple[CompanySite | None, Any]:
-    """One web search for a Form D filer's website, what it builds, and a published email."""
-    response = client.responses.parse(
-        model=model,
-        tools=[{"type": "web_search"}],
-        input=[
-            {"role": "system", "content": COMPANY_SITE_INSTRUCTIONS},
-            {
-                "role": "user",
-                "content": f"Company: {company}. Address on the filing: {location}. "
-                f"Contact: {contact}. People on the filing: {', '.join(people)}.",
-            },
-        ],
-        text_format=CompanySite,
-    )
-    return response.output_parsed, response.usage
 
 
 def interpret_note(
