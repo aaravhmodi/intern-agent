@@ -732,6 +732,7 @@ def daily(
     *,
     target_submissions: int | None = None,
     lowest_first: bool = False,
+    skip_strong: bool = False,
 ) -> DailyReport:
     """Find postings, prepare eligible applications, optionally submit, and report by ntfy."""
     if target_submissions is not None and target_submissions < 1:
@@ -765,6 +766,8 @@ def daily(
         eligible = [
             lead for lead in eligible if lead.posting_url and _supported_url(lead.posting_url)
         ]
+    if skip_strong:
+        eligible = [lead for lead in eligible if lead.fit and lead.fit.verdict != "strong"]
     eligible.sort(key=lambda lead: lead.fit.score if lead.fit else 0, reverse=not lowest_first)
     prepared: list[Lead] = []
     submitted = 0

@@ -184,7 +184,8 @@ Select a company to see its fit score and reasons, contact, and editable drafts:
   blocked/failed counts. `internship-agent leads apply <company/contact-key> --dry-run` fills
   a form without submitting it.
   The server scrapes at 7:30 AM Toronto and runs applications at 8:00 AM through systemd
-  timers. The daily run scores only new eligible postings and reuses prepared materials. Compact job context and GPT-6 Luna keep
+  timers (20 lowest-scored by default; `--skip-strong` leaves green strong fits for you).
+  The daily run scores only new eligible postings and reuses prepared materials. Compact job context and GPT-6 Luna keep
   AI token usage low.
   Token counts for scoring, answers, and cover letters are recorded without prompt content in
   `data/openai-usage.jsonl`; the ntfy summary includes a token-based cost estimate.

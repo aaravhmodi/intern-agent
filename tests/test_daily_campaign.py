@@ -111,6 +111,17 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     )
     assert submitted == [leads[2].key, leads[1].key]
 
+    submitted.clear()
+    for lead in leads:
+        lead.application = None
+    leads[2].fit.verdict = "possible"
+    workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=True),
+        target_submissions=1000,
+        skip_strong=True,
+    )
+    assert submitted == [leads[2].key]
+
 
 def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     candidates = [
