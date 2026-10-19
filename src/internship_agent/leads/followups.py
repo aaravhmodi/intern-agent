@@ -10,20 +10,9 @@ from datetime import datetime, timedelta
 
 from internship_agent.leads.schemas import Lead, LeadStatus
 
-# What each follow-up says, in order. {first} is their first name and {company} the
-# company. Plain, same-tone reminders: no apologising and no "no problem if not".
-# The first goes out five to seven days after the email, always the week after
-# it, so "last week" is right whatever the time zone.
+# What each follow-up says, in order: the same plain reminder each time, no apologising.
+# {first} is their first name and {company} the company.
 TEMPLATES = (
-    """\
-Hi {first},
-
-Following up on my email from last week about a Winter 2027 (Jan–Apr) software engineering \
-internship at {company}.
-
-Would a 15-minute call work sometime in the next week or two?
-
-Aarav""",
     """\
 Hi {first},
 
@@ -32,7 +21,7 @@ Following up again on a Winter 2027 (Jan–Apr) software engineering internship 
 Do you have 15 minutes to talk next week?
 
 Aarav""",
-)
+) * 2
 
 # Addresses at these domains say nothing about a company, so a reply from someone else
 # there is not a reply from the company.

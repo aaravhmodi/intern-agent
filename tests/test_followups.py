@@ -104,7 +104,7 @@ def test_nobody_gets_a_third_or_one_after_replying_or_being_skipped() -> None:
 
 def test_the_follow_up_names_them_the_company_and_the_first_email() -> None:
     first = followup_body(emailed())
-    assert first.startswith("Hi Pranav,\n\nFollowing up on my email from last week")
+    assert first.startswith("Hi Pranav,\n\nFollowing up again")
     assert "internship at Blueprint" in first and first.endswith("Aarav")
 
     last = followup_body(emailed(followups=[SENT + timedelta(days=5)]))
@@ -191,7 +191,7 @@ def test_two_follow_ups_five_days_apart_then_it_stops(
         run_followups(settings, quiet, now=SENT + timedelta(days=day))
 
     assert [message.get_content().split("\n")[2][:22] for message in outbox] == [
-        "Following up on my ema",
+        "Following up again on ",
         "Following up again on ",
     ]
     final = run_followups(settings, quiet, now=SENT + timedelta(days=40))
