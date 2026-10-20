@@ -235,6 +235,14 @@ and the usual fit score (the only OpenAI use). The server runs it after the 7:30
 reading the last three days of filings; `--days 30` backfills a month, and `--days 365 --min-usd 5000000` a year of
 midsize raises (saved day by day, so a stopped run keeps what it found).
 
+`uv run internship-agent leads guess-send --limit 40` emails founders with no verified
+address at the format most likely to reach them (`first@`, `first.last@`, `flast@`, ...),
+always at their own company's domain, one guess per founder at a time. Each format keeps a
+delivered/bounced score learned from past sends (Thompson sampling), and the morning
+follow-up run's bounce check feeds it: a founder whose guess bounced gets the next most
+likely format on the next run, never one that already bounced. It only lists the picks
+unless you add `--send`.
+
 ## Opportunity agent
 
 The dashboard's second section, beside the internship agent: things to go to and submit to.

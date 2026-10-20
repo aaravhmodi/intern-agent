@@ -30,6 +30,7 @@ from internship_agent.workflows import (
     find_form_d_startups,
     find_more_postings,
     find_startups,
+    guess_and_send,
     prepare_application,
     score,
     scrape_jobs,
@@ -242,6 +243,16 @@ def form_d_cmd(
     """Add US tech startups that just filed an SEC Form D, with their site and an email."""
     new = find_form_d_startups(get_settings(), days=days, log=console.print, min_usd=min_usd)
     console.print(f"Added {len(new)} lead(s) from Form D filings.")
+
+
+@leads_app.command("guess-send")
+def guess_send_cmd(
+    limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 40,
+    send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
+) -> None:
+    """Email founders at the address format most likely to work; retry bounced ones."""
+    picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
+    console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
 
 @leads_app.command("application-campaign")

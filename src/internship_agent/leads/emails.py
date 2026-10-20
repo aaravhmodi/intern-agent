@@ -10,6 +10,8 @@ PATTERNS = {
     "flast": "{f}{last}",
     "first_last": "{first}_{last}",
     "firstl": "{first}{l}",
+    "last": "{last}",
+    "f.last": "{f}.{last}",
 }
 
 

@@ -1,6 +1,8 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
+import random
 import re
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -20,6 +22,7 @@ from internship_agent.ai import (
     search_startups,
 )
 from internship_agent.config import Settings
+from internship_agent.leads import patterns
 from internship_agent.leads.answers import (
     AnswerBank,
     common_questions,
@@ -408,6 +411,87 @@ def send_email(
     record = {"at": lead.sent_at.isoformat(), "key": key, "to": lead.sent_to, "subject": subject}
     db.append(settings, "sent-log", record)
     return lead
+
+
+# The founder email Aarav approved on October 19; {first} and {company} are filled in.
+OUTREACH_SUBJECT = "15 min chat? Waterloo SWE intern, Winter 2027"
+OUTREACH_BODY = """Hi {first},
+
+I'm a third-year Systems Design Engineering student at the University of Waterloo with 3 \
+internships completed at CIBC and Upside Robotics ($7.5M USD seed). A few results:
+
+- Upside Robotics: software engineer on backend systems, working 60+ hour weeks across \
+multiple roles. Built the FastAPI backend and operations dashboard 35+ employees and \
+executives use (metric retrieval from weeks to minutes), an ETL pipeline that cut warehouse \
+load times by 80%, and cut robot-telemetry latency by 50%.
+- CIBC: built a React-Django dashboard for 25+ projects and integrated ML anomaly detection \
+that cut debugging time by 40%.
+
+Could we do a 15-minute call so I can learn more about {company} and any opportunities for a \
+Winter 2027 (Jan-Apr) internship?
+
+Portfolio: aaravmodi.ca
+Aarav"""
+
+
+def guess_and_send(
+    settings: Settings,
+    limit: int,
+    *,
+    send: bool = False,
+    log: Callable[[str], None] = lambda _: None,
+    pause_seconds: float = 20,
+) -> list[tuple[Lead, str]]:
+    """Email founders at the address format most likely to work; retry bounced ones.
+
+    Bounces are found by the morning follow-up run, so a founder whose guess bounced is
+    picked again the next day with the next most likely format. Dry run unless `send`.
+    """
+    store = lead_store(settings)
+    leads = store.load()
+    counts = patterns.outcomes(leads, datetime.now(UTC))
+    log("Delivered/bounced so far: " + ", ".join(f"{f} {d}/{b}" for f, (d, b) in counts.items()))
+    rng = random.Random(date.today().toordinal())  # same picks for a dry run and its send
+    wanted = sorted(
+        (lead for lead in leads if patterns.wants_email(lead)),
+        key=lambda lead: lead.fit.score if lead.fit else 0,
+        reverse=True,
+    )
+    picked: list[tuple[Lead, str]] = []
+    domains: set[str] = set()
+    for lead in wanted:
+        if len(picked) == limit:
+            break
+        domain = patterns.domain_of(lead)
+        address = patterns.next_guess(lead, domain, counts, rng) if domain else None
+        if domain and address and domain not in domains:  # one founder per company a day
+            domains.add(domain)
+            picked.append((lead, address))
+    for lead, address in picked:
+        retry = " (retry; bounced: " + ", ".join(patterns.bounced_addresses(lead)) + ")"
+        log(f"{lead.company}: {address}" + (retry if patterns.bounced_addresses(lead) else ""))
+        if not send:
+            continue
+        patterns.point_at(lead, address)
+        store.upsert(lead)
+        first = (lead.contact_name or "there").split()[0]
+        body = OUTREACH_BODY.format(first=first, company=lead.company)
+        try:
+            send_email(
+                settings,
+                lead.key,
+                address,
+                OUTREACH_SUBJECT,
+                body,
+                attach_resume=True,
+                confirm_unverified=True,  # every address here is a guess, by design
+                resend=True,
+            )
+        except Exception as error:  # one refused send must not stop the batch
+            log(f"{lead.company}: not sent ({type(error).__name__}: {error})")
+            continue
+        time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
+    return picked
 
 
 def answer_bank(settings: Settings) -> AnswerBank:

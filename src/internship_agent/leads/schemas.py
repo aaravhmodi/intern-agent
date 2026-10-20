@@ -213,6 +213,8 @@ class Lead(BaseModel):
     followups: list[datetime] = Field(default_factory=list)
     replied_at: datetime | None = None
     followups_stopped: str = ""
+    # Guessed addresses that bounced, so the next guess never repeats one.
+    bounced_emails: list[str] = Field(default_factory=list)
     notes: list[Note] = Field(default_factory=list)
     application: ApplicationPrep | None = None
     # Posting description fetched for scoring (truncated); empty for founder leads.
