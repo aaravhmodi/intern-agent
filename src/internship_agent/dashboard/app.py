@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
-from internship_agent import agenda
+from internship_agent import agenda, chat
 from internship_agent.ai import draft_outreach
 from internship_agent.applications.browser import screenshot_path
 from internship_agent.config import get_settings
@@ -26,6 +26,7 @@ from internship_agent.opportunities.schemas import Opportunity, OpportunityStatu
 from internship_agent.opportunities.store import OpportunityStore
 from internship_agent.workflows import (
     _incompatible_term,
+    _record_openai_usage,
     find_more_postings,
     find_people,
     find_startups,
@@ -299,6 +300,30 @@ def followups(request: FollowupsRequest) -> dict[str, Any]:
     except (MailboxError, MailError) as exc:
         raise HTTPException(503, str(exc)) from exc
     return {"enabled": settings.followups_enabled, **report.model_dump(mode="json")}
+
+
+class ChatRequest(BaseModel):
+    messages: list[chat.ChatMessage]
+    key: str | None = None  # the lead or opportunity open in the dashboard
+
+
+@app.post("/api/chat")
+def ask(request: ChatRequest) -> dict[str, Any]:
+    """Answer from your profile, GitHub, the agent's data and the web (uses OpenAI)."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(400, "OPENAI_API_KEY is not set")
+    if not request.messages or request.messages[-1].role != "user":
+        raise HTTPException(400, "Ask a question first")
+    reply = chat.answer(
+        settings,
+        OpenAI(api_key=settings.openai_api_key),
+        request.messages,
+        request.key,
+        resume_text(settings),
+        usage=lambda u: _record_openai_usage(settings, "chat", settings.chat_model, u),
+    )
+    return {"reply": reply}
 
 
 @app.post("/api/note")
