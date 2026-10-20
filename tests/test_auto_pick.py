@@ -73,8 +73,12 @@ def test_picks_sponsored_online_hackathons_with_recognition() -> None:
         ),
         (hack(check(format="in person"), online=False, location="Berlin, Germany"), None),
         (hack(check(eligible="no")), None),
-        (hack(check(eligible="unclear")), None),
-        (hack(check(effort="heavy")), None),
+        (hack(check(eligible="unclear")), "online"),  # rules live in a separate document
+        (hack(check(effort="heavy")), "online"),  # weeks-long online: you choose the scope
+        (
+            hack(check(format="in person", effort="heavy"), online=False, location="Toronto, ON"),
+            None,
+        ),
         (hack(check(fit_score=60)), None),
         (hack(check(apply_by=date(2026, 10, 1))), None),
         (hack(check(), deadline=date(2026, 10, 10)), None),
