@@ -19,6 +19,9 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import SendBlocked
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
+from internship_agent.opportunities import run as opportunity_run
+from internship_agent.opportunities.schemas import Opportunity, OpportunityStatus
+from internship_agent.opportunities.store import OpportunityStore
 from internship_agent.workflows import (
     _incompatible_term,
     find_more_postings,
@@ -380,6 +383,68 @@ def allow_retry(request: KeyRequest) -> dict[str, Any]:
     lead.application.submission_detail = ""
     lead_store(settings).upsert(lead)
     return {"lead": _view(lead)}
+
+
+def _opportunity(key: str) -> Opportunity:
+    try:
+        return OpportunityStore(get_settings()).get(key)
+    except KeyError as exc:
+        raise HTTPException(404, "Opportunity not found") from exc
+
+
+def _opportunity_view(item: Opportunity) -> dict[str, Any]:
+    return {**item.model_dump(mode="json"), "key": item.key}
+
+
+class OpportunityStatusUpdate(BaseModel):
+    key: str
+    status: OpportunityStatus
+
+
+@app.get("/api/opportunities")
+def opportunities() -> dict[str, Any]:
+    today = date.today()
+    items = [
+        o for o in OpportunityStore(get_settings()).load() if opportunity_run.upcoming(o, today)
+    ]
+    items.sort(key=lambda o: opportunity_run.next_date(o, today))
+    return {"opportunities": [_opportunity_view(o) for o in items]}
+
+
+@app.post("/api/opportunities/refresh")
+def refresh_opportunities() -> dict[str, Any]:
+    """Pull the hackathon, conference and research-deadline feeds (no AI)."""
+    added = opportunity_run.refresh(get_settings())
+    return {"added": [_opportunity_view(o) for o in added]}
+
+
+@app.post("/api/opportunities/find-events")
+def find_events() -> dict[str, Any]:
+    """Web-search networking events near EVENT_CITIES (uses OpenAI)."""
+    try:
+        added = opportunity_run.find_events(get_settings())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"added": [_opportunity_view(o) for o in added]}
+
+
+@app.post("/api/opportunities/strategy")
+def opportunity_strategy(request: KeyRequest) -> dict[str, Any]:
+    """Read the venue's call for papers and plan a submission (uses OpenAI)."""
+    _opportunity(request.key)
+    try:
+        item = opportunity_run.plan_submission(get_settings(), request.key)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"opportunity": _opportunity_view(item)}
+
+
+@app.post("/api/opportunities/status")
+def opportunity_status(update: OpportunityStatusUpdate) -> dict[str, Any]:
+    item = _opportunity(update.key)
+    item.status = update.status
+    OpportunityStore(get_settings()).upsert(item)
+    return {"opportunity": _opportunity_view(item)}
 
 
 @app.post("/api/application/submit")

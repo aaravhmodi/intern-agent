@@ -10,13 +10,15 @@ from rich.table import Table
 
 from internship_agent.config import get_settings
 from internship_agent.leads.cli import leads_app
+from internship_agent.opportunities.cli import opportunities_app
 from internship_agent.outlook.client import OutlookError, connect
 from internship_agent.tracking import RECRUITING_QUERY, application_updates, interview_events
 
-app = typer.Typer(help="Winter 2027 internship agent.", no_args_is_help=True)
+app = typer.Typer(help="Winter 2027 internship and opportunity agent.", no_args_is_help=True)
 outlook_app = typer.Typer(help="Read-only Outlook integration via the MS 365 MCP server.")
 app.add_typer(outlook_app, name="outlook")
 app.add_typer(leads_app, name="leads")
+app.add_typer(opportunities_app, name="opportunities")
 console = Console()
 
 

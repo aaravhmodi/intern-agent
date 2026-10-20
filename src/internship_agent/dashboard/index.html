@@ -33,6 +33,8 @@
   .brand { font-weight: 650; letter-spacing: -.01em; padding: 0 8px 18px; }
   .brand small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
   .group { margin-bottom: 18px; }
+  .section-h { font-size: 12px; font-weight: 650; padding: 12px 8px 8px; border-top: 1px solid var(--line); }
+  .brand + .section-h { border-top: 0; padding-top: 0; }
   .group h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint);
               font-weight: 600; margin: 0 0 4px; padding: 0 8px; }
   .nav-item { display: flex; justify-content: space-between; width: 100%; border: 0; background: none;
@@ -195,9 +197,16 @@ const VIEWS = {
   contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
   skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
   rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
+  hackathons: { title: "Hackathons", group: "Find", label: "Hackathons", opp: true, test: o => o.kind === "hackathon" && o.status !== "skipped", find: "feeds" },
+  conferences:{ title: "Tech conferences", group: "Find", label: "Tech conferences", opp: true, test: o => o.kind === "conference" && o.status !== "skipped", find: "feeds" },
+  research:   { title: "Research venues", group: "Find", label: "Research venues", opp: true, test: o => o.kind === "research" && o.status !== "skipped", find: "feeds" },
+  networking: { title: "Networking events", group: "Find", label: "Networking", opp: true, test: o => o.kind === "networking" && o.status !== "skipped", find: "events" },
+  plans:      { title: "My plans", group: "Mine", label: "Interested & registered", opp: true, test: o => PLANNED.has(o.status) },
+  passed:     { title: "Skipped opportunities", group: "Mine", label: "Skipped", opp: true, test: o => o.status === "skipped" },
 };
-const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads" };
-let state = { leads: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+const PLANNED = new Set(["interested", "registered", "submitted"]);
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events" };
+let state = { leads: [], opps: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -211,8 +220,8 @@ async function api(path, body) {
   return res.json();
 }
 async function load() {
-  const data = await api("/api/leads");
-  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences;
+  const [data, opps] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] }))]);
+  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities;
   renderNav(); renderRows(); renderDetail();
 }
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
@@ -222,11 +231,13 @@ function subtitle(l) {
 }
 
 function renderNav() {
-  let html = `<div class="brand">Winter 2027<small>Internship search</small></div>`;
-  let group = null;
+  let html = `<div class="brand">Winter 2027<small>Internships and opportunities</small></div>`;
+  let group = null, section = null;
   for (const [id, v] of Object.entries(VIEWS)) {
+    const s = v.opp ? "Opportunity agent" : "Internship agent";
+    if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : state.leads.filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : (v.opp ? state.opps : state.leads).filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -234,6 +245,7 @@ function renderNav() {
 }
 function visible() {
   const v = VIEWS[state.view];
+  if (v.opp) return state.opps.filter(o => v.test(o) && (!state.q || `${o.title} ${o.location} ${o.topics.join(" ")} ${o.details}`.toLowerCase().includes(state.q)));
   return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
 }
 function renderRules() {
@@ -251,9 +263,11 @@ function renderRows() {
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
+  $("region").style.display = v.opp ? "none" : "";
   if (state.view === "rules") return renderRules();
   const items = visible();
   $("view-count").textContent = items.length;
+  if (v.opp) return renderOpps(items);
   $("rows").innerHTML = items.length ? items.map(l => `
     <div class="row ${state.selected === l.key ? "on" : ""} ${DONE.has(l.status) ? "done" : ""}" data-key="${esc(l.key)}">
       <div class="fit ${l.fit ? l.fit.verdict : ""}">${l.fit ? l.fit.score : "–"}</div>
@@ -262,6 +276,79 @@ function renderRows() {
       <div class="who">${esc(l.contact_name || (l.email ? l.email : "No contact yet"))}</div>
       <div class="status ${esc(l.status)}">${esc(l.sent_at ? "emailed" : l.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
+}
+
+// Opportunity agent: events and calls for submissions.
+const today = () => new Date().toISOString().slice(0, 10);
+const openDeadline = o => o.deadline && o.deadline >= today();
+const nextDate = o => openDeadline(o) ? o.deadline : o.starts_on;
+function daysTo(iso) {
+  if (!iso) return "–";
+  const d = Math.round((new Date(iso + "T00:00") - new Date(today() + "T00:00")) / 864e5);
+  return d <= 0 ? "today" : d + "d";
+}
+function oppWhen(o) {
+  const dates = o.starts_on ? (o.ends_on && o.ends_on !== o.starts_on ? `${o.starts_on} → ${o.ends_on}` : o.starts_on) : "";
+  return [openDeadline(o) ? `${o.deadline_label} ${o.deadline}` : (o.deadline ? "" : o.deadline_label), dates].filter(Boolean).join(" · ");
+}
+function renderOpps(items) {
+  $("rows").innerHTML = items.length ? items.map(o => `
+    <div class="row ${state.selected === o.key ? "on" : ""} ${o.status === "skipped" ? "done" : ""}" data-key="${esc(o.key)}">
+      <div class="fit ${openDeadline(o) ? "possible" : ""}" title="Days to ${openDeadline(o) ? "deadline" : "start"}">${daysTo(nextDate(o))}</div>
+      <div><div class="co">${esc(o.title)}</div><div class="sub">${esc(oppWhen(o))}</div></div>
+      <div class="who">${esc(o.online ? "Online" : o.location)}${o.rank ? " · " + esc(o.rank) : ""}</div>
+      <div class="status ${PLANNED.has(o.status) ? "applied" : ""}">${esc(o.status)}</div>
+    </div>`).join("") : `<div class="empty">Nothing here yet. ${VIEWS[state.view].find ? "Use the button above to search." : "Mark something interested to plan it here."}</div>`;
+}
+// A Google Calendar "add event" link (all-day; Google's end date is exclusive).
+function calendarUrl(title, from, to, o) {
+  const day = iso => iso.replaceAll("-", ""), end = new Date((to || from) + "T00:00Z"); end.setUTCDate(end.getUTCDate() + 1);
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(title)
+    + `&dates=${day(from)}/${day(end.toISOString().slice(0, 10))}&location=${encodeURIComponent(o.online ? "Online" : o.location)}&details=${encodeURIComponent(o.url)}`;
+}
+function strategySection(o) {
+  const s = o.strategy;
+  const intro = o.kind === "research"
+    ? "I'll read this venue's call for papers, find the tracks an undergraduate can get into (student research competitions, posters, late-breaking work, workshops), and match one to your own projects."
+    : "I'll read this conference's call for speakers and plan a talk or lightning-talk proposal from your own work, plus ways to attend for free.";
+  if (!s) return `<section><h4>Submission strategy</h4><div class="hint">${intro}</div>
+    <div class="actions"><button class="btn primary" id="plan">Plan a submission</button></div></section>`;
+  const list = (title, xs) => xs.length ? `<div class="k">${title}</div><ul class="plain">${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const tone = { realistic: "ok", stretch: "warn" }[s.verdict] || "bad";
+  return `<section><h4>Submission strategy</h4>
+    <div class="result ${tone}"><div class="head">${esc(s.verdict)}</div><div class="why">${esc(s.summary)}</div></div>
+    ${s.tracks.map(t => `<div class="qa"><div class="qa-label"><span>${esc(t.name)}</span><a class="btn copy-a" href="${esc(t.source_url)}" target="_blank" rel="noopener">Call</a></div>
+      <div class="hint">${esc(t.deadline || "Deadline not announced")} · ${esc(t.format)}</div><div class="hint">${esc(t.eligibility)}</div></div>`).join("")
+      || `<div class="hint">No open track could be confirmed on the venue's own pages.</div>`}
+    <div class="k">What to submit</div><p style="margin:4px 0 0">${esc(s.what_to_submit)}</p>
+    ${list("Plan", s.plan)}${list("Getting there affordably", s.funding)}${list("Risks", s.risks)}
+    <div class="actions"><button class="btn" id="plan">Plan again</button></div></section>`;
+}
+function renderOpp(o) {
+  $("aside").classList.add("open");
+  $("chat-ctx").textContent = "General";
+  const links = [
+    `<a href="${esc(o.url)}" target="_blank" rel="noopener">Event page</a>`,
+    o.starts_on && `<a href="${esc(calendarUrl(o.title, o.starts_on, o.ends_on, o))}" target="_blank" rel="noopener">Add to calendar</a>`,
+    openDeadline(o) && `<a href="${esc(calendarUrl(`Deadline: ${o.title}`, o.deadline, o.deadline, o))}" target="_blank" rel="noopener">Add deadline to calendar</a>`,
+  ].filter(Boolean).join("");
+  const meta = [o.kind, o.online ? "Online" : o.location, o.rank, `via ${o.source}`].filter(Boolean);
+  const steps = [["interested", "Interested"], ["registered", "Registered"], ["submitted", "Submitted"], ["skipped", "Skip"]];
+  $("detail").innerHTML = `<div class="detail">
+    <button class="btn close" id="close" style="float:right">Close</button>
+    <h2>${esc(o.title)}</h2>
+    <div class="lede">${esc(oppWhen(o))}</div>
+    <div class="meta">${meta.map(m => `<span>${esc(m)}</span>`).join("")}</div>
+    <div class="links">${links}</div>
+    ${o.topics.length ? `<div class="hint">${o.topics.map(esc).join(" · ")}</div>` : ""}
+    ${o.details ? `<p style="margin:12px 0 0">${esc(o.details)}</p>` : ""}
+    <div class="actions">
+      <a class="btn primary" href="${esc(o.url)}" target="_blank" rel="noopener">Open</a>
+      ${steps.filter(([s]) => s !== o.status).map(([s, label]) => `<button class="btn" data-ostatus="${s}">${label}</button>`).join("")}
+      ${o.status !== "new" ? `<button class="btn" data-ostatus="new">Clear</button>` : ""}
+    </div>
+    ${o.kind === "research" || o.kind === "conference" ? strategySection(o) : ""}
+  </div>`;
 }
 
 // The lead's main contact, or one of its other people (p).
@@ -327,7 +414,9 @@ function applicationSection(l) {
   </section>`;
 }
 function renderDetail() {
-  const l = state.leads.find(x => x.key === state.selected);
+  const opp = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  if (opp) return renderOpp(opp);
+  const l = VIEWS[state.view].opp ? null : state.leads.find(x => x.key === state.selected);
   const aside = $("aside"), detail = $("detail");
   $("chat-ctx").textContent = l ? `About ${l.company}` : "General";
   if (!l) { aside.classList.remove("open"); detail.innerHTML = `<div class="placeholder">Select a company to see details, drafts and actions.</div>`; return; }
@@ -423,7 +512,11 @@ $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
   b.disabled = true; b.textContent = kind === "postings" ? "Searching…" : "Searching news, X and LinkedIn… (a few minutes)";
   try {
-    if (kind === "rescore") {
+    if (kind === "feeds" || kind === "events") {
+      b.textContent = kind === "feeds" ? "Reading Devpost, MLH, confs.tech and ccfddl…" : "Searching Luma, Eventbrite, Meetup, LinkedIn and X… (a minute or two)";
+      const r = await api(kind === "feeds" ? "/api/opportunities/refresh" : "/api/opportunities/find-events", {});
+      toast(r.added.length ? `Added ${r.added.length} new.` : "Nothing new this time.");
+    } else if (kind === "rescore") {
       b.textContent = "Checking every to-do lead...";
       const r = await api("/api/rescore", {});
       toast(`Checked ${r.checked} leads. ${r.skipped.length ? "Skipped by your rules: " + r.skipped.map(x => x.company).join(", ") : "None broke a skip rule."}`);
@@ -438,6 +531,19 @@ $("find").addEventListener("click", async e => {
   finally { b.disabled = false; b.textContent = label; }
 });
 $("detail").addEventListener("click", async e => {
+  const o = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  if (o) {
+    const b = e.target.closest("button"); if (!b) return;
+    try {
+      if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+      else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
+      else if (b.id === "plan") {
+        b.disabled = true; b.textContent = "Reading the call for papers… (a minute or two)";
+        await api("/api/opportunities/strategy", { key: o.key }); toast("Strategy ready."); await load();
+      }
+    } catch (err) { toast(err.message); await load().catch(() => {}); }
+    return;
+  }
   const l = state.leads.find(x => x.key === state.selected); if (!l) return;
   const b = e.target.closest("button"); if (!b) return;
   try {
