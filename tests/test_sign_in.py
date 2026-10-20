@@ -249,6 +249,14 @@ def test_sign_in_returns_only_those_sites_cookies_and_hands_back_unfinished(
     assert results["luma"].status == "needs_you" and handed == [["Luma"]]
     assert [c["domain"] for c in cookies] == [".luma.com"]  # job-site cookies stay on the laptop
 
+    def closed() -> dict[str, Any]:
+        raise RuntimeError("Target page, context or browser has been closed")
+
+    page.sessions = closed  # type: ignore[method-assign]
+    said: list[str] = []
+    _, cookies = run.sign_in(settings, ["luma"], page_factory=fake, log=said.append)
+    assert cookies == [] and said[-1].startswith("The browser window was closed")
+
 
 def test_server_takes_only_event_site_cookies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

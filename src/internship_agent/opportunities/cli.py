@@ -45,8 +45,16 @@ def refresh_cmd(
     if limit and settings.openai_api_key:
         assessed = run.check_events(settings, limit=limit, log=console.print)
         console.print(f"Checked {len(assessed)} events")
+    picked = run.auto_pick(settings)
+    for o in picked:
+        console.print(f"Picked for you: {o.title} ({o.picked})")
     message = run.summary_push(
-        added, OpportunityStore(settings).load(), date.today(), settings.dashboard_url, assessed
+        added,
+        OpportunityStore(settings).load(),
+        date.today(),
+        settings.dashboard_url,
+        assessed,
+        picked,
     )
     if push and message and settings.ntfy_topic:
         notify.send(settings.ntfy_server, settings.ntfy_topic, message)

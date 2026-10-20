@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/config.py": {
-    "mtime": 1792517539.9645913,
-    "seen": 1792517833.9260972,
-    "ast_hash": "d6f7aa22a6fe3a5ac38de6954afbf907",
+    "mtime": 1792524316.4002774,
+    "seen": 1792524503.0537918,
+    "ast_hash": "64b39dc6208d814b25084df2ab78a231",
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/__init__.py": {
@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/app.py": {
-    "mtime": 1792521601.169839,
-    "seen": 1792521645.5384693,
-    "ast_hash": "70270c6909618e30b1b33c539ddc98b4",
+    "mtime": 1792524482.5144937,
+    "seen": 1792524503.0537918,
+    "ast_hash": "3b9e61363a6757d1a4e5941828cbc85e",
     "semantic_hash": ""
   },
   "src/internship_agent/followup_run.py": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792521586.7809496,
-    "seen": 1792521645.5384693,
-    "ast_hash": "e14135a1f8a5d0b6e36b566d49ed3433",
+    "mtime": 1792524493.7547853,
+    "seen": 1792524503.0537918,
+    "ast_hash": "132d45c792b7b4c4e4c219db49e16d5f",
     "semantic_hash": ""
   },
   "compose.yaml": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792520006.5288875,
-    "seen": 1792520296.522141,
-    "ast_hash": "741382502171f8eb14ce584f7e7d6629",
+    "mtime": 1792524482.852304,
+    "seen": 1792524503.0537918,
+    "ast_hash": "f3b7d5a96721a428e96d199a8e256a84",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -528,15 +528,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/ai.py": {
-    "mtime": 1792521479.716427,
-    "seen": 1792521645.5384693,
-    "ast_hash": "d7f9f51c6714e56cca765c35115eef6d",
+    "mtime": 1792524310.307399,
+    "seen": 1792524503.0537918,
+    "ast_hash": "8606e933d67015a5cf69512ea216ac44",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/cli.py": {
-    "mtime": 1792521601.169839,
-    "seen": 1792521645.5384693,
-    "ast_hash": "40960f30ea95e4f1c92b7f108180eccf",
+    "mtime": 1792524413.648048,
+    "seen": 1792524503.0537918,
+    "ast_hash": "4bfc84b2e4647ecd0386bc330c4aae9f",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/feeds.py": {
@@ -546,15 +546,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/run.py": {
-    "mtime": 1792521623.6583385,
-    "seen": 1792521645.5384693,
-    "ast_hash": "24583796a3d0d44a0abbcd829ec92b3d",
+    "mtime": 1792524442.8984733,
+    "seen": 1792524503.0537918,
+    "ast_hash": "3c746d8b2a1b61ea6638ad0d3344e883",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/schemas.py": {
-    "mtime": 1792521410.940952,
-    "seen": 1792521645.5384693,
-    "ast_hash": "809e976077ed6db6a8283b1587fe85c0",
+    "mtime": 1792524302.3988023,
+    "seen": 1792524503.0537918,
+    "ast_hash": "38132f08c3dc1cd79117f01bb3c37cd4",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/store.py": {
@@ -564,9 +564,9 @@
     "semantic_hash": ""
   },
   "tests/test_opportunities.py": {
-    "mtime": 1792516830.3783183,
-    "seen": 1792517833.9260972,
-    "ast_hash": "caad878017b124a38151787123c22cda",
+    "mtime": 1792524457.8629687,
+    "seen": 1792524503.0537918,
+    "ast_hash": "699241cc746589136bf360662f3090cd",
     "semantic_hash": ""
   },
   ".claude/commands/find-opportunities.md": {
@@ -636,9 +636,15 @@
     "semantic_hash": ""
   },
   "tests/test_sign_in.py": {
-    "mtime": 1792522034.4381707,
-    "seen": 1792522357.2924957,
-    "ast_hash": "4531bb0ccb53ff92a494a84ca5236af2",
+    "mtime": 1792524413.0349119,
+    "seen": 1792524503.0537918,
+    "ast_hash": "d3e1be340fbebe9e4538b02094bcd44d",
+    "semantic_hash": ""
+  },
+  "tests/test_auto_pick.py": {
+    "mtime": 1792524413.648048,
+    "seen": 1792524503.0537918,
+    "ast_hash": "220003b998c1d4b9049010c43c86e516",
     "semantic_hash": ""
   }
 }
