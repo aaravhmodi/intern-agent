@@ -430,27 +430,13 @@ load times by 80%, and cut robot-telemetry latency by 50%.
 - CIBC: built a React-Django dashboard for 25+ projects and integrated ML anomaly detection \
 that cut debugging time by 40%."""
 _SIGN_OFF = "\n\nPortfolio: aaravmodi.ca\nAarav"
-# (subject, body) by who it goes to (patterns.role_of); {first} and {company} are filled in.
-# The founder one is the email Aarav approved on October 19, which Jeff Dunkel answered.
-OUTREACH = {
-    "founder": (
-        "15 min chat? Waterloo SWE intern, Winter 2027",
-        "Hi {first},\n\n" + _PITCH + "\n\nCould we do a 15-minute call so I can learn more about "
-        "{company} and any opportunities for a Winter 2027 (Jan-Apr) internship?" + _SIGN_OFF,
-    ),
-    "recruiter": (
-        "Winter 2027 SWE intern (Waterloo) at {company}?",
-        "Hi {first},\n\n" + _PITCH + "\n\nIs {company} hiring software engineering interns for "
-        "Winter 2027 (Jan-Apr)? I'd love to know how to be considered, and I'm happy to send "
-        "anything else that helps." + _SIGN_OFF,
-    ),
-    "engineer": (
-        "15 min chat? Waterloo SWE intern, Winter 2027",
-        "Hi {first},\n\n" + _PITCH + "\n\nI'd love to hear what engineering at {company} is "
-        "like. Could we do a 15-minute call? If your team could use a Winter 2027 (Jan-Apr) "
-        "intern, a pointer to the right person would mean a lot." + _SIGN_OFF,
-    ),
-}
+# The email Aarav approved on October 19, which Jeff Dunkel answered; everyone gets it,
+# CEO, recruiter or engineer. {first} and {company} are filled in.
+OUTREACH_SUBJECT = "15 min chat? Waterloo SWE intern, Winter 2027"
+OUTREACH_BODY = (
+    "Hi {first},\n\n" + _PITCH + "\n\nCould we do a 15-minute call so I can learn more about "
+    "{company} and any opportunities for a Winter 2027 (Jan-Apr) internship?" + _SIGN_OFF
+)
 # Starts the note left on a CEO's lead once their company was searched for a team.
 TEAM_SEARCHED = "Searched for a recruiter and a senior engineer"
 
@@ -579,15 +565,14 @@ def guess_and_send(
             continue
         patterns.point_at(lead, address)
         store.upsert(lead)
-        subject, body = OUTREACH[role]
         first = (lead.contact_name or "there").split()[0]
         try:
             send_email(
                 settings,
                 lead.key,
                 address,
-                subject.format(company=lead.company),
-                body.format(first=first, company=lead.company),
+                OUTREACH_SUBJECT,
+                OUTREACH_BODY.format(first=first, company=lead.company),
                 attach_resume=True,
                 confirm_unverified=True,  # every address here is a guess, by design
                 resend=True,

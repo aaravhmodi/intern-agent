@@ -247,7 +247,7 @@ unless you add `--send`.
 recruiter and a senior software engineer (one web search per company, sourced names only)
 as leads of their own. `guess-send` emails them only once the CEO's email has shown the
 company's address format (a guess with no bounce a day later); a format that bounced at a
-company is never tried there again. Recruiters and engineers get their own wording. New
+company is never tried there again. Everyone gets the same email as the CEOs. New
 outreach goes from `OUTREACH_GMAIL_ADDRESS` when set, so bounces stay off the main Gmail.
 
 ## Opportunity agent

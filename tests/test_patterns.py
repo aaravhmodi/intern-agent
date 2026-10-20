@@ -113,7 +113,6 @@ def test_a_recruiter_waits_until_the_ceos_email_shows_the_format(tmp_path: Path)
     # Acme's format is proven, so its recruiter goes; Beta's engineer waits for its CEO's.
     assert [lead.contact_name for lead, _ in picked] == ["Sam Lee", "Bo Chen"]
     assert picked[0][1] == "sam@acme.ai" and picked[1][1].endswith("@beta.io")
-    assert set(workflows.OUTREACH) == {"founder", "recruiter", "engineer"}
 
 
 def test_roles_pick_the_email() -> None:
