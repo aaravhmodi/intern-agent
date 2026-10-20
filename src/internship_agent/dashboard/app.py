@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from datetime import UTC, date, datetime
 from importlib.resources import files
 from typing import Any
@@ -280,9 +281,20 @@ def followups(request: FollowupsRequest) -> dict[str, Any]:
     dry_run = request.dry_run or not settings.followups_enabled
     password = settings.gmail_app_password.get_secret_value()
     try:
-        with GmailMailbox(settings.gmail_address, password) as mailbox:
+        with (
+            GmailMailbox(settings.gmail_address, password) as mailbox,
+            (
+                GmailMailbox(*settings.gmail_account("outreach"))
+                if settings.outreach_ready
+                else nullcontext()
+            ) as outreach,
+        ):
             report = run_followups(
-                settings, mailbox, dry_run=dry_run, pause_seconds=0 if dry_run else 2
+                settings,
+                mailbox,
+                dry_run=dry_run,
+                pause_seconds=0 if dry_run else 2,
+                outreach_mailbox=outreach,
             )
     except (MailboxError, MailError) as exc:
         raise HTTPException(503, str(exc)) from exc

@@ -132,7 +132,7 @@ def point_at(lead: Lead, address: str) -> None:
     """Make the lead's email this guess, keeping a bounced earlier one so it is not retried."""
     if lead.followups_stopped == "bounced" and lead.sent_to:
         lead.bounced_emails.append(lead.sent_to)
-        lead.sent_at = lead.sent_to = None
+        lead.sent_at = lead.sent_to = lead.sent_from = None
         lead.followups = []
         lead.followups_stopped = ""
     if address != lead.email or lead.email_status is not EmailStatus.PUBLISHED:

@@ -396,16 +396,20 @@ def send_email(
     lead = store.get(key)
     check_send(lead, to, confirm_unverified, resend)
     check_outreach_text(subject, body)
+    # New outreach goes from the outreach Gmail when one is set up, keeping bounces off
+    # the main account.
+    sender, password = settings.gmail_account("outreach")
     message = mailer.build_message(
-        settings.gmail_address,
+        sender,
         to.strip(),
         subject,
         body,
         settings.resume_path if attach_resume else None,
     )
-    mailer.send(message, settings.gmail_address, settings.gmail_app_password.get_secret_value())
+    mailer.send(message, sender, password)
     lead.sent_at = datetime.now(UTC)
     lead.sent_to = to.strip().lower()
+    lead.sent_from = sender.lower() if sender != settings.gmail_address else None
     lead.status = LeadStatus.CONTACTED
     store.upsert(lead)
     record = {"at": lead.sent_at.isoformat(), "key": key, "to": lead.sent_to, "subject": subject}

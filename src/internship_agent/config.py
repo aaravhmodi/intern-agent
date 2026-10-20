@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # account password: https://myaccount.google.com/apppasswords
     gmail_address: str | None = None
     gmail_app_password: SecretStr | None = None
+    # A second Gmail that all new outreach goes out from, so bounces from guessed
+    # addresses never hurt the main account (applications, real conversations).
+    outreach_gmail_address: str | None = None
+    outreach_gmail_app_password: SecretStr | None = None
 
     # Automatic follow-ups (`leads followups`): off unless switched on. One goes out
     # after this many days without a reply, to at most this many people in one run.
@@ -86,6 +90,29 @@ class Settings(BaseSettings):
     def gmail_ready(self) -> bool:
         password = self.gmail_app_password.get_secret_value() if self.gmail_app_password else ""
         return bool(self.gmail_address and password.strip())
+
+    @property
+    def outreach_ready(self) -> bool:
+        password = (
+            self.outreach_gmail_app_password.get_secret_value()
+            if self.outreach_gmail_app_password
+            else ""
+        )
+        return bool(self.outreach_gmail_address and password.strip())
+
+    def gmail_account(self, sent_from: str | None) -> tuple[str, str]:
+        """(address, app password) of the Gmail an email to a lead goes out from.
+
+        sent_from is the account a lead was first emailed from; "outreach" asks for the
+        outreach account. Anything else, or no outreach account set up, is the main one.
+        """
+        outreach = (self.outreach_gmail_address or "").lower()
+        if self.outreach_ready and sent_from in ("outreach", outreach):
+            assert self.outreach_gmail_address and self.outreach_gmail_app_password
+            return self.outreach_gmail_address, self.outreach_gmail_app_password.get_secret_value()
+        if not self.gmail_address or not self.gmail_app_password:
+            raise ValueError("Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env to send email.")
+        return self.gmail_address, self.gmail_app_password.get_secret_value()
 
     def outlook_server_args(self, *extra: str) -> list[str]:
         args = ["-y", self.outlook_mcp_package, "--read-only", "--preset", "mail,calendar"]

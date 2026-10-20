@@ -208,6 +208,8 @@ class Lead(BaseModel):
     draft: OutreachDraft | None = None
     sent_at: datetime | None = None
     sent_to: str | None = None
+    # The Gmail it went from; follow-ups use the same one. None is the main account.
+    sent_from: str | None = None
     # Automatic follow-ups: when each went out, when they wrote back, and anything
     # else that ended them ("bounced").
     followups: list[datetime] = Field(default_factory=list)

@@ -100,8 +100,13 @@ def run_followups(
     now: datetime | None = None,
     dry_run: bool = False,
     pause_seconds: float = 0,
+    outreach_mailbox: Mailbox | None = None,
 ) -> FollowupReport:
-    """Stop follow-ups for anyone who replied, then send the ones that are due."""
+    """Stop follow-ups for anyone who replied, then send the ones that are due.
+
+    Leads first emailed from the outreach Gmail are checked in, and followed up from,
+    that account (outreach_mailbox); the rest use the main one.
+    """
     if not settings.gmail_address or not settings.gmail_app_password:
         raise mailer.MailError("Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env to send email.")
     moment = now or datetime.now(UTC)
@@ -128,7 +133,8 @@ def run_followups(
                 store.upsert(lead)
             continue
         # Everyone still waiting is checked, due or not, so a reply always ends it.
-        heard = mailbox.heard_from(lead.sent_to, lead.sent_at)
+        box = outreach_mailbox if lead.sent_from and outreach_mailbox else mailbox
+        heard = box.heard_from(lead.sent_to, lead.sent_at)
         if heard is not None:
             report.replied.append(_name(lead))
             if not dry_run:
@@ -140,7 +146,7 @@ def run_followups(
                 )
                 store.upsert(lead)
             continue
-        if mailbox.bounced(lead.sent_to, lead.sent_at):
+        if box.bounced(lead.sent_to, lead.sent_at):
             report.bounced.append(_name(lead))
             if not dry_run:
                 lead.followups_stopped = "bounced"
@@ -159,7 +165,7 @@ def run_followups(
             report.held += 1
             continue
 
-        first = mailbox.first_email(lead.sent_to, lead.sent_at)
+        first = box.first_email(lead.sent_to, lead.sent_at)
         original = (
             (first.subject if first else None)
             or _logged_subject(settings, lead.key)
@@ -180,8 +186,9 @@ def run_followups(
             body=followup_body(lead),
         )
         if not dry_run:
+            sender, password = settings.gmail_account(lead.sent_from)
             message = mailer.build_message(
-                settings.gmail_address,
+                sender,
                 sending.to,
                 sending.subject,
                 sending.body,
@@ -189,9 +196,7 @@ def run_followups(
                 references=first.references if first else None,
             )
             try:
-                mailer.send(
-                    message, settings.gmail_address, settings.gmail_app_password.get_secret_value()
-                )
+                mailer.send(message, sender, password)
             except mailer.MailError as exc:
                 # Gmail is refusing: stop rather than try everyone else.
                 report.error = str(exc)

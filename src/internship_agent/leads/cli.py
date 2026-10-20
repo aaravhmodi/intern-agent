@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -331,8 +332,17 @@ def followups_cmd(
         raise typer.Exit(1)
     password = settings.gmail_app_password.get_secret_value()
     try:
-        with GmailMailbox(settings.gmail_address, password) as mailbox:
-            report = run_followups(settings, mailbox, dry_run=not send, pause_seconds=2)
+        with (
+            GmailMailbox(settings.gmail_address, password) as mailbox,
+            (
+                GmailMailbox(*settings.gmail_account("outreach"))
+                if settings.outreach_ready
+                else nullcontext()
+            ) as outreach,
+        ):
+            report = run_followups(
+                settings, mailbox, dry_run=not send, pause_seconds=2, outreach_mailbox=outreach
+            )
     except (MailboxError, MailError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc

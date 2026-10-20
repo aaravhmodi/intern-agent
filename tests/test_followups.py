@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from internship_agent import mailer
 from internship_agent.config import Settings
@@ -137,6 +138,31 @@ def test_a_due_follow_up_is_sent_as_a_reply_and_recorded(
     assert lead.notes[-1].text == "Automatic follow-up 1 of 2 sent to pranav@blueprint.io."
     logged = json.loads((settings.data_dir / "sent-log.jsonl").read_text().splitlines()[-1])
     assert (logged["key"], logged["followup"]) == ("blueprint/pranav-seelam", 1)
+
+
+def test_outreach_sent_from_the_backup_gmail_is_checked_and_followed_up_there(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    settings.outreach_gmail_address = "backup@gmail.com"
+    settings.outreach_gmail_app_password = SecretStr("backup-password")
+    store = save(
+        settings,
+        emailed(),  # from the main account
+        emailed("Acme", "Jane Doe", sent_from="backup@gmail.com"),
+        emailed("Zeta", "Sam Lee", sent_from="backup@gmail.com"),
+    )
+    # Jane's reply is only in the backup inbox; Sam's address bounced there.
+    backup = FakeMailbox({"jane@acme.io": SENT + timedelta(days=1)}, {"sam@zeta.io"})
+
+    report = run_followups(settings, FakeMailbox(), now=NOW, outreach_mailbox=backup)
+
+    assert report.replied == ["Jane Doe at Acme"] and report.bounced == ["Sam Lee at Zeta"]
+    (message,) = outbox
+    assert (message["To"], message["From"]) == ("pranav@blueprint.io", "me@gmail.com")
+    assert [lead.followups_stopped for lead in store.load()] == ["", "", "bounced"]
+    assert settings.gmail_account("backup@gmail.com") == ("backup@gmail.com", "backup-password")
+    assert settings.gmail_account("outreach")[0] == "backup@gmail.com"
+    assert settings.gmail_account(None)[0] == "me@gmail.com"
 
 
 def test_someone_who_wrote_back_gets_nothing(
