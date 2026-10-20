@@ -315,9 +315,27 @@ grid, with a list of the next 30 days:
 - **Follow-ups:** when each emailed person is due a follow-up (overdue ones show today).
 
 By default it shows your follow-ups, events you marked, and checked events with fit 75+ or
-travel paid; "Show everything" adds the rest. **Download .ics** exports the same items for
+travel paid; "Show everything" adds the rest. Click a kind in the legend (Apply by, Deadline,
+Event, Follow-up; each shows its count) to see every one of that kind, and the list below
+becomes all of them, not just the next 30 days. **Download .ics** exports the same items for
 Google, Apple or Outlook Calendar (`/api/calendar.ics`, `?everything=true` for all). Each item
 keeps a stable ID across exports, so apps that match on it update events when you import again.
+
+**Ask.** The **Ask ✦** button opens a chat that knows you and the agent:
+
+- your profile: `candidate_context.md`, the resume, your website's pages (`WEBSITE_URL`,
+  `WEBSITE_PAGES`) and every public GitHub repo (`GITHUB_USER`) with README excerpts for the
+  12 most recently active; rebuilt at most daily (`data/chat-profile.json`);
+- whatever lead or opportunity you have open;
+- read-only tools: search the stored opportunities and leads, read any repo's full README, and
+  web search (for example a conference's call for speakers).
+
+Ask "what could I give a talk on for this conference?" with a conference open and it picks your
+projects, drafts a title and abstract, checks the call, and cites where each claim comes from
+([GitHub: study-agent], [website: experience], [resume]). It never invents experience. The model
+is `CHAT_MODEL` (default `gpt-6-luna`; set `gpt-4o` or another if you prefer). One answer is
+about 24k input tokens and token counts are logged with the rest. The conversation is kept only
+in your browser; "Clear" empties it.
 
 For events announced only on LinkedIn, X or Luma, run `/find-opportunities` in Claude Code. It
 browses read-only in Chrome, writes `data/opportunities-inbox.json`, and imports it with

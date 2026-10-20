@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-6-luna"
     openai_writing_model: str = "gpt-6-luna"
+    # The dashboard's Ask chat: its model (e.g. gpt-4o), and where your profile comes from
+    # (plus candidate_context_path and the resume).
+    chat_model: str = "gpt-6-luna"
+    github_user: str = "aaravhmodi"
+    website_url: str = "https://aaravmodi.ca"
+    website_pages: list[str] = ["", "/experience", "/projects", "/articles"]
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
     candidate_context_path: Path = Path("candidate_context.md")
     data_dir: Path = Path("data")

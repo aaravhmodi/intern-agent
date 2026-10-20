@@ -42,9 +42,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/ai.py": {
-    "mtime": 1792501435.5836482,
-    "seen": 1792502266.1315851,
-    "ast_hash": "211407d7853b2c1bbcab5bd18722e221",
+    "mtime": 1792517535.1252124,
+    "seen": 1792517833.9260972,
+    "ast_hash": "dd74ae540140cf7579a3c61695e95389",
     "semantic_hash": ""
   },
   "src/internship_agent/cli.py": {
@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/config.py": {
-    "mtime": 1792514996.029922,
-    "seen": 1792515235.9186785,
-    "ast_hash": "64a9e00c1f254f2f69ee74ce197eaeeb",
+    "mtime": 1792517539.9645913,
+    "seen": 1792517833.9260972,
+    "ast_hash": "d6f7aa22a6fe3a5ac38de6954afbf907",
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/__init__.py": {
@@ -66,15 +66,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/app.py": {
-    "mtime": 1792515814.2428343,
-    "seen": 1792516040.7011642,
-    "ast_hash": "19e2659ad82717b710501a278630d798",
+    "mtime": 1792517593.2796767,
+    "seen": 1792517833.9260972,
+    "ast_hash": "49ac28e219366d454792c813ef36a5bd",
     "semantic_hash": ""
   },
   "src/internship_agent/followup_run.py": {
-    "mtime": 1792501435.6074703,
-    "seen": 1792502266.1315851,
-    "ast_hash": "9362923f07f8cfd3d6d626a02267e46b",
+    "mtime": 1792516726.7407134,
+    "seen": 1792517833.9260972,
+    "ast_hash": "b8b8a509f2c8b6a046f031b6d0172cd1",
     "semantic_hash": ""
   },
   "src/internship_agent/leads/__init__.py": {
@@ -90,9 +90,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/leads/cli.py": {
-    "mtime": 1792514897.3938887,
-    "seen": 1792515235.9186785,
-    "ast_hash": "136186c2f10a06085b4dd7c947729a32",
+    "mtime": 1792517535.1252124,
+    "seen": 1792517833.9260972,
+    "ast_hash": "b0bc7ece34e5c07be9bc3bd6e23370cd",
     "semantic_hash": ""
   },
   "src/internship_agent/leads/emails.py": {
@@ -138,9 +138,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/leads/schemas.py": {
-    "mtime": 1792514897.3976295,
-    "seen": 1792515235.9186785,
-    "ast_hash": "847e51beeca5965516cc5f3d8d7f410d",
+    "mtime": 1792516726.7427328,
+    "seen": 1792517833.9260972,
+    "ast_hash": "dfb19ed54f56ac86fec63d886a7ac849",
     "semantic_hash": ""
   },
   "src/internship_agent/leads/segments.py": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/workflows.py": {
-    "mtime": 1792514897.3986986,
-    "seen": 1792515235.9186785,
-    "ast_hash": "290a9584929f3c77983d7734a2ad6ed5",
+    "mtime": 1792517535.1272073,
+    "seen": 1792517833.9260972,
+    "ast_hash": "2f7241336658aab5c6a8f86d4f8747f4",
     "semantic_hash": ""
   },
   "src/internship_agent/x_search.py": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "tests/test_followups.py": {
-    "mtime": 1792501435.6261022,
-    "seen": 1792502266.1315851,
-    "ast_hash": "99aa52c46db7d970b5f70afe4014ab28",
+    "mtime": 1792516726.7437327,
+    "seen": 1792517833.9260972,
+    "ast_hash": "50f0b4bdb757de1f9e0c6e53a513dcae",
     "semantic_hash": ""
   },
   "tests/test_leads.py": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792516035.824999,
-    "seen": 1792516040.7026873,
-    "ast_hash": "8022e43b8eee60dfc9bf4b5ef107041f",
+    "mtime": 1792517824.3104823,
+    "seen": 1792517833.9260972,
+    "ast_hash": "fdc2d75ab835b86f934632fe65a42c21",
     "semantic_hash": ""
   },
   "compose.yaml": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792516006.088285,
-    "seen": 1792516040.7026873,
-    "ast_hash": "f16e4315a301834390bde7ab47cb6ab6",
+    "mtime": 1792517702.5948515,
+    "seen": 1792517833.9260972,
+    "ast_hash": "5f0504c06945a02907abf6d7e9e7fa75",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -546,9 +546,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/run.py": {
-    "mtime": 1792515100.9012601,
-    "seen": 1792515235.9186785,
-    "ast_hash": "d7c9d7e77a44b8224aaaf9fa49650314",
+    "mtime": 1792516824.4013746,
+    "seen": 1792517833.9260972,
+    "ast_hash": "a6c64e5a7175fb4a82b45fa6e77f2b17",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/schemas.py": {
@@ -564,9 +564,9 @@
     "semantic_hash": ""
   },
   "tests/test_opportunities.py": {
-    "mtime": 1792515100.9012601,
-    "seen": 1792515235.9186785,
-    "ast_hash": "b910e63f42a3f7609568334a173adc18",
+    "mtime": 1792516830.3783183,
+    "seen": 1792517833.9260972,
+    "ast_hash": "caad878017b124a38151787123c22cda",
     "semantic_hash": ""
   },
   ".claude/commands/find-opportunities.md": {
@@ -576,15 +576,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/leads/patterns.py": {
-    "mtime": 1792515237.9375465,
-    "seen": 1792516040.7011642,
-    "ast_hash": "c9dafc0514d0e75177e77bbd5a4e0dad",
+    "mtime": 1792517535.1261897,
+    "seen": 1792517833.9260972,
+    "ast_hash": "d933d9c52bf7d322ed60f43c7639721d",
     "semantic_hash": ""
   },
   "tests/test_patterns.py": {
-    "mtime": 1792515237.939564,
-    "seen": 1792516040.7026873,
-    "ast_hash": "7eb15ebbdfd1a365e2234f6b7bc32b7b",
+    "mtime": 1792517535.1272073,
+    "seen": 1792517833.9260972,
+    "ast_hash": "5080c9a3f26cb0300c5ce66c7dd90308",
     "semantic_hash": ""
   },
   "src/internship_agent/agenda.py": {
@@ -597,6 +597,24 @@
     "mtime": 1792515925.117704,
     "seen": 1792516040.7026873,
     "ast_hash": "11e4f5f2c49a916665155b2a0a4cc4aa",
+    "semantic_hash": ""
+  },
+  "src/internship_agent/chat.py": {
+    "mtime": 1792517731.6958175,
+    "seen": 1792517833.9260972,
+    "ast_hash": "9e075db151c72dc4bab0220ec34187d9",
+    "semantic_hash": ""
+  },
+  "tests/conftest.py": {
+    "mtime": 1792516726.7437327,
+    "seen": 1792517833.9260972,
+    "ast_hash": "fd6bb713177742e7a189921e2d90986b",
+    "semantic_hash": ""
+  },
+  "tests/test_chat.py": {
+    "mtime": 1792517709.0365899,
+    "seen": 1792517833.9260972,
+    "ast_hash": "63552f005050f31002d616d725269715",
     "semantic_hash": ""
   }
 }
