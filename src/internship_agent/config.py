@@ -34,6 +34,23 @@ class Settings(BaseSettings):
     # Where to look for startups and postings: canada, usa, europe.
     search_regions: list[str] = ["canada", "usa", "europe"]
 
+    # Opportunity agent. In-person events count as nearby when in search_regions or one of
+    # these cities (Devpost locations are often just a city); event search looks here.
+    event_cities: list[str] = ["Toronto", "Waterloo", "Kitchener", "Mississauga", "Hamilton"]
+    # ccfddl research areas: AI, SE, HI (HCI), DB, MX (interdisciplinary), NW, SC, DS, CT, CG.
+    research_areas: list[str] = ["AI", "SE", "HI", "DB", "MX"]
+    # confs.tech topic files (github.com/tech-conferences/conference-data).
+    conference_topics: list[str] = [
+        "general",
+        "python",
+        "javascript",
+        "typescript",
+        "data",
+        "devops",
+        "opensource",
+        "api",
+    ]
+
     # Gmail sending (dashboard "Send" button). Use a Google app password, never your
     # account password: https://myaccount.google.com/apppasswords
     gmail_address: str | None = None

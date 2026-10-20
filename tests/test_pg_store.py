@@ -10,6 +10,8 @@ from internship_agent.leads.answers import AnswerBank
 from internship_agent.leads.preferences import PreferenceStore
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
 from internship_agent.leads.store import PostgresLeadStore
+from internship_agent.opportunities.schemas import Opportunity, OpportunityStatus
+from internship_agent.opportunities.store import OpportunityStore
 
 URL = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="set TEST_DATABASE_URL to a Postgres database")
@@ -21,7 +23,7 @@ def test_tables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(db, "PREFIX", "test_intern_agent_")
     assert URL
     with psycopg.connect(URL) as conn:
-        for name in ("leads", "preferences", "answer_bank", "sent_log"):
+        for name in ("leads", "preferences", "answer_bank", "sent_log", "opportunities"):
             conn.execute(f"DROP TABLE IF EXISTS test_intern_agent_{name}")
 
 
@@ -67,3 +69,20 @@ def test_rules_answers_and_logs_live_in_tables(tmp_path: Path) -> None:
     db.append(settings, "sent-log", {"key": "b", "subject": "Hey"})
     assert [r["key"] for r in db.read_log(settings, "sent-log")] == ["a", "b"]
     assert not list(tmp_path.iterdir())  # nothing went to files
+
+
+def test_opportunities_live_in_a_table_and_keep_your_status(tmp_path: Path) -> None:
+    assert URL
+    store = OpportunityStore(Settings(_env_file=None, data_dir=tmp_path, database_url=URL))
+    hack = Opportunity(kind="hackathon", title="Hack", url="https://hack.dev", source="test")
+    talk = Opportunity(kind="conference", title="Conf", url="https://conf.dev", source="test")
+    assert store.add_new([hack, talk]) == [hack, talk]
+    item = store.get("https://hack.dev")
+    item.status = OpportunityStatus.REGISTERED
+    store.upsert(item)
+    assert store.add_new([hack]) == []  # a refresh never undoes the status
+    assert [(o.title, o.status) for o in store.load()] == [
+        ("Hack", OpportunityStatus.REGISTERED),
+        ("Conf", OpportunityStatus.NEW),
+    ]
+    assert not list(tmp_path.iterdir())

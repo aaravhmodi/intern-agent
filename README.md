@@ -93,6 +93,7 @@ flowchart LR
 | Daily run | `workflows.daily`, `leads application-campaign` | Scrape, score new postings, then submit 20 applications, lowest fit first; one ntfy summary |
 | Dashboard | `dashboard/app.py`, `dashboard/index.html` | Browse leads, edit drafts and answers, Auto-apply one job (on its own term), reopen an attempt you confirmed never sent |
 | Outreach | `mailer.py`, `leads/sending.py`, `followup_run.py` | Gmail sends after a confirming click; follow-ups at most twice per person |
+| Opportunities | `opportunities/` | Hackathons, tech conferences, research venues and networking events; a submission strategy per venue (see [Opportunity agent](#opportunity-agent)) |
 
 **On the server** (a MacBook on Tailscale), Docker Compose runs the dashboard at
 `http://100.76.57.23:8765`. Pushing to `main` deploys within a minute. Systemd timers run
@@ -233,6 +234,48 @@ it is a `first@domain` guess marked unverified. New leads get open roles from th
 and the usual fit score (the only OpenAI use). The server runs it after the 7:30 AM scrape,
 reading the last three days of filings; `--days 30` backfills a month, and `--days 365 --min-usd 5000000` a year of
 midsize raises (saved day by day, so a stopped run keeps what it found).
+
+## Opportunity agent
+
+The dashboard's second section, beside the internship agent: things to go to and submit to.
+
+| Kind | Where it comes from |
+|---|---|
+| Hackathons | [Devpost](https://devpost.com/hackathons)'s JSON API (online, plus in-person nearby) and [MLH](https://www.mlh.com/seasons/2027/events)'s season page |
+| Tech conferences | [confs.tech](https://confs.tech)'s data on GitHub (`CONFERENCE_TOPICS`), with talk-proposal deadlines |
+| Research venues | [ccfddl](https://ccfddl.com) deadlines with CORE/CCF rank (`RESEARCH_AREAS`, default AI, SE, HCI, DB, interdisciplinary) |
+| Networking events | OpenAI web search of Luma, Eventbrite, Meetup, LinkedIn and X posts, TechTO, Communitech, DMZ and UW clubs near `EVENT_CITIES` |
+
+Structured feeds come first because they cannot invent an event. Each feed is read on its own,
+so one changing its format doesn't lose the rest. Only upcoming events that are online, in
+`SEARCH_REGIONS`, or in one of `EVENT_CITIES` are kept. An event found by web search is kept
+only if it is dated within the window and its own page loads and names it. Re-running never
+overwrites an event you marked or planned; the same event from two feeds is stored once.
+
+**Submission strategy.** On a research venue or conference, "Plan a submission" reads the
+venue's live call for papers. It lists the tracks an undergraduate can realistically enter:
+student research competitions, posters, late-breaking work, demos, non-archival workshops,
+undergraduate consortia, and talk proposals. Each track comes with its deadline, format,
+eligibility and source page; a track whose page doesn't load and name the venue is dropped.
+It then picks which of your projects to submit and what is missing, lays out a dated plan
+back from the deadline, and lists ways to attend affordably (travel grants, student
+volunteering, Waterloo funding). It never invents results.
+
+Mark anything Interested, Registered or Submitted to track it under **My plans**. Each event
+has links to add it, and its deadline, to Google Calendar. The server refreshes the feeds
+every morning after the job scrape, searches for networking events on Mondays, and sends one
+ntfy push with new finds and any planned deadline in the next seven days.
+
+```text
+uv run internship-agent opportunities refresh [--events]   # feeds (+ event web search)
+uv run internship-agent opportunities list [--kind research]
+uv run internship-agent opportunities strategy https://chi2027.acm.org
+uv run internship-agent opportunities mark <url> interested
+```
+
+For events announced only on LinkedIn, X or Luma, run `/find-opportunities` in Claude Code. It
+browses read-only in Chrome, writes `data/opportunities-inbox.json`, and imports it with
+`opportunities import`.
 
 ## Other connectors
 
