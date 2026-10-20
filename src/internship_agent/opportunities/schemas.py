@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -78,6 +78,42 @@ class OpportunityAssessment(BaseModel):
         return data
 
 
+class StepAction(BaseModel):
+    """Model output: one thing to do on the page, by the element's number in the snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["fill", "select", "check", "uncheck", "click", "upload_resume"]
+    element: int
+    # Text to type or the option to pick; "@bank:<question>" uses a saved personal answer,
+    # filled in locally so personal details never reach the model. "" for clicks and boxes.
+    value: str
+
+
+class BrowserStep(BaseModel):
+    """Model output: what this page is and what to do next."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    page: str  # one sentence: what the page shows
+    actions: list[StepAction]
+    # continue: act and look again. submitted: the page confirms the application or RSVP.
+    # needs_you: a sign-in, or a required question the candidate's material doesn't answer.
+    # blocked: closed, paid, ineligible, or anything that should not be submitted.
+    outcome: Literal["continue", "submitted", "needs_you", "blocked"]
+    reason: str
+
+
+class EventApplication(BaseModel):
+    """What happened when the agent applied or RSVPed."""
+
+    status: Literal["submitted", "needs_you", "blocked", "uncertain", "failed", "ready"]
+    detail: str
+    at: datetime
+    steps: list[str] = []  # what it saw and did, page by page, for review
+    proof: bool = False  # a screenshot of the confirmation page was saved
+
+
 class Opportunity(BaseModel):
     kind: OpportunityKind
     title: str
@@ -95,6 +131,7 @@ class Opportunity(BaseModel):
     status: OpportunityStatus = OpportunityStatus.NEW
     strategy: SubmissionStrategy | None = None
     assessment: OpportunityAssessment | None = None
+    application: EventApplication | None = None
 
     @field_validator("url")
     @classmethod

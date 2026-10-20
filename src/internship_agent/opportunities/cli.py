@@ -123,6 +123,45 @@ def import_cmd(path: Path) -> None:
     console.print(f"Added {len(run.import_inbox(get_settings(), path))}.")
 
 
+@opportunities_app.command("apply")
+def apply_cmd(
+    keys: list[str] = typer.Argument(None, help="Event URLs; default: all marked Interested."),  # noqa: B008
+    dry_run: bool = typer.Option(False, help="Read the first page and say what it would do."),
+) -> None:
+    """Apply to hackathons and RSVP to events in the saved browser, from candidate_context.md.
+
+    With no URL: every hackathon or networking event marked Interested that hasn't been tried,
+    hasn't started and is still open (the daily run does this).
+    """
+    settings = get_settings()
+    done = run.apply_events(settings, keys or None, dry_run=dry_run, log=console.print)
+    if dry_run or not done:
+        return
+    console.print(f"Tried {len(done)}; submitted {sum(o.status == 'submitted' for o in done)}.")
+    if settings.ntfy_topic:
+        notify.send(
+            settings.ntfy_server,
+            settings.ntfy_topic,
+            run.applied_push(done, settings.dashboard_url),
+        )
+
+
+@opportunities_app.command("browser-login")
+def browser_login_cmd() -> None:
+    """Sign in once to Devpost, MLH, Luma and Eventbrite in the application browser."""
+    from internship_agent.applications.browser import open_login_browser
+
+    open_login_browser(
+        get_settings().application_browser_dir,
+        (
+            "https://secure.devpost.com/users/login",
+            "https://my.mlh.io/",
+            "https://luma.com/signin",
+            "https://www.eventbrite.ca/signin/",
+        ),
+    )
+
+
 @opportunities_app.command("mark")
 def mark_cmd(key: str, status: OpportunityStatus) -> None:
     store = OpportunityStore(get_settings())

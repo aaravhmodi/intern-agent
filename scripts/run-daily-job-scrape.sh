@@ -15,3 +15,8 @@ events=""
 [ "$(date +%u)" = 1 ] && events="--events"
 docker compose exec -T dashboard /app/.venv/bin/internship-agent opportunities refresh $events \
   || echo "Opportunity refresh failed" >&2
+# Apply to hackathons and RSVP to events marked Interested. It uses the same browser profile as
+# the 8:00 job applications, so it holds the same lock.
+flock -w 3600 /tmp/intern-agent-workflows.lock \
+  docker compose exec -T dashboard /app/.venv/bin/internship-agent opportunities apply \
+  || echo "Event applications failed" >&2

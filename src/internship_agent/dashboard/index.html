@@ -243,6 +243,22 @@ function worthSection(o) {
     ${list("How your skills apply", a.fit)}${list("Why it's worth it", a.highlights)}
     <div class="actions"><button class="btn" id="check">Check again</button></div></section>`;
 }
+// Applying (hackathons) or RSVPing (events) for you in the saved browser.
+const APPLY_TONE = { submitted: ["ok", "✓ Applied"], ready: ["warn", "Dry run"], uncertain: ["warn", "Not confirmed: check the event page and your email"], needs_you: ["warn", "Needs you"], blocked: ["bad", "Not applied"], failed: ["bad", "Didn't work"] };
+function applySection(o) {
+  const a = o.application, verb = o.kind === "networking" ? "RSVP" : "apply";
+  if (!a) return `<section><h4>Application</h4>
+    <div class="hint">${o.status === "interested" ? `You marked this Interested, so I'll ${verb} for you tomorrow morning` : `Mark Interested and I'll ${verb} for you each morning`}, filling the form from candidate_context.md and your saved answers. Sign-ins, CAPTCHAs, paid tickets and questions only you can answer are left for you.</div>
+    <div class="actions"><button class="btn primary" id="apply-now">${o.kind === "networking" ? "RSVP" : "Apply"} for me now</button></div></section>`;
+  const [tone, head] = APPLY_TONE[a.status] || ["bad", a.status];
+  const proof = a.proof ? `/api/opportunities/proof?key=${encodeURIComponent(o.key)}` : "";
+  return `<section><h4>Application</h4>
+    <div class="result ${tone}"><div class="head">${esc(head)} · ${esc(when(a.at))}</div><div class="why">${esc(a.detail)}</div>
+      ${proof ? `<a href="${proof}" target="_blank" rel="noopener" title="The event's confirmation page"><img src="${proof}" alt="The event's confirmation page after applying"></a>` : ""}</div>
+    ${a.steps.length ? `<details><summary class="hint">What I did (${a.steps.length})</summary><ul class="plain">${a.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ul></details>` : ""}
+    ${a.status === "submitted" ? "" : `<div class="actions"><button class="btn" id="apply-retry" title="Only after checking it didn't go through">Allow another try</button></div>`}
+  </section>`;
+}
 function renderOpp(o) {
   $("aside").classList.add("open");
   $("chat-ctx").textContent = "General";
@@ -266,6 +282,7 @@ function renderOpp(o) {
       ${steps.filter(([s]) => s !== o.status).map(([s, label]) => `<button class="btn" data-ostatus="${s}">${label}</button>`).join("")}
       ${o.status !== "new" ? `<button class="btn" data-ostatus="new">Clear</button>` : ""}
     </div>
+    ${o.kind === "hackathon" || o.kind === "networking" ? applySection(o) : ""}
     ${worthSection(o)}
     ${o.kind === "research" || o.kind === "conference" ? strategySection(o) : ""}
   </div>`;
@@ -538,6 +555,15 @@ $("detail").addEventListener("click", async e => {
     try {
       if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
       else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
+      else if (b.id === "apply-now") {
+        b.disabled = true; b.textContent = "Filling in the form… (a few minutes)";
+        const a = (await api("/api/opportunities/apply", { key: o.key })).opportunity.application;
+        toast(a ? (a.status === "submitted" ? "✓ Applied. Proof is in the Application section." : `Not applied: ${a.detail}`) : "Nothing was tried.");
+        await load();
+      }
+      else if (b.id === "apply-retry") {
+        await api("/api/opportunities/apply/retry", { key: o.key }); toast("Reopened. Apply again when ready."); await load();
+      }
       else if (b.id === "check") {
         b.disabled = true; b.textContent = "Reading the event's pages… (up to a minute)";
         await api("/api/opportunities/check", { key: o.key }); toast("Details ready."); await load();
