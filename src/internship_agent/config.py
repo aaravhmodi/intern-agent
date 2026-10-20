@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     event_cities: list[str] = ["Toronto", "Waterloo", "Kitchener", "Mississauga", "Hamilton"]
     # ccfddl research areas: AI, SE, HI (HCI), DB, MX (interdisciplinary), NW, SC, DS, CT, CG.
     research_areas: list[str] = ["AI", "SE", "HI", "DB", "MX"]
+    # Events the daily refresh checks with AI (location, travel paid, effort, fit), one web
+    # search each; others are checked from the dashboard.
+    daily_opportunity_checks: int = 10
     # confs.tech topic files (github.com/tech-conferences/conference-data).
     conference_topics: list[str] = [
         "general",

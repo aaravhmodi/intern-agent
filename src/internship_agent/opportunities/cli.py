@@ -8,7 +8,11 @@ from rich.table import Table
 from internship_agent import notify
 from internship_agent.config import get_settings
 from internship_agent.opportunities import run
-from internship_agent.opportunities.schemas import OpportunityKind, OpportunityStatus
+from internship_agent.opportunities.schemas import (
+    Opportunity,
+    OpportunityKind,
+    OpportunityStatus,
+)
 from internship_agent.opportunities.store import OpportunityStore
 
 opportunities_app = typer.Typer(
@@ -22,6 +26,9 @@ console = Console()
 def refresh_cmd(
     events: bool = typer.Option(False, help="Also web-search networking events (uses OpenAI)."),
     push: bool = typer.Option(True, help="Send an ntfy summary when NTFY_TOPIC is set."),
+    check: int | None = typer.Option(
+        None, help="Events to check with AI afterwards (default DAILY_OPPORTUNITY_CHECKS)."
+    ),
 ) -> None:
     """Pull Devpost, MLH, confs.tech and ccfddl; store new upcoming, nearby events."""
     settings = get_settings()
@@ -33,11 +40,31 @@ def refresh_cmd(
             added += found
         except Exception as error:  # the feeds' results are already saved
             console.print(f"[red]Event search failed:[/red] {error}")
+    assessed: list[Opportunity] = []
+    limit = settings.daily_opportunity_checks if check is None else check
+    if limit and settings.openai_api_key:
+        assessed = run.check_events(settings, limit=limit, log=console.print)
+        console.print(f"Checked {len(assessed)} events")
     message = run.summary_push(
-        added, OpportunityStore(settings).load(), date.today(), settings.dashboard_url
+        added, OpportunityStore(settings).load(), date.today(), settings.dashboard_url, assessed
     )
     if push and message and settings.ntfy_topic:
         notify.send(settings.ntfy_server, settings.ntfy_topic, message)
+
+
+@opportunities_app.command("check")
+def check_cmd(
+    keys: list[str] = typer.Argument(None, help="Event URLs; default: most worth checking."),  # noqa: B008
+    limit: int = typer.Option(5, help="How many to check when no URL is given."),
+) -> None:
+    """Read each event's pages: where it is, in person or online, travel paid, effort, fit."""
+    for o in run.check_events(get_settings(), keys or None, limit, log=console.print):
+        a = o.assessment
+        assert a is not None
+        console.print(
+            f"[bold]{o.title}[/bold] · {a.format}, {a.location} · travel {a.travel} · "
+            f"{a.effort} effort · fit {a.fit_score}\n  {a.summary}\n  Travel: {a.travel_details}"
+        )
 
 
 @opportunities_app.command("list")

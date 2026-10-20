@@ -269,13 +269,30 @@ It then picks which of your projects to submit and what is missing, lays out a d
 back from the deadline, and lists ways to attend affordably (travel grants, student
 volunteering, Waterloo funding). It never invents results.
 
+**Is it worth going?** "Check details" on any event reads its own pages and records:
+
+- where it is, and whether it's in person, online or hybrid;
+- whether they pay for travel: covered, partial (capped, by application or reimbursed later),
+  none or not stated, with what is paid for, how to apply and the source page;
+- what it costs you;
+- the effort: light (an evening), moderate (a weekend) or heavy (weeks of work), with hours;
+- how your skills and projects apply, with a fit score from 0 to 100;
+- what makes it worth the trip.
+
+Travel support counts only if the cited page loads and names the event; otherwise it shows as
+"not stated". Events that pay some or all of your way are listed under **Travel paid ✈**. The
+daily refresh checks the 10 most worthwhile unchecked events (`DAILY_OPPORTUNITY_CHECKS`): in
+person before online, soonest first, research venues last. Each check is one web search.
+
 Mark anything Interested, Registered or Submitted to track it under **My plans**. Each event
 has links to add it, and its deadline, to Google Calendar. The server refreshes the feeds
-every morning after the job scrape, searches for networking events on Mondays, and sends one
-ntfy push with new finds and any planned deadline in the next seven days.
+every morning after the job scrape and searches for networking events on Mondays. One ntfy
+push lists new finds, newly found trips with travel paid, and any planned deadline in the
+next seven days.
 
 ```text
 uv run internship-agent opportunities refresh [--events]   # feeds (+ event web search)
+uv run internship-agent opportunities check [<url>...]     # travel, effort, fit
 uv run internship-agent opportunities list [--kind research]
 uv run internship-agent opportunities strategy https://chi2027.acm.org
 uv run internship-agent opportunities mark <url> interested

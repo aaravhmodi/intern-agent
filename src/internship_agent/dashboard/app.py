@@ -407,6 +407,25 @@ class OpportunityStatusUpdate(BaseModel):
     status: OpportunityStatus
 
 
+class CheckRequest(BaseModel):
+    key: str | None = None  # one event; otherwise the `limit` most worth checking
+    limit: int = 5
+
+
+@app.post("/api/opportunities/check")
+def check_opportunities(request: CheckRequest) -> dict[str, Any]:
+    """Read events' own pages: location, in person or online, travel paid, effort, fit."""
+    if request.key:
+        _opportunity(request.key)
+    try:
+        done = opportunity_run.check_events(
+            get_settings(), [request.key] if request.key else None, min(request.limit, 10)
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"checked": [_opportunity_view(o) for o in done]}
+
+
 @app.get("/api/opportunities")
 def opportunities() -> dict[str, Any]:
     today = date.today()

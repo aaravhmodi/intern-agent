@@ -56,11 +56,13 @@ const VIEWS = {
   conferences:{ title: "Tech conferences", group: "Find", label: "Tech conferences", opp: true, test: o => o.kind === "conference" && o.status !== "skipped", find: "feeds" },
   research:   { title: "Research venues", group: "Find", label: "Research venues", opp: true, test: o => o.kind === "research" && o.status !== "skipped", find: "feeds" },
   networking: { title: "Networking events", group: "Find", label: "Networking", opp: true, test: o => o.kind === "networking" && o.status !== "skipped", find: "events" },
+  trips:      { title: "Travel paid", group: "Find", label: "Travel paid ✈", opp: true, test: o => TRAVEL.has(o.assessment?.travel) && o.status !== "skipped", find: "check" },
   plans:      { title: "My plans", group: "Mine", label: "Interested & registered", opp: true, test: o => PLANNED.has(o.status) },
   passed:     { title: "Skipped opportunities", group: "Mine", label: "Skipped", opp: true, test: o => o.status === "skipped" },
 };
 const PLANNED = new Set(["interested", "registered", "submitted"]);
-const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events" };
+const TRAVEL = new Set(["covered", "partial"]);
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events" };
 let state = { leads: [], opps: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
@@ -128,6 +130,7 @@ function renderRows() {
     conferences: "Calls for talks and conferences worth attending.",
     research: "Student research and publication opportunities.",
     networking: "Events where you can meet people in your field.",
+    trips: "Events that pay some or all of your way there, confirmed on their own pages.",
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
@@ -166,12 +169,26 @@ function oppWhen(o) {
   const dates = o.starts_on ? (o.ends_on && o.ends_on !== o.starts_on ? `${o.starts_on} → ${o.ends_on}` : o.starts_on) : "";
   return [openDeadline(o) ? `${o.deadline_label} ${o.deadline}` : (o.deadline ? "" : o.deadline_label), dates].filter(Boolean).join(" · ");
 }
+// Badges from the AI check: travel paid, effort, and fit for you.
+const TRAVEL_LABEL = { covered: "✈ Travel paid", partial: "✈ Travel help", none: "No travel help", unknown: "Travel not stated" };
+function badges(o) {
+  const a = o.assessment;
+  if (!a) return "";
+  const fit = a.fit_score >= 75 ? "ok" : "";
+  return `<div class="sub">${TRAVEL.has(a.travel) ? `<span class="tag ok" style="margin-left:0">${TRAVEL_LABEL[a.travel]}</span>` : ""}`
+    + `<span class="tag ${fit}">fit ${a.fit_score}</span><span class="tag">${esc(a.effort)} effort</span></div>`;
+}
+function where(o) {
+  const a = o.assessment;
+  if (a && a.format !== "unknown") return a.format === "online" ? "Online" : `${a.format === "hybrid" ? "Hybrid · " : ""}${a.location || o.location}`;
+  return o.online ? "Online" : o.location;
+}
 function renderOpps(items) {
   $("rows").innerHTML = items.length ? items.map(o => `
     <div class="row ${state.selected === o.key ? "on" : ""} ${o.status === "skipped" ? "done" : ""}" data-key="${esc(o.key)}">
       <div class="fit ${openDeadline(o) ? "due" : ""}" title="Days to ${openDeadline(o) ? "deadline" : "start"}">${daysTo(nextDate(o))}</div>
-      <div><div class="co">${esc(o.title)}</div><div class="sub">${esc(oppWhen(o))}</div></div>
-      <div class="who">${esc(o.online ? "Online" : o.location)}${o.rank ? " · " + esc(o.rank) : ""}</div>
+      <div><div class="co">${esc(o.title)}</div><div class="sub">${esc(oppWhen(o))}</div>${badges(o)}</div>
+      <div class="who">${esc(where(o))}${o.rank ? " · " + esc(o.rank) : ""}</div>
       <div class="status ${PLANNED.has(o.status) ? "applied" : ""}">${esc(o.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet. ${VIEWS[state.view].find ? "Use the button above to search." : "Mark something interested to plan it here."}</div>`;
 }
@@ -199,6 +216,24 @@ function strategySection(o) {
     ${list("Plan", s.plan)}${list("Getting there affordably", s.funding)}${list("Risks", s.risks)}
     <div class="actions"><button class="btn" id="plan">Plan again</button></div></section>`;
 }
+function worthSection(o) {
+  const a = o.assessment;
+  if (!a) return `<section><h4>Is it worth going?</h4>
+    <div class="hint">I'll read the event's own pages and tell you where it is, whether it's in person, if they pay for travel, how much work it is, and how your projects fit.</div>
+    <div class="actions"><button class="btn primary" id="check">Check details</button></div></section>`;
+  const list = (title, xs) => xs.length ? `<div class="k">${title}</div><ul class="plain">${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const tone = a.fit_score >= 75 ? "ok" : a.fit_score >= 50 ? "warn" : "bad";
+  const travel = TRAVEL.has(a.travel) ? "ok" : a.travel === "none" ? "bad" : "warn";
+  return `<section><h4>Is it worth going?</h4>
+    <div class="result ${tone}"><div class="head">Fit ${a.fit_score} · ${esc(a.effort)} effort</div><div class="why">${esc(a.summary)}</div></div>
+    <div class="k">Where</div><p style="margin:4px 0 0">${esc(a.format)} · ${esc(a.location || o.location || "not stated")}</p>
+    <div class="result ${travel}"><div class="head">${TRAVEL_LABEL[a.travel]}</div><div class="why">${esc(a.travel_details)}
+      ${a.travel_source_url ? ` <a href="${esc(a.travel_source_url)}" target="_blank" rel="noopener">Source</a>` : ""}</div></div>
+    <div class="k">Cost to you</div><p style="margin:4px 0 0">${esc(a.cost)}</p>
+    <div class="k">How much work</div><p style="margin:4px 0 0">${esc(a.effort_details)}</p>
+    ${list("How your skills apply", a.fit)}${list("Why it's worth it", a.highlights)}
+    <div class="actions"><button class="btn" id="check">Check again</button></div></section>`;
+}
 function renderOpp(o) {
   $("aside").classList.add("open");
   $("chat-ctx").textContent = "General";
@@ -222,6 +257,7 @@ function renderOpp(o) {
       ${steps.filter(([s]) => s !== o.status).map(([s, label]) => `<button class="btn" data-ostatus="${s}">${label}</button>`).join("")}
       ${o.status !== "new" ? `<button class="btn" data-ostatus="new">Clear</button>` : ""}
     </div>
+    ${worthSection(o)}
     ${o.kind === "research" || o.kind === "conference" ? strategySection(o) : ""}
   </div>`;
 }
@@ -387,7 +423,12 @@ $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
   b.disabled = true; b.textContent = kind === "postings" ? "Searching…" : "Searching news, X and LinkedIn… (a few minutes)";
   try {
-    if (kind === "feeds" || kind === "events") {
+    if (kind === "check") {
+      b.textContent = "Reading 5 events' pages… (a minute or two)";
+      const r = await api("/api/opportunities/check", { limit: 5 });
+      const paid = r.checked.filter(o => TRAVEL.has(o.assessment.travel));
+      toast(`Checked ${r.checked.length}. ${paid.length ? "Travel paid: " + paid.map(o => o.title).join(", ") : "None of these pay for travel."}`);
+    } else if (kind === "feeds" || kind === "events") {
       b.textContent = kind === "feeds" ? "Reading Devpost, MLH, confs.tech and ccfddl…" : "Searching Luma, Eventbrite, Meetup, LinkedIn and X… (a minute or two)";
       const r = await api(kind === "feeds" ? "/api/opportunities/refresh" : "/api/opportunities/find-events", {});
       toast(r.added.length ? `Added ${r.added.length} new.` : "Nothing new this time.");
@@ -412,6 +453,10 @@ $("detail").addEventListener("click", async e => {
     try {
       if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
       else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
+      else if (b.id === "check") {
+        b.disabled = true; b.textContent = "Reading the event's pages… (up to a minute)";
+        await api("/api/opportunities/check", { key: o.key }); toast("Details ready."); await load();
+      }
       else if (b.id === "plan") {
         b.disabled = true; b.textContent = "Reading the call for papers… (a minute or two)";
         await api("/api/opportunities/strategy", { key: o.key }); toast("Strategy ready."); await load();
