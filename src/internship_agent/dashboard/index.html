@@ -44,6 +44,7 @@
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
+  calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
   early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
   mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
@@ -56,12 +57,14 @@ const VIEWS = {
   conferences:{ title: "Tech conferences", group: "Find", label: "Tech conferences", opp: true, test: o => o.kind === "conference" && o.status !== "skipped", find: "feeds" },
   research:   { title: "Research venues", group: "Find", label: "Research venues", opp: true, test: o => o.kind === "research" && o.status !== "skipped", find: "feeds" },
   networking: { title: "Networking events", group: "Find", label: "Networking", opp: true, test: o => o.kind === "networking" && o.status !== "skipped", find: "events" },
+  trips:      { title: "Travel paid", group: "Find", label: "Travel paid ✈", opp: true, test: o => TRAVEL.has(o.assessment?.travel) && o.status !== "skipped", find: "check" },
   plans:      { title: "My plans", group: "Mine", label: "Interested & registered", opp: true, test: o => PLANNED.has(o.status) },
   passed:     { title: "Skipped opportunities", group: "Mine", label: "Skipped", opp: true, test: o => o.status === "skipped" },
 };
 const PLANNED = new Set(["interested", "registered", "submitted"]);
-const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events" };
-let state = { leads: [], opps: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+const TRAVEL = new Set(["covered", "partial"]);
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events" };
+let state = { leads: [], opps: [], cal: [], calMonth: new Date().toISOString().slice(0, 7), calAll: false, view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -75,8 +78,8 @@ async function api(path, body) {
   return res.json();
 }
 async function load() {
-  const [data, opps] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] }))]);
-  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities;
+  const [data, opps, cal] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] }))]);
+  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items;
   renderNav(); renderRows(); renderDetail();
 }
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
@@ -89,10 +92,10 @@ function renderNav() {
   let html = `<div class="brand"><span class="brand-mark">W.</span><span>Winter 2027<small>Internships & opportunities</small></span></div><div class="nav-sections">`;
   let group = null, section = null;
   for (const [id, v] of Object.entries(VIEWS)) {
-    const s = v.opp ? "Opportunity agent" : "Internship agent";
+    const s = v.cal ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
     if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -116,6 +119,7 @@ function renderRows() {
   const v = VIEWS[state.view];
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
+    calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
     early: "Small teams where your work can have immediate reach.",
     mid: "Growing companies with room to build and learn.",
@@ -128,18 +132,20 @@ function renderRows() {
     conferences: "Calls for talks and conferences worth attending.",
     research: "Student research and publication opportunities.",
     networking: "Events where you can meet people in your field.",
+    trips: "Events that pay some or all of your way there, confirmed on their own pages.",
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules");
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = v.opp ? "none" : "";
+  $("region").style.display = v.opp || v.cal ? "none" : "";
   if (state.view === "rules") return renderRules();
+  if (v.cal) return renderCalendar();
   const items = visible();
   $("view-count").textContent = items.length;
   if (v.opp) return renderOpps(items);
@@ -166,12 +172,26 @@ function oppWhen(o) {
   const dates = o.starts_on ? (o.ends_on && o.ends_on !== o.starts_on ? `${o.starts_on} → ${o.ends_on}` : o.starts_on) : "";
   return [openDeadline(o) ? `${o.deadline_label} ${o.deadline}` : (o.deadline ? "" : o.deadline_label), dates].filter(Boolean).join(" · ");
 }
+// Badges from the AI check: travel paid, effort, and fit for you.
+const TRAVEL_LABEL = { covered: "✈ Travel paid", partial: "✈ Travel help", none: "No travel help", unknown: "Travel not stated" };
+function badges(o) {
+  const a = o.assessment;
+  if (!a) return "";
+  const fit = a.fit_score >= 75 ? "ok" : "";
+  return `<div class="sub">${TRAVEL.has(a.travel) ? `<span class="tag ok" style="margin-left:0">${TRAVEL_LABEL[a.travel]}</span>` : ""}`
+    + `<span class="tag ${fit}">fit ${a.fit_score}</span><span class="tag">${esc(a.effort)} effort</span></div>`;
+}
+function where(o) {
+  const a = o.assessment;
+  if (a && a.format !== "unknown") return a.format === "online" ? "Online" : `${a.format === "hybrid" ? "Hybrid · " : ""}${a.location || o.location}`;
+  return o.online ? "Online" : o.location;
+}
 function renderOpps(items) {
   $("rows").innerHTML = items.length ? items.map(o => `
     <div class="row ${state.selected === o.key ? "on" : ""} ${o.status === "skipped" ? "done" : ""}" data-key="${esc(o.key)}">
       <div class="fit ${openDeadline(o) ? "due" : ""}" title="Days to ${openDeadline(o) ? "deadline" : "start"}">${daysTo(nextDate(o))}</div>
-      <div><div class="co">${esc(o.title)}</div><div class="sub">${esc(oppWhen(o))}</div></div>
-      <div class="who">${esc(o.online ? "Online" : o.location)}${o.rank ? " · " + esc(o.rank) : ""}</div>
+      <div><div class="co">${esc(o.title)}</div><div class="sub">${esc(oppWhen(o))}</div>${badges(o)}</div>
+      <div class="who">${esc(where(o))}${o.rank ? " · " + esc(o.rank) : ""}</div>
       <div class="status ${PLANNED.has(o.status) ? "applied" : ""}">${esc(o.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet. ${VIEWS[state.view].find ? "Use the button above to search." : "Mark something interested to plan it here."}</div>`;
 }
@@ -199,6 +219,24 @@ function strategySection(o) {
     ${list("Plan", s.plan)}${list("Getting there affordably", s.funding)}${list("Risks", s.risks)}
     <div class="actions"><button class="btn" id="plan">Plan again</button></div></section>`;
 }
+function worthSection(o) {
+  const a = o.assessment;
+  if (!a) return `<section><h4>Is it worth going?</h4>
+    <div class="hint">I'll read the event's own pages and tell you where it is, whether it's in person, if they pay for travel, how much work it is, and how your projects fit.</div>
+    <div class="actions"><button class="btn primary" id="check">Check details</button></div></section>`;
+  const list = (title, xs) => xs.length ? `<div class="k">${title}</div><ul class="plain">${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const tone = a.fit_score >= 75 ? "ok" : a.fit_score >= 50 ? "warn" : "bad";
+  const travel = TRAVEL.has(a.travel) ? "ok" : a.travel === "none" ? "bad" : "warn";
+  return `<section><h4>Is it worth going?</h4>
+    <div class="result ${tone}"><div class="head">Fit ${a.fit_score} · ${esc(a.effort)} effort</div><div class="why">${esc(a.summary)}</div></div>
+    <div class="k">Where</div><p style="margin:4px 0 0">${esc(a.format)} · ${esc(a.location || o.location || "not stated")}</p>
+    <div class="result ${travel}"><div class="head">${TRAVEL_LABEL[a.travel]}</div><div class="why">${esc(a.travel_details)}
+      ${a.travel_source_url ? ` <a href="${esc(a.travel_source_url)}" target="_blank" rel="noopener">Source</a>` : ""}</div></div>
+    <div class="k">Cost to you</div><p style="margin:4px 0 0">${esc(a.cost)}</p>
+    <div class="k">How much work</div><p style="margin:4px 0 0">${esc(a.effort_details)}</p>
+    ${list("How your skills apply", a.fit)}${list("Why it's worth it", a.highlights)}
+    <div class="actions"><button class="btn" id="check">Check again</button></div></section>`;
+}
 function renderOpp(o) {
   $("aside").classList.add("open");
   $("chat-ctx").textContent = "General";
@@ -222,7 +260,56 @@ function renderOpp(o) {
       ${steps.filter(([s]) => s !== o.status).map(([s, label]) => `<button class="btn" data-ostatus="${s}">${label}</button>`).join("")}
       ${o.status !== "new" ? `<button class="btn" data-ostatus="new">Clear</button>` : ""}
     </div>
+    ${worthSection(o)}
     ${o.kind === "research" || o.kind === "conference" ? strategySection(o) : ""}
+  </div>`;
+}
+
+// Calendar: one month grid and the next 30 days, for both agents.
+const CAL_KIND = { apply: "Apply by", deadline: "Deadline", event: "Event", followup: "Follow-up" };
+const addDays = (iso, n) => { const d = new Date(iso + "T00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function calShown() {
+  return state.cal.filter(i => (state.calAll || i.mine) && (!state.q || `${i.title} ${i.detail}`.toLowerCase().includes(state.q)));
+}
+function calChip(i) {
+  return `<button class="cal-item k-${i.kind}" data-cal-key="${esc(i.key)}" title="${esc(CAL_KIND[i.kind] + ": " + i.title)}">${esc(i.title)}</button>`;
+}
+function renderCalendar() {
+  const shown = calShown();
+  $("view-count").textContent = shown.filter(i => i.day >= today()).length;
+  const byDay = {};
+  for (const i of shown) {
+    // A short event shows on each of its days; one longer than 4 days (a weeks-long online
+    // hackathon) only on its first, since its closing deadline is an item of its own.
+    const last = i.end && i.end <= addDays(i.day, 4) ? i.end : i.day;
+    for (let d = i.day; d <= last; d = addDays(d, 1)) (byDay[d] ||= []).push(i);
+  }
+  const [y, m] = state.calMonth.split("-").map(Number);
+  const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;  // weeks start on Monday
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let cells = "";
+  for (let k = 0; k < lead; k++) cells += `<div class="cal-day blank"></div>`;
+  for (let d = 1; d <= days; d++) {
+    const iso = `${state.calMonth}-${String(d).padStart(2, "0")}`, xs = byDay[iso] || [];
+    cells += `<div class="cal-day ${iso === today() ? "today" : ""}"><span class="cal-num">${d}</span>
+      ${xs.slice(0, 3).map(calChip).join("")}${xs.length > 3 ? `<div class="cal-more">+${xs.length - 3} more</div>` : ""}</div>`;
+  }
+  const soon = shown.filter(i => i.day >= today() && i.day <= addDays(today(), 30));
+  const month = new Date(Date.UTC(y, m - 1, 1)).toLocaleString([], { month: "long", year: "numeric", timeZone: "UTC" });
+  $("rows").innerHTML = `<div class="cal">
+    <div class="cal-bar">
+      <button class="btn" data-cal-nav="-1" aria-label="Previous month">‹</button><h2>${esc(month)}</h2><button class="btn" data-cal-nav="1" aria-label="Next month">›</button>
+      <button class="btn" data-cal-nav="0">Today</button><span class="spacer"></span>
+      <label><input type="checkbox" id="cal-all" ${state.calAll ? "checked" : ""}> Show everything</label>
+      <a class="btn" href="/api/calendar.ics${state.calAll ? "?everything=true" : ""}" download>Download .ics</a>
+    </div>
+    <div class="cal-legend">${Object.entries(CAL_KIND).map(([k, label]) => `<span class="cal-item k-${k}">${label}</span>`).join("")}</div>
+    <div class="cal-grid">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => `<div class="cal-dow">${d}</div>`).join("")}${cells}</div>
+    <div class="agenda"><div class="k">Next 30 days</div>
+      ${soon.length ? soon.map(i => `<div class="agenda-row"><span class="sub">${esc(i.day)}${i.end && i.end !== i.day ? " → " + esc(i.end) : ""}</span>${calChip(i)}<span class="sub">${esc(i.detail || CAL_KIND[i.kind])}</span></div>`).join("")
+        : `<div class="hint">Nothing in the next 30 days. ${state.calAll ? "" : "Tick Show everything, or mark events Interested to add them."}</div>`}
+    </div>
+    <div class="hint">Shown by default: your follow-ups, events you marked, and checked events with fit 75+ or travel paid.</div>
   </div>`;
 }
 
@@ -289,7 +376,7 @@ function applicationSection(l) {
   </section>`;
 }
 function renderDetail() {
-  const opp = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  const opp = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (opp) return renderOpp(opp);
   const l = VIEWS[state.view].opp ? null : state.leads.find(x => x.key === state.selected);
   const aside = $("aside"), detail = $("detail");
@@ -377,9 +464,20 @@ $("nav").addEventListener("click", e => {
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
+$("rows").addEventListener("change", e => {
+  if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }
+});
 $("rows").addEventListener("click", async e => {
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
+  const item = e.target.closest("[data-cal-key]");
+  if (item) { state.selected = item.dataset.calKey; state.armed = null; return renderDetail(); }
+  const nav = e.target.closest("[data-cal-nav]");
+  if (nav) {
+    const step = Number(nav.dataset.calNav), [y, m] = state.calMonth.split("-").map(Number);
+    state.calMonth = step ? new Date(Date.UTC(y, m - 1 + step, 1)).toISOString().slice(0, 7) : today().slice(0, 7);
+    return renderRows();
+  }
   const r = e.target.closest(".row"); if (!r) return;
   state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
 });
@@ -387,7 +485,12 @@ $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
   b.disabled = true; b.textContent = kind === "postings" ? "Searching…" : "Searching news, X and LinkedIn… (a few minutes)";
   try {
-    if (kind === "feeds" || kind === "events") {
+    if (kind === "check") {
+      b.textContent = "Reading 5 events' pages… (a minute or two)";
+      const r = await api("/api/opportunities/check", { limit: 5 });
+      const paid = r.checked.filter(o => TRAVEL.has(o.assessment.travel));
+      toast(`Checked ${r.checked.length}. ${paid.length ? "Travel paid: " + paid.map(o => o.title).join(", ") : "None of these pay for travel."}`);
+    } else if (kind === "feeds" || kind === "events") {
       b.textContent = kind === "feeds" ? "Reading Devpost, MLH, confs.tech and ccfddl…" : "Searching Luma, Eventbrite, Meetup, LinkedIn and X… (a minute or two)";
       const r = await api(kind === "feeds" ? "/api/opportunities/refresh" : "/api/opportunities/find-events", {});
       toast(r.added.length ? `Added ${r.added.length} new.` : "Nothing new this time.");
@@ -406,12 +509,16 @@ $("find").addEventListener("click", async e => {
   finally { b.disabled = false; b.textContent = label; }
 });
 $("detail").addEventListener("click", async e => {
-  const o = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  const o = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (o) {
     const b = e.target.closest("button"); if (!b) return;
     try {
       if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
       else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
+      else if (b.id === "check") {
+        b.disabled = true; b.textContent = "Reading the event's pages… (up to a minute)";
+        await api("/api/opportunities/check", { key: o.key }); toast("Details ready."); await load();
+      }
       else if (b.id === "plan") {
         b.disabled = true; b.textContent = "Reading the call for papers… (a minute or two)";
         await api("/api/opportunities/strategy", { key: o.key }); toast("Strategy ready."); await load();

@@ -49,16 +49,22 @@ def last_contact(lead: Lead) -> datetime | None:
     return max(times) if times else None
 
 
+def next_followup(lead: Lead, wait_days: int) -> datetime | None:
+    """When this person's next follow-up falls due, or None if none will go out."""
+    if not lead.sent_at or not lead.sent_to or lead.status is LeadStatus.SKIPPED:
+        return None
+    if lead.replied_at is not None or lead.followups_stopped:
+        return None
+    if len(lead.followups) >= len(TEMPLATES):
+        return None
+    contacted = last_contact(lead)
+    return contacted + timedelta(days=wait_days) if contacted else None
+
+
 def is_due(lead: Lead, now: datetime, wait_days: int) -> bool:
     """Whether a follow-up should go out now, before checking the inbox for a reply."""
-    if not lead.sent_at or not lead.sent_to or lead.status is LeadStatus.SKIPPED:
-        return False
-    if lead.replied_at is not None or lead.followups_stopped:
-        return False
-    if len(lead.followups) >= len(TEMPLATES):
-        return False
-    contacted = last_contact(lead)
-    return contacted is not None and now - contacted >= timedelta(days=wait_days)
+    due = next_followup(lead, wait_days)
+    return due is not None and now >= due
 
 
 def first_name(lead: Lead) -> str:

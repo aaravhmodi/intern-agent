@@ -10,6 +10,7 @@ from internship_agent.opportunities import feeds, run
 from internship_agent.opportunities.ai import EventFinding
 from internship_agent.opportunities.schemas import (
     Opportunity,
+    OpportunityAssessment,
     OpportunityKind,
     OpportunityStatus,
 )
@@ -308,3 +309,96 @@ def test_without_citations_strips_inline_links_only() -> None:
     clean = run.without_citations(s)
     assert clean.summary == "Posters fit (a non-archival track)."
     assert clean.plan == ["Submit by Jan 20."]
+
+
+def _assessment(**kw: object) -> OpportunityAssessment:
+    data: dict[str, object] = {
+        "format": "in person",
+        "location": "Hamilton, ON",
+        "travel": "covered",
+        "travel_details": "Free bus from Waterloo. ([site](https://hack.example.com/faq))",
+        "travel_source_url": "https://hack.example.com/faq",
+        "cost": "free",
+        "effort": "moderate",
+        "effort_details": "36-hour weekend",
+        "fit_score": 140,
+        "fit": ["Ship a FastAPI backend"],
+        "highlights": ["Recruiters attend"],
+        "summary": "Go.",
+    }
+    return OpportunityAssessment.model_validate({**data, **kw})
+
+
+def _fake_ai(monkeypatch: pytest.MonkeyPatch, found: object, confirmed: bool) -> None:
+    monkeypatch.setattr(run, "assess", lambda *a: found)
+    monkeypatch.setattr(run, "page_names", lambda *a: confirmed)
+    monkeypatch.setattr(run, "_candidate", lambda s: ("resume", "context"))
+
+
+def test_check_keeps_confirmed_travel_and_cleans_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_ai(monkeypatch, _assessment(), confirmed=True)
+    a = run.checked(None, _settings(tmp_path), "r", "c", _opp())  # type: ignore[arg-type]
+    assert (a.travel, a.fit_score, a.travel_details) == ("covered", 100, "Free bus from Waterloo.")
+
+
+def test_check_marks_unconfirmed_travel_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_ai(monkeypatch, _assessment(), confirmed=False)
+    a = run.checked(None, _settings(tmp_path), "r", "c", _opp())  # type: ignore[arg-type]
+    assert a.travel == "unknown"
+    assert a.travel_details.startswith("Not confirmed on the event's pages:")
+
+
+def test_worth_checking_puts_in_person_first_and_research_last() -> None:
+    research = _opp(kind="research", title="R", url="https://r.dev", starts_on=date(2026, 10, 21))
+    online = _opp(title="O", url="https://o.dev", online=True, starts_on=date(2026, 10, 22))
+    later = _opp(title="L", url="https://l.dev", starts_on=date(2026, 12, 1))
+    soon = _opp(title="S", url="https://s.dev", starts_on=date(2026, 11, 1))
+    done = _opp(title="D", url="https://d.dev", assessment=_assessment())
+    picked = run.worth_checking([research, online, later, soon, done], TODAY, 10)
+    assert [o.title for o in picked] == ["S", "L", "O", "R"]
+
+
+def test_check_events_saves_results_and_survives_one_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = _settings(tmp_path)
+    store = OpportunityStore(settings)
+    store.add_new(
+        [_opp(title="Good", url="https://good.dev"), _opp(title="Bad", url="https://bad.dev")]
+    )
+
+    def fake(client: object, s: object, r: str, c: str, event: Opportunity) -> object:
+        if event.title == "Bad":
+            raise RuntimeError("search timed out")
+        return _assessment()
+
+    monkeypatch.setattr(run, "checked", fake)
+    monkeypatch.setattr(run, "_candidate", lambda s: ("resume", "context"))
+    done = run.check_events(settings, limit=5)
+    assert [o.title for o in done] == ["Good"]
+    assert {o.title: o.assessment is not None for o in store.load()} == {"Good": True, "Bad": False}
+
+
+def test_summary_push_announces_paid_trips() -> None:
+    trip = _opp(title="BioHacks", assessment=_assessment(travel="covered"))
+    nothing = _opp(title="Meh", url="https://m.dev", assessment=_assessment(travel="none"))
+    push = run.summary_push([], [], TODAY, None, [trip, nothing])
+    assert push is not None
+    assert push.message == "Travel paid: BioHacks (2026-11-01, Hamilton, ON)"
+
+
+def test_dashboard_checks_one_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    OpportunityStore(_settings(tmp_path)).add_new([_opp(starts_on=date(2099, 1, 1))])
+    _fake_ai(monkeypatch, _assessment(), confirmed=True)
+    client = TestClient(dashboard.app)
+    response = client.post("/api/opportunities/check", json={"key": "https://hack.example.com"})
+    assert response.json()["checked"][0]["assessment"]["travel"] == "covered"
+    [stored] = client.get("/api/opportunities").json()["opportunities"]
+    assert stored["assessment"]["fit_score"] == 100

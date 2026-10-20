@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from importlib.resources import files
 from typing import Any
 from urllib.parse import urlsplit
@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
+from internship_agent import agenda
 from internship_agent.ai import draft_outreach
 from internship_agent.applications.browser import screenshot_path
 from internship_agent.config import get_settings
@@ -405,6 +406,52 @@ def _opportunity_view(item: Opportunity) -> dict[str, Any]:
 class OpportunityStatusUpdate(BaseModel):
     key: str
     status: OpportunityStatus
+
+
+class CheckRequest(BaseModel):
+    key: str | None = None  # one event; otherwise the `limit` most worth checking
+    limit: int = 5
+
+
+@app.post("/api/opportunities/check")
+def check_opportunities(request: CheckRequest) -> dict[str, Any]:
+    """Read events' own pages: location, in person or online, travel paid, effort, fit."""
+    if request.key:
+        _opportunity(request.key)
+    try:
+        done = opportunity_run.check_events(
+            get_settings(), [request.key] if request.key else None, min(request.limit, 10)
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"checked": [_opportunity_view(o) for o in done]}
+
+
+def _calendar_items() -> list[agenda.Item]:
+    settings = get_settings()
+    return agenda.items(
+        lead_store(settings).load(),
+        OpportunityStore(settings).load(),
+        settings.followup_days,
+        date.today(),
+    )
+
+
+@app.get("/api/calendar")
+def calendar() -> dict[str, Any]:
+    """Deadlines, event dates and follow-ups from both agents."""
+    return {"items": [i.model_dump(mode="json") for i in _calendar_items()]}
+
+
+@app.get("/api/calendar.ics")
+def calendar_ics(everything: bool = False) -> Response:
+    """The same calendar for Google or Outlook Calendar: your plans and promising events."""
+    found = [i for i in _calendar_items() if everything or i.mine]
+    return Response(
+        agenda.to_ics(found, datetime.now(UTC)),
+        media_type="text/calendar",
+        headers={"Content-Disposition": 'attachment; filename="internships-and-opportunities.ics"'},
+    )
 
 
 @app.get("/api/opportunities")

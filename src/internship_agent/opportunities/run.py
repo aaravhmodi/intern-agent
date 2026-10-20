@@ -1,25 +1,26 @@
-"""Opportunity workflows: refresh the feeds, search for events, plan submissions."""
+"""Opportunity workflows: refresh the feeds, search for events, check them, plan submissions."""
 
 import json
 import re
 from collections import Counter
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 
 from openai import OpenAI
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from internship_agent.config import Settings
 from internship_agent.leads.schemas import Region
 from internship_agent.notify import Push
 from internship_agent.opportunities import feeds
-from internship_agent.opportunities.ai import search_events, write_strategy
+from internship_agent.opportunities.ai import assess, search_events, write_strategy
 from internship_agent.opportunities.schemas import (
     Opportunity,
+    OpportunityAssessment,
     OpportunityKind,
     OpportunityStatus,
-    SubmissionStrategy,
 )
 from internship_agent.opportunities.store import OpportunityStore
 from internship_agent.resume import load_resume_text
@@ -31,9 +32,9 @@ PLANNED = {OpportunityStatus.INTERESTED, OpportunityStatus.REGISTERED, Opportuni
 _CITATION = re.compile(r"\s*\(\[[^\]]*\]\([^)\s]*\)\)")
 
 
-def without_citations(strategy: SubmissionStrategy) -> SubmissionStrategy:
-    """Drop inline citations from the prose; each track keeps its page in source_url."""
-    return SubmissionStrategy.model_validate_json(_CITATION.sub("", strategy.model_dump_json()))
+def without_citations[M: BaseModel](found: M) -> M:
+    """Drop inline citations from the prose; the source pages are kept in their own fields."""
+    return type(found).model_validate_json(_CITATION.sub("", found.model_dump_json()))
 
 
 def upcoming(item: Opportunity, today: date) -> bool:
@@ -125,13 +126,83 @@ def find_events(settings: Settings, days: int = 60, count: int = 10) -> list[Opp
     return store.add_new(keep(found, settings, today))
 
 
+def _candidate(settings: Settings) -> tuple[str, str]:
+    """The resume and the candidate context the AI matches events against."""
+    path = settings.candidate_context_path
+    context = path.read_text(encoding="utf-8") if path.exists() else ""
+    return load_resume_text(settings.resume_path, settings.data_dir / "resume.txt"), context
+
+
+def checked(
+    client: OpenAI, settings: Settings, resume: str, context: str, event: Opportunity
+) -> OpportunityAssessment:
+    """Assess one event from its own pages; travel support counts only if a page confirms it."""
+    found = without_citations(
+        assess(client, settings.openai_model, resume, context, event, date.today())
+    )
+    found.fit_score = max(0, min(100, found.fit_score))
+    # The cited page must load and name the event (its title's first word, passed twice).
+    first_word = event.title.split()[0]
+    if found.travel in ("covered", "partial") and not page_names(
+        found.travel_source_url, first_word, first_word
+    ):
+        found.travel = "unknown"
+        found.travel_details = f"Not confirmed on the event's pages: {found.travel_details}"
+    return found
+
+
+def worth_checking(items: list[Opportunity], today: date, limit: int) -> list[Opportunity]:
+    """Unchecked upcoming events: in person before online (travel matters there), research
+    venues last (their strategy covers them), soonest first."""
+    todo = [
+        o
+        for o in items
+        if o.assessment is None and o.status is not OpportunityStatus.SKIPPED and upcoming(o, today)
+    ]
+    todo.sort(key=lambda o: (o.kind is OpportunityKind.RESEARCH, o.online, next_date(o, today)))
+    return todo[:limit]
+
+
+def check_events(
+    settings: Settings,
+    keys: list[str] | None = None,
+    limit: int = 5,
+    log: Callable[[str], None] = lambda _: None,
+) -> list[Opportunity]:
+    """Assess the given events, or the `limit` most worth checking. Returns those assessed."""
+    store, client = OpportunityStore(settings), _openai(settings)
+    items = store.load()
+    todo = (
+        [o for o in items if o.key in set(keys)]
+        if keys
+        else worth_checking(items, date.today(), limit)
+    )
+    resume, context = _candidate(settings)
+
+    def one(event: Opportunity) -> OpportunityAssessment | None:
+        try:
+            return checked(client, settings, resume, context, event)
+        except Exception as error:  # the others are still worth checking
+            log(f"{event.title}: check failed: {error}")
+            return None
+
+    # Each check is a web search; two at a time stays under the tokens-per-minute limit.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(one, todo))
+    done = []
+    for event, result in zip(todo, results, strict=True):
+        if result is not None:  # saved one by one here, never from two threads at once
+            event.assessment = result
+            store.upsert(event)
+            done.append(event)
+    return done
+
+
 def plan_submission(settings: Settings, key: str) -> Opportunity:
     """Write a submission strategy from the venue's live call for papers."""
     store = OpportunityStore(settings)
     venue = store.get(key)
-    path = settings.candidate_context_path
-    context = path.read_text(encoding="utf-8") if path.exists() else ""
-    resume = load_resume_text(settings.resume_path, settings.data_dir / "resume.txt")
+    resume, context = _candidate(settings)
     strategy = without_citations(
         write_strategy(
             _openai(settings), settings.openai_model, resume, context, venue, date.today()
@@ -155,9 +226,20 @@ def import_inbox(settings: Settings, path: Path) -> list[Opportunity]:
 
 
 def summary_push(
-    added: list[Opportunity], everything: list[Opportunity], today: date, click: str | None
+    added: list[Opportunity],
+    everything: list[Opportunity],
+    today: date,
+    click: str | None,
+    assessed: list[Opportunity] | None = None,
 ) -> Push | None:
-    """New finds by kind, and deadlines in the next week for anything you planned to do."""
+    """New finds by kind, newly found trips with travel paid, and deadlines in the next week
+    for anything you planned to do."""
+    trips = [
+        f"{'Travel paid' if a.travel == 'covered' else 'Travel help'}: {o.title}"
+        f" ({o.starts_on or 'date?'}, {a.location or o.location})"
+        for o in assessed or []
+        if (a := o.assessment) and a.travel in ("covered", "partial")
+    ]
     due = sorted(
         (
             o
@@ -168,10 +250,11 @@ def summary_push(
         ),
         key=lambda o: o.deadline or today,
     )
-    if not added and not due:
+    if not added and not due and not trips:
         return None
     counts = Counter(o.kind.value for o in added)
     lines = [f"New: {', '.join(f'{n} {k}' for k, n in counts.items())}"] if added else []
+    lines += trips
     lines += [f"Due {o.deadline:%b %d}: {o.title} ({o.deadline_label})" for o in due]
     return Push(
         title="Opportunity agent",

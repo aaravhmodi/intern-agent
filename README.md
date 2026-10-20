@@ -269,17 +269,48 @@ It then picks which of your projects to submit and what is missing, lays out a d
 back from the deadline, and lists ways to attend affordably (travel grants, student
 volunteering, Waterloo funding). It never invents results.
 
+**Is it worth going?** "Check details" on any event reads its own pages and records:
+
+- where it is, and whether it's in person, online or hybrid;
+- whether they pay for travel: covered, partial (capped, by application or reimbursed later),
+  none or not stated, with what is paid for, how to apply and the source page;
+- what it costs you;
+- the effort: light (an evening), moderate (a weekend) or heavy (weeks of work), with hours;
+- how your skills and projects apply, with a fit score from 0 to 100;
+- what makes it worth the trip.
+
+Travel support counts only if the cited page loads and names the event; otherwise it shows as
+"not stated". Events that pay some or all of your way are listed under **Travel paid ✈**. The
+daily refresh checks the 10 most worthwhile unchecked events (`DAILY_OPPORTUNITY_CHECKS`): in
+person before online, soonest first, research venues last. Each check is one web search.
+
 Mark anything Interested, Registered or Submitted to track it under **My plans**. Each event
 has links to add it, and its deadline, to Google Calendar. The server refreshes the feeds
-every morning after the job scrape, searches for networking events on Mondays, and sends one
-ntfy push with new finds and any planned deadline in the next seven days.
+every morning after the job scrape and searches for networking events on Mondays. One ntfy
+push lists new finds, newly found trips with travel paid, and any planned deadline in the
+next seven days.
 
 ```text
 uv run internship-agent opportunities refresh [--events]   # feeds (+ event web search)
+uv run internship-agent opportunities check [<url>...]     # travel, effort, fit
 uv run internship-agent opportunities list [--kind research]
 uv run internship-agent opportunities strategy https://chi2027.acm.org
 uv run internship-agent opportunities mark <url> interested
 ```
+
+**Calendar.** The dashboard's Calendar (top of the sidebar) puts both agents on one month
+grid, with a list of the next 30 days:
+
+- **Apply by:** the last day to apply or register for an event (from its check) and any
+  posting's application deadline;
+- **Deadlines:** submissions, papers and talk proposals;
+- **Events:** the event dates;
+- **Follow-ups:** when each emailed person is due a follow-up (overdue ones show today).
+
+By default it shows your follow-ups, events you marked, and checked events with fit 75+ or
+travel paid; "Show everything" adds the rest. **Download .ics** exports the same items for
+Google, Apple or Outlook Calendar (`/api/calendar.ics`, `?everything=true` for all). Each item
+keeps a stable ID across exports, so apps that match on it update events when you import again.
 
 For events announced only on LinkedIn, X or Luma, run `/find-opportunities` in Claude Code. It
 browses read-only in Chrome, writes `data/opportunities-inbox.json`, and imports it with
