@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -187,14 +187,17 @@ def check_events(
             return None
 
     # Each check is a web search; two at a time stays under the tokens-per-minute limit.
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(one, todo))
     done = []
-    for event, result in zip(todo, results, strict=True):
-        if result is not None:  # saved one by one here, never from two threads at once
-            event.assessment = result
-            store.upsert(event)
-            done.append(event)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {pool.submit(one, event): event for event in todo}
+        # Each is saved as soon as it finishes, so a restart mid-run (a deploy) keeps the
+        # checks already paid for; saving happens on this thread only, never two at once.
+        for future in as_completed(futures):
+            if (result := future.result()) is not None:
+                event = futures[future]
+                event.assessment = result
+                store.upsert(event)
+                done.append(event)
     return done
 
 

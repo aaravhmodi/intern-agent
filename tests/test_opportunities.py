@@ -1,3 +1,4 @@
+import time
 from datetime import date
 from pathlib import Path
 
@@ -381,6 +382,30 @@ def test_check_events_saves_results_and_survives_one_failure(
     done = run.check_events(settings, limit=5)
     assert [o.title for o in done] == ["Good"]
     assert {o.title: o.assessment is not None for o in store.load()} == {"Good": True, "Bad": False}
+
+
+def test_a_finished_check_is_saved_before_the_run_is_killed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = _settings(tmp_path)
+    store = OpportunityStore(settings)
+    store.add_new(
+        [_opp(title="Fast", url="https://fast.dev"), _opp(title="Slow", url="https://slow.dev")]
+    )
+
+    def fake(client: object, s: object, r: str, c: str, event: Opportunity) -> object:
+        if event.title == "Slow":  # a deploy restarts the server once Fast is on disk
+            deadline = time.monotonic() + 5
+            while not store.get("https://fast.dev").assessment and time.monotonic() < deadline:
+                time.sleep(0.01)
+            raise SystemExit("restarted")
+        return _assessment()
+
+    monkeypatch.setattr(run, "checked", fake)
+    monkeypatch.setattr(run, "_candidate", lambda s: ("resume", "context"))
+    with pytest.raises(SystemExit):
+        run.check_events(settings, limit=5)
+    assert store.get("https://fast.dev").assessment is not None
 
 
 def test_summary_push_announces_paid_trips() -> None:
