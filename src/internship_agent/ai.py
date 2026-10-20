@@ -218,6 +218,12 @@ result, else null; never build one from a name); and source_url (the page showin
 there in that role: the company's team or about page, a blog post, a news article, or their
 LinkedIn profile). Leave out anyone you cannot back with a source_url and anyone who has left."""
 
+# The two people emailed at a big startup besides its CEO.
+TEAM_CONTACTS = (
+    "exactly one person who recruits (a technical or university recruiter, talent partner, "
+    "or head of talent) and exactly one senior or staff software engineer. Nobody else."
+)
+
 # Who is worth a cold note depends on company size: a founder reads one at a seed-stage
 # startup, not at a company with an engineering org and recruiters.
 PEOPLE_BY_SEGMENT: dict[Segment | None, str] = {
@@ -427,9 +433,17 @@ def search_startups(
 
 
 def search_people(
-    client: OpenAI, model: str, lead: Lead, segment: Segment | None, count: int = 5
+    client: OpenAI,
+    model: str,
+    lead: Lead,
+    segment: Segment | None,
+    count: int = 5,
+    who: str | None = None,
 ) -> list[PersonFinding]:
-    """One web search for people at the lead's company, in roles that suit its size."""
+    """One web search for people at the lead's company, in roles that suit its size.
+
+    `who` overrides the roles to look for.
+    """
     company = f"{lead.company} ({lead.company_url})" if lead.company_url else lead.company
     role = f" The role: {lead.posting_title}." if lead.posting_title else ""
     response = client.responses.parse(
@@ -441,7 +455,7 @@ def search_people(
                 "content": PEOPLE_INSTRUCTIONS.format(
                     company=company,
                     count=count,
-                    who=PEOPLE_BY_SEGMENT[segment] + role,
+                    who=(who or PEOPLE_BY_SEGMENT[segment]) + role,
                     skip=lead.contact_name or "anyone twice",
                 ),
             },

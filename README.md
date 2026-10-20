@@ -243,6 +243,13 @@ follow-up run's bounce check feeds it: a founder whose guess bounced gets the ne
 likely format on the next run, never one that already bounced. It only lists the picks
 unless you add `--send`.
 
+`uv run internship-agent leads team-contacts` adds, at each startup that raised $15M+, a
+recruiter and a senior software engineer (one web search per company, sourced names only)
+as leads of their own. `guess-send` emails them only once the CEO's email has shown the
+company's address format (a guess with no bounce a day later); a format that bounced at a
+company is never tried there again. Recruiters and engineers get their own wording. New
+outreach goes from `OUTREACH_GMAIL_ADDRESS` when set, so bounces stay off the main Gmail.
+
 ## Opportunity agent
 
 The dashboard's second section, beside the internship agent: things to go to and submit to.

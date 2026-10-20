@@ -9,6 +9,8 @@ of their own company (never a made-up .ca or .com twin, which is somebody else's
 """
 
 import random
+import re
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
@@ -46,6 +48,9 @@ NOT_COMPANY = {
     "wellfound.com",
     "medium.com",
 }
+_RECRUITER = re.compile(r"recruit|talent|people partner|\bhr\b|human resources", re.I)
+_ENGINEER = re.compile(r"engineer|developer|\bswe\b|programmer", re.I)
+_LEADER = re.compile(r"chief|\bcto\b|\bceo\b|found(?:er|ing)|\bvp\b|head|director", re.I)
 
 
 def format_of(address: str, name: str) -> str | None:
@@ -60,24 +65,52 @@ def format_of(address: str, name: str) -> str | None:
     return None
 
 
-def outcomes(leads: list[Lead], now: datetime) -> dict[str, list[int]]:
-    """[delivered, bounced] per format, from every guess whose result is known."""
-    counts = {fmt: [0, 0] for fmt in PATTERNS}
+def results(leads: list[Lead], now: datetime) -> Iterator[tuple[str, str, bool]]:
+    """(domain, format, delivered) for every guess whose result is known."""
     for lead in leads:
         if not lead.contact_name:
             continue
         for address in lead.bounced_emails:
             if fmt := format_of(address, lead.contact_name):
-                counts[fmt][1] += 1
+                yield address.rsplit("@", 1)[-1], fmt, False
         # A bounce comes back in minutes but a delivery only shows after a day, so a send
         # younger than that counts for neither (it would make every format look worse).
         if not lead.sent_to or not lead.sent_at or now - lead.sent_at < SETTLED:
             continue
-        fmt = format_of(lead.sent_to, lead.contact_name)
-        if fmt is None:
-            continue
-        counts[fmt][1 if lead.followups_stopped == "bounced" else 0] += 1
+        if fmt := format_of(lead.sent_to, lead.contact_name):
+            yield lead.sent_to.rsplit("@", 1)[-1], fmt, lead.followups_stopped != "bounced"
+
+
+def outcomes(leads: list[Lead], now: datetime) -> dict[str, list[int]]:
+    """[delivered, bounced] per format, across every company."""
+    counts = {fmt: [0, 0] for fmt in PATTERNS}
+    for _, fmt, delivered in results(leads, now):
+        counts[fmt][0 if delivered else 1] += 1
     return counts
+
+
+def by_domain(leads: list[Lead], now: datetime) -> dict[str, dict[str, bool]]:
+    """Per domain, each format tried there and whether it reached someone."""
+    known: dict[str, dict[str, bool]] = {}
+    for domain, fmt, delivered in results(leads, now):
+        seen = known.setdefault(domain, {})
+        seen[fmt] = seen.get(fmt, False) or delivered
+    return known
+
+
+def role_of(lead: Lead) -> str:
+    """ "recruiter", "engineer" or "founder" (anyone else, e.g. a CEO or CTO), by title."""
+    title = lead.contact_role or ""
+    if _RECRUITER.search(title):
+        return "recruiter"
+    if _ENGINEER.search(title) and not _LEADER.search(title):
+        return "engineer"
+    return "founder"
+
+
+def proven(at_domain: dict[str, bool] | None) -> bool:
+    """Whether some format is known to reach people at this company."""
+    return any((at_domain or {}).values())
 
 
 def wants_email(lead: Lead) -> bool:
@@ -105,15 +138,25 @@ def bounced_addresses(lead: Lead) -> list[str]:
 
 
 def next_guess(
-    lead: Lead, domain: str, counts: dict[str, list[int]], rng: random.Random
+    lead: Lead,
+    domain: str,
+    counts: dict[str, list[int]],
+    rng: random.Random,
+    at_domain: dict[str, bool] | None = None,
 ) -> str | None:
-    """The address to try next for this founder, or None once every format bounced."""
+    """The address to try next for this person, or None once every format bounced.
+
+    at_domain is what was learned at their company (by_domain): a format that reached
+    someone there is used for everyone there, and one that bounced there is not tried.
+    """
     bounced = bounced_addresses(lead)
     if lead.email_status is EmailStatus.PUBLISHED and lead.email and lead.email not in bounced:
         return lead.email
     name = lead.contact_name or ""
     tried = {format_of(address, name) for address in bounced}
-    options = [fmt for fmt in PATTERNS if fmt not in tried]
+    at_domain = at_domain or {}
+    options = [f for f in PATTERNS if f not in tried and at_domain.get(f) is not False]
+    options = [f for f in options if at_domain.get(f)] or options
     if not options:
         return None
 

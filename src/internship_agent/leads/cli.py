@@ -27,6 +27,7 @@ from internship_agent.mailer import MailError
 from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
     CHANNELS,
+    add_team_contacts,
     daily,
     find_form_d_startups,
     find_more_postings,
@@ -254,6 +255,18 @@ def guess_send_cmd(
     """Email founders at the address format most likely to work; retry bounced ones."""
     picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
+
+
+@leads_app.command("team-contacts")
+def team_contacts_cmd(
+    min_usd: Annotated[int, typer.Option(help="Only startups that raised at least this.")] = (
+        15_000_000
+    ),
+    limit: Annotated[int | None, typer.Option(help="Most companies to search.")] = None,
+) -> None:
+    """Find a recruiter and a senior engineer at each big startup, to email besides the CEO."""
+    added = add_team_contacts(get_settings(), min_usd, limit, log=console.print)
+    console.print(f"Added {len(added)} people.")
 
 
 @leads_app.command("application-campaign")

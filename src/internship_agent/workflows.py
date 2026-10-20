@@ -3,6 +3,7 @@
 import random
 import re
 import time
+from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from openai import OpenAI
 from internship_agent import db, mailer, notify
 from internship_agent.ai import (
     STATUS_FROM_NOTE,
+    TEAM_CONTACTS,
     assess_fit,
     interpret_note,
     prepare_answers,
@@ -417,25 +419,110 @@ def send_email(
     return lead
 
 
-# The founder email Aarav approved on October 19; {first} and {company} are filled in.
-OUTREACH_SUBJECT = "15 min chat? Waterloo SWE intern, Winter 2027"
-OUTREACH_BODY = """Hi {first},
-
-I'm a third-year Systems Design Engineering student at the University of Waterloo with 3 \
-internships completed at CIBC and Upside Robotics ($7.5M USD seed). A few results:
+_PITCH = """I'm a third-year Systems Design Engineering student at the University of \
+Waterloo with 3 internships completed at CIBC and Upside Robotics ($7.5M USD seed). A few \
+results:
 
 - Upside Robotics: software engineer on backend systems, working 60+ hour weeks across \
 multiple roles. Built the FastAPI backend and operations dashboard 35+ employees and \
 executives use (metric retrieval from weeks to minutes), an ETL pipeline that cut warehouse \
 load times by 80%, and cut robot-telemetry latency by 50%.
 - CIBC: built a React-Django dashboard for 25+ projects and integrated ML anomaly detection \
-that cut debugging time by 40%.
+that cut debugging time by 40%."""
+_SIGN_OFF = "\n\nPortfolio: aaravmodi.ca\nAarav"
+# (subject, body) by who it goes to (patterns.role_of); {first} and {company} are filled in.
+# The founder one is the email Aarav approved on October 19, which Jeff Dunkel answered.
+OUTREACH = {
+    "founder": (
+        "15 min chat? Waterloo SWE intern, Winter 2027",
+        "Hi {first},\n\n" + _PITCH + "\n\nCould we do a 15-minute call so I can learn more about "
+        "{company} and any opportunities for a Winter 2027 (Jan-Apr) internship?" + _SIGN_OFF,
+    ),
+    "recruiter": (
+        "Winter 2027 SWE intern (Waterloo) at {company}?",
+        "Hi {first},\n\n" + _PITCH + "\n\nIs {company} hiring software engineering interns for "
+        "Winter 2027 (Jan-Apr)? I'd love to know how to be considered, and I'm happy to send "
+        "anything else that helps." + _SIGN_OFF,
+    ),
+    "engineer": (
+        "15 min chat? Waterloo SWE intern, Winter 2027",
+        "Hi {first},\n\n" + _PITCH + "\n\nI'd love to hear what engineering at {company} is "
+        "like. Could we do a 15-minute call? If your team could use a Winter 2027 (Jan-Apr) "
+        "intern, a pointer to the right person would mean a lot." + _SIGN_OFF,
+    ),
+}
+# Starts the note left on a CEO's lead once their company was searched for a team.
+TEAM_SEARCHED = "Searched for a recruiter and a senior engineer"
 
-Could we do a 15-minute call so I can learn more about {company} and any opportunities for a \
-Winter 2027 (Jan-Apr) internship?
 
-Portfolio: aaravmodi.ca
-Aarav"""
+def add_team_contacts(
+    settings: Settings,
+    min_usd: int = 15_000_000,
+    limit: int | None = None,
+    log: Callable[[str], None] = lambda _: None,
+) -> list[Lead]:
+    """At each big startup, find a recruiter and a senior engineer to email besides the CEO.
+
+    Each becomes a lead of its own, so it is emailed, followed up and tracked like the CEO.
+    One web search per company, never repeated: the CEO's lead gets a note saying so.
+    """
+    store = lead_store(settings)
+    leads = store.load()
+    staffed = Counter(lead.company for lead in leads if lead.kind is LeadKind.FOUNDER)
+    big = [
+        lead
+        for lead in leads
+        if lead.kind is LeadKind.FOUNDER
+        and lead.status is not LeadStatus.SKIPPED
+        and (lead.amount_usd or 0) >= min_usd
+        and staffed[lead.company] == 1
+        and patterns.role_of(lead) == "founder"
+        and not any(note.text.startswith(TEAM_SEARCHED) for note in lead.notes)
+    ]
+    client = _openai(settings)
+    added: list[Lead] = []
+    for lead in big[:limit]:
+        try:
+            found = search_people(
+                client, settings.openai_model, lead, None, count=2, who=TEAM_CONTACTS
+            )
+        except Exception as error:  # one failed search must not stop the rest
+            log(f"{lead.company}: search failed ({type(error).__name__})")
+            continue
+        people = to_people(lead.company, found, skip=lead.contact_name or "")
+        now = datetime.now(UTC)
+        for person in people:
+            added.append(
+                Lead(
+                    kind=LeadKind.FOUNDER,
+                    company=lead.company,
+                    company_url=lead.company_url,
+                    what_they_build=lead.what_they_build,
+                    location=lead.location,
+                    source_url=person.source_url or lead.source_url,
+                    contact_name=person.name,
+                    contact_role=person.role,
+                    linkedin_url=person.linkedin_url,
+                    amount_usd=lead.amount_usd,
+                    announced_on=lead.announced_on,
+                    segment=lead.segment,
+                    region=lead.region,
+                    hiring_signals=lead.hiring_signals,
+                    fit=lead.fit,
+                    status=LeadStatus.SCORED if lead.fit else LeadStatus.NEW,
+                    notes=[
+                        Note(at=now, text=f"{person.role} at {lead.company}; emailed with the CEO.")
+                    ],
+                )
+            )
+        names = ", ".join(f"{p.name} ({p.role})" for p in people) or "nobody confirmed"
+        lead.notes.append(Note(at=now, text=f"{TEAM_SEARCHED}: {names}."))
+        store.upsert(lead)
+        log(f"{lead.company}: {names}")
+    existing = store.load()
+    merged, _ = merge(existing, added)
+    store.save(merged)
+    return merged[len(existing) :]
 
 
 def guess_and_send(
@@ -446,14 +533,18 @@ def guess_and_send(
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[tuple[Lead, str]]:
-    """Email founders at the address format most likely to work; retry bounced ones.
+    """Email people at startups at the address format most likely to work; retry bounces.
 
-    Bounces are found by the morning follow-up run, so a founder whose guess bounced is
-    picked again the next day with the next most likely format. Dry run unless `send`.
+    Bounces are found by the morning follow-up run, so someone whose guess bounced is picked
+    again the next day with the next most likely format. A company gets one guess a day until
+    one reaches someone there; then its format is known and its recruiter and engineer, who
+    wait until then, are emailed with it. Dry run unless `send`.
     """
     store = lead_store(settings)
     leads = store.load()
-    counts = patterns.outcomes(leads, datetime.now(UTC))
+    now = datetime.now(UTC)
+    counts = patterns.outcomes(leads, now)
+    known = patterns.by_domain(leads, now)
     log("Delivered/bounced so far: " + ", ".join(f"{f} {d}/{b}" for f, (d, b) in counts.items()))
     rng = random.Random(date.today().toordinal())  # same picks for a dry run and its send
     wanted = sorted(
@@ -467,26 +558,35 @@ def guess_and_send(
         if len(picked) == limit:
             break
         domain = patterns.domain_of(lead)
-        address = patterns.next_guess(lead, domain, counts, rng) if domain else None
-        if domain and address and domain not in domains:  # one founder per company a day
+        if not domain:
+            continue
+        at_domain = known.get(domain)
+        proven = patterns.proven(at_domain)
+        if patterns.role_of(lead) != "founder" and not proven:
+            continue  # waits until the CEO's email shows the company's format
+        if domain in domains and not proven:
+            continue  # one unproven guess per company a day
+        if address := patterns.next_guess(lead, domain, counts, rng, at_domain):
             domains.add(domain)
             picked.append((lead, address))
     for lead, address in picked:
-        retry = " (retry; bounced: " + ", ".join(patterns.bounced_addresses(lead)) + ")"
-        log(f"{lead.company}: {address}" + (retry if patterns.bounced_addresses(lead) else ""))
+        role = patterns.role_of(lead)
+        bounced = patterns.bounced_addresses(lead)
+        retry = f" (retry; bounced: {', '.join(bounced)})" if bounced else ""
+        log(f"{lead.company} [{role}] {lead.contact_name}: {address}{retry}")
         if not send:
             continue
         patterns.point_at(lead, address)
         store.upsert(lead)
+        subject, body = OUTREACH[role]
         first = (lead.contact_name or "there").split()[0]
-        body = OUTREACH_BODY.format(first=first, company=lead.company)
         try:
             send_email(
                 settings,
                 lead.key,
                 address,
-                OUTREACH_SUBJECT,
-                body,
+                subject.format(company=lead.company),
+                body.format(first=first, company=lead.company),
                 attach_resume=True,
                 confirm_unverified=True,  # every address here is a guess, by design
                 resend=True,
