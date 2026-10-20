@@ -347,8 +347,10 @@ research submissions are never sent for you.
 Interested automatically, so the same run applies to them. The reason is shown under
 **Picked for you ★**, and the push names them:
 
-- realistic: you're eligible (a university student in Canada, still open, not invite-only),
-  the effort isn't "heavy", and fit is at least `AUTO_PICK_MIN_FIT` (70);
+- realistic: nothing on its pages rules you out (a clear "no" for a university student in
+  Canada; "unclear" is fine, since online hackathons keep eligibility in separate rules), it's
+  still open, fit is at least `AUTO_PICK_MIN_FIT` (70), and a "heavy" one only if it's online,
+  where you choose the scope;
 - sponsored, with recognition: named sponsors or stated prizes, plus judging, awards, a
   showcase or interviews for winners;
 - reachable: online from anywhere, in person in Canada or `EVENT_CITIES`, or anywhere that

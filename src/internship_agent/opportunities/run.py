@@ -252,9 +252,13 @@ _UNSTATED = {"", "none", "none stated", "not stated", "not checked", "unknown"}
 def pick_reason(o: Opportunity, today: date, cities: list[str], min_fit: int) -> str | None:
     """Why this hackathon is worth applying to without asking, or None.
 
-    Realistic (eligible, not heavy, fit >= min_fit, still open), sponsored with recognition
-    (sponsors or prizes, and judging/awards/showcase), and reachable: online from anywhere, in
-    person in Canada or your cities, or anywhere that pays some or all of the travel.
+    Realistic (not ruled out, fit >= min_fit, still open; heavy effort only when online, where
+    you choose the scope), sponsored with recognition (sponsors or prizes, and judging/awards/
+    showcase), and reachable: online from anywhere, in person in Canada or your cities, or
+    anywhere that pays some or all of the travel.
+
+    Eligibility "unclear" is allowed: online hackathons keep it in a separate rules document
+    the check rarely reads (the first live checks were nearly all "unclear").
     """
     a = o.assessment
     if (
@@ -263,7 +267,8 @@ def pick_reason(o: Opportunity, today: date, cities: list[str], min_fit: int) ->
         or a is None
     ):
         return None
-    if a.eligible != "yes" or a.effort == "heavy" or a.fit_score < min_fit:
+    remote = a.format in ("online", "hybrid") or (a.format == "unknown" and o.online)
+    if a.eligible == "no" or a.fit_score < min_fit or (a.effort == "heavy" and not remote):
         return None
     if (a.apply_by and a.apply_by < today) or (o.deadline and o.deadline < today):
         return None
@@ -272,7 +277,6 @@ def pick_reason(o: Opportunity, today: date, cities: list[str], min_fit: int) ->
     sponsored = bool(a.sponsors) or a.prizes.strip().lower() not in _UNSTATED
     if not sponsored or a.recognition.strip().lower() in _UNSTATED:
         return None
-    remote = a.format in ("online", "hybrid") or (a.format == "unknown" and o.online)
     paid = a.travel in ("covered", "partial")
     near = not o.online and nearby(o, {Region.CANADA}, cities)
     if not (remote or near or paid):
