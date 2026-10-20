@@ -40,6 +40,11 @@ def test_index_serves_html(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "Winter 2027 Search" in response.text
+    assert 'href="/dashboard.css"' in response.text
+    css = client.get("/dashboard.css")
+    assert css.status_code == 200
+    assert css.headers["content-type"].startswith("text/css")
+    assert "color-scheme: dark" in css.text
 
 
 def test_leads_includes_key_and_segment(client: TestClient) -> None:

@@ -170,6 +170,12 @@ def index() -> str:
     return files("internship_agent.dashboard").joinpath("index.html").read_text(encoding="utf-8")
 
 
+@app.get("/dashboard.css")
+def dashboard_css() -> Response:
+    stylesheet = files("internship_agent.dashboard").joinpath("dashboard.css")
+    return Response(stylesheet.read_text(encoding="utf-8"), media_type="text/css")
+
+
 @app.get("/api/leads")
 def leads() -> dict[str, Any]:
     settings = get_settings()
