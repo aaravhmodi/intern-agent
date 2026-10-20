@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # Events the daily refresh checks with AI (location, travel paid, effort, fit), one web
     # search each; others are checked from the dashboard.
     daily_opportunity_checks: int = 10
+    # After the checks, mark hackathons Interested for you (so the morning run applies) when
+    # they're realistic (eligible, not heavy, fit >= this) and sponsored with recognition
+    # (sponsors or prizes, and judging/awards/showcase): online from anywhere, in person if
+    # nearby or travel is paid. Never touches anything you marked or skipped.
+    auto_pick_hackathons: bool = True
+    auto_pick_min_fit: int = 70
     # confs.tech topic files (github.com/tech-conferences/conference-data).
     conference_topics: list[str] = [
         "general",

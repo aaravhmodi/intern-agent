@@ -372,17 +372,24 @@ def test_worth_checking_puts_nearby_hackathons_first_and_research_last() -> None
                 starts_on=date(2026, 12, 1),
             ),
             opp("Toronto hack", location="Toronto", starts_on=date(2026, 11, 1)),
-            opp("Checked", location="Toronto", assessment=_assessment()),
+            opp("Checked", location="Toronto", assessment=_assessment(prizes="$1,000")),
+            opp(
+                "Old check",
+                location="Toronto",
+                assessment=_assessment(),
+                starts_on=date(2027, 1, 9),
+            ),
         ],
         TODAY,
         10,
         ["Toronto", "Waterloo"],
     )
     assert [o.title for o in picked] == [
+        "Online hack",  # online and nearby come first, soonest first
         "Toronto hack",
         "Hamilton hack later",
-        "SF hack",
-        "Online hack",
+        "Old check",  # checked before sponsors/prizes were recorded: checked again
+        "SF hack",  # far away in person comes last
         "Toronto conf",
         "Rome conf",
         "Research",

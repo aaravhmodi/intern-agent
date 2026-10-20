@@ -177,18 +177,23 @@ _CHECK_ORDER = {
 def worth_checking(
     items: list[Opportunity], today: date, limit: int, cities: list[str]
 ) -> list[Opportunity]:
-    """Unchecked upcoming events by kind, then in Canada or your cities before elsewhere,
-    in person before online, soonest first."""
+    """Unchecked upcoming events by kind; within a kind, online or in Canada or your cities
+    (where you can actually take part) before far-away in person; soonest first.
+
+    A check saved before sponsors, prizes and eligibility were recorded counts as unchecked,
+    so it can be auto-picked once checked again.
+    """
     todo = [
         o
         for o in items
-        if o.assessment is None and o.status is not OpportunityStatus.SKIPPED and upcoming(o, today)
+        if (o.assessment is None or o.assessment.prizes == "not checked")
+        and o.status is not OpportunityStatus.SKIPPED
+        and upcoming(o, today)
     ]
     todo.sort(
         key=lambda o: (
             _CHECK_ORDER[o.kind],
-            not nearby(o, {Region.CANADA}, cities) or o.online,
-            o.online,
+            not (o.online or nearby(o, {Region.CANADA}, cities)),
             next_date(o, today),
         )
     )
@@ -239,6 +244,57 @@ APPLIABLE = {OpportunityKind.HACKATHON, OpportunityKind.NETWORKING}
 def _keys(urls: list[str]) -> set[str]:
     """Event URLs as typed (a trailing slash, tracking parameters) in their stored key form."""
     return {normalize_url(u) for u in urls}
+
+
+_UNSTATED = {"", "none", "none stated", "not stated", "not checked", "unknown"}
+
+
+def pick_reason(o: Opportunity, today: date, cities: list[str], min_fit: int) -> str | None:
+    """Why this hackathon is worth applying to without asking, or None.
+
+    Realistic (eligible, not heavy, fit >= min_fit, still open), sponsored with recognition
+    (sponsors or prizes, and judging/awards/showcase), and reachable: online from anywhere, in
+    person in Canada or your cities, or anywhere that pays some or all of the travel.
+    """
+    a = o.assessment
+    if (
+        o.kind is not OpportunityKind.HACKATHON
+        or o.status is not OpportunityStatus.NEW
+        or a is None
+    ):
+        return None
+    if a.eligible != "yes" or a.effort == "heavy" or a.fit_score < min_fit:
+        return None
+    if (a.apply_by and a.apply_by < today) or (o.deadline and o.deadline < today):
+        return None
+    if not upcoming(o, today):
+        return None
+    sponsored = bool(a.sponsors) or a.prizes.strip().lower() not in _UNSTATED
+    if not sponsored or a.recognition.strip().lower() in _UNSTATED:
+        return None
+    remote = a.format in ("online", "hybrid") or (a.format == "unknown" and o.online)
+    paid = a.travel in ("covered", "partial")
+    near = not o.online and nearby(o, {Region.CANADA}, cities)
+    if not (remote or near or paid):
+        return None
+    where = "online" if remote else "travel paid" if paid else "nearby"
+    backers = ", ".join(a.sponsors[:3]) or a.prizes[:60]
+    return f"Fit {a.fit_score}, {a.effort} effort, {where}; sponsored: {backers}"
+
+
+def auto_pick(settings: Settings, today: date | None = None) -> list[Opportunity]:
+    """Mark the hackathons that clear the bar Interested, so the morning run applies."""
+    if not settings.auto_pick_hackathons:
+        return []
+    today = today or date.today()
+    store = OpportunityStore(settings)
+    picked = []
+    for o in store.load():
+        if reason := pick_reason(o, today, settings.event_cities, settings.auto_pick_min_fit):
+            o.status, o.picked = OpportunityStatus.INTERESTED, reason
+            store.upsert(o)
+            picked.append(o)
+    return picked
 
 
 def to_apply(items: list[Opportunity], today: date) -> list[Opportunity]:
@@ -421,10 +477,13 @@ def sign_in(
         if unfinished := [s for s, r in results.items() if r.status != "submitted"]:
             finish_by_hand([SIGN_IN_SITES[s][0] for s in unfinished])
         domains = tuple(d for s in sites for d in SIGN_IN_SITES[s][2])
+        try:
+            state = page.sessions()
+        except Exception:  # the window was closed: nothing to hand over, nothing lost
+            log("The browser window was closed, so no sign-ins were sent this time.")
+            state = {}
         cookies = [
-            c
-            for c in page.sessions().get("cookies", [])
-            if c.get("domain", "").lstrip(".").endswith(domains)
+            c for c in state.get("cookies", []) if c.get("domain", "").lstrip(".").endswith(domains)
         ]
     return results, cookies
 
@@ -502,9 +561,11 @@ def summary_push(
     today: date,
     click: str | None,
     assessed: list[Opportunity] | None = None,
+    picked: list[Opportunity] | None = None,
 ) -> Push | None:
-    """New finds by kind, newly found trips with travel paid, and deadlines in the next week
-    for anything you planned to do."""
+    """New finds by kind, hackathons picked for you, newly found trips with travel paid, and
+    deadlines in the next week for anything you planned to do."""
+    chosen = [f"Picked for you: {o.title} ({o.picked})" for o in picked or []]
     trips = [
         f"{'Travel paid' if a.travel == 'covered' else 'Travel help'}: {o.title}"
         f" ({o.starts_on or 'date?'}, {a.location or o.location})"
@@ -521,10 +582,11 @@ def summary_push(
         ),
         key=lambda o: o.deadline or today,
     )
-    if not added and not due and not trips:
+    if not added and not due and not trips and not chosen:
         return None
     counts = Counter(o.kind.value for o in added)
     lines = [f"New: {', '.join(f'{n} {k}' for k, n in counts.items())}"] if added else []
+    lines += chosen
     lines += trips
     lines += [f"Due {o.deadline:%b %d}: {o.title} ({o.deadline_label})" for o in due]
     return Push(

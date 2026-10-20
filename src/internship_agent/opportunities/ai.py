@@ -108,6 +108,14 @@ schedule, registration, eligibility) and report only what they state:
   and startups, what he would learn, and who he would meet.
 - highlights: what makes it fun or worth the trip: the city, prizes, recruiters and sponsors
   attending, perks.
+- eligible: "yes" if a university student living in Canada can take part and applications or
+  registration are still open; "no" if the pages rule him out (high-school only, one school's
+  students only, a country restriction, invite-only, closed); "unclear" otherwise.
+- sponsors: the companies the pages name as sponsors, partners or judges ([] if none).
+- prizes: the prizes as stated (total, top prize, notable non-cash ones), or "none stated".
+- recognition: how submitted work gets recognized: judged demos, awards, a public gallery or
+  showcase, sponsor prizes, interviews or fast-tracks offered to winners; "none stated" if the
+  pages say nothing.
 - summary: one or two sentences: should he go, and why.
 If students from Canada or from other universities cannot take part, say so in the summary and
 give a low fit_score. Never invent; write "not stated" where the pages are silent."""

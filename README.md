@@ -343,6 +343,21 @@ what needs you. Devpost puts a Cloudflare check in front of automated browsers, 
 Devpost hackathons to come back "needs you". MLH event sites load fine. Talk proposals and
 research submissions are never sent for you.
 
+**Picked for you.** After the morning checks, hackathons that clear this bar are marked
+Interested automatically, so the same run applies to them. The reason is shown under
+**Picked for you ★**, and the push names them:
+
+- realistic: you're eligible (a university student in Canada, still open, not invite-only),
+  the effort isn't "heavy", and fit is at least `AUTO_PICK_MIN_FIT` (70);
+- sponsored, with recognition: named sponsors or stated prizes, plus judging, awards, a
+  showcase or interviews for winners;
+- reachable: online from anywhere, in person in Canada or `EVENT_CITIES`, or anywhere that
+  pays some or all of the travel.
+
+It never touches an event you've marked or skipped. Skip a pick to undo it, or set
+`AUTO_PICK_HACKATHONS=false` to turn it off. Checks go to online and nearby hackathons first,
+and checks saved before sponsors and prizes were recorded are done again.
+
 **Signing in.** Run this once on your laptop (it needs a screen):
 
 ```text

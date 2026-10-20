@@ -66,15 +66,25 @@ class OpportunityAssessment(BaseModel):
     fit_score: int  # 0-100: worth it for this candidate
     fit: list[str]  # how the candidate's skills and projects apply
     highlights: list[str]  # what makes it fun or worth it
+    # Can he take part: a university student in Canada, applications open, not invite-only.
+    eligible: Literal["yes", "no", "unclear"]
+    sponsors: list[str]  # companies sponsoring or judging, as the pages name them
+    prizes: str  # the prizes stated, or "none stated"
+    recognition: str  # how work gets recognized: judging, awards, showcase, interviews
     summary: str
 
     @model_validator(mode="before")
     @classmethod
-    def _stored_before_apply_by(cls, data: Any) -> Any:
-        # Checks saved before apply_by existed load with none. No default on the field itself:
-        # structured outputs need every field required in the schema.
+    def _stored_before_new_fields(cls, data: Any) -> Any:
+        # Checks saved before these fields existed still load (and are never auto-picked until
+        # checked again). No defaults on the fields themselves: structured outputs need every
+        # field required in the schema.
         if isinstance(data, dict):
             data.setdefault("apply_by", None)
+            data.setdefault("eligible", "unclear")
+            data.setdefault("sponsors", [])
+            data.setdefault("prizes", "not checked")
+            data.setdefault("recognition", "not checked")
         return data
 
 
@@ -134,6 +144,7 @@ class Opportunity(BaseModel):
     strategy: SubmissionStrategy | None = None
     assessment: OpportunityAssessment | None = None
     application: EventApplication | None = None
+    picked: str = ""  # why it was marked Interested for you automatically, if it was
 
     @field_validator("url")
     @classmethod

@@ -452,16 +452,24 @@ class CheckRequest(BaseModel):
 
 @app.post("/api/opportunities/check")
 def check_opportunities(request: CheckRequest) -> dict[str, Any]:
-    """Read events' own pages: location, in person or online, travel paid, effort, fit."""
+    """Read events' own pages: location, in person or online, travel paid, effort, fit.
+
+    Hackathons that now clear the auto-pick bar are marked Interested right away.
+    """
+    settings = get_settings()
     if request.key:
         _opportunity(request.key)
     try:
         done = opportunity_run.check_events(
-            get_settings(), [request.key] if request.key else None, min(request.limit, 10)
+            settings, [request.key] if request.key else None, min(request.limit, 10)
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return {"checked": [_opportunity_view(o) for o in done]}
+    picked = opportunity_run.auto_pick(settings)
+    return {
+        "checked": [_opportunity_view(o) for o in done],
+        "picked": [_opportunity_view(o) for o in picked],
+    }
 
 
 def _calendar_items() -> list[agenda.Item]:

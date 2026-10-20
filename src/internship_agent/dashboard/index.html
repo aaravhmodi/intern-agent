@@ -64,6 +64,7 @@ const VIEWS = {
   research:   { title: "Research venues", group: "Find", label: "Research venues", opp: true, test: o => o.kind === "research" && o.status !== "skipped", find: "feeds" },
   networking: { title: "Networking events", group: "Find", label: "Networking", opp: true, test: o => o.kind === "networking" && o.status !== "skipped", find: "events" },
   trips:      { title: "Travel paid", group: "Find", label: "Travel paid ✈", opp: true, test: o => TRAVEL.has(o.assessment?.travel) && o.status !== "skipped", find: "check" },
+  picked:     { title: "Picked for you", group: "Mine", label: "Picked for you ★", opp: true, test: o => !!o.picked && o.status !== "skipped" },
   plans:      { title: "My plans", group: "Mine", label: "Interested & registered", opp: true, test: o => PLANNED.has(o.status) },
   passed:     { title: "Skipped opportunities", group: "Mine", label: "Skipped", opp: true, test: o => o.status === "skipped" },
 };
@@ -139,6 +140,7 @@ function renderRows() {
     research: "Student research and publication opportunities.",
     networking: "Events where you can meet people in your field.",
     trips: "Events that pay some or all of your way there, confirmed on their own pages.",
+    picked: "Sponsored hackathons, online or reachable, where your work gets judged: picked and applied to for you. Skip any you don't want.",
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
@@ -184,7 +186,9 @@ function badges(o) {
   const a = o.assessment;
   if (!a) return "";
   const fit = a.fit_score >= 75 ? "ok" : "";
-  return `<div class="sub">${TRAVEL.has(a.travel) ? `<span class="tag ok" style="margin-left:0">${TRAVEL_LABEL[a.travel]}</span>` : ""}`
+  return `<div class="sub">${o.picked ? `<span class="tag ok" style="margin-left:0">★ Picked</span>` : ""}`
+    + `${TRAVEL.has(a.travel) ? `<span class="tag ok">${TRAVEL_LABEL[a.travel]}</span>` : ""}`
+    + `${a.sponsors && a.sponsors.length ? `<span class="tag">sponsored</span>` : ""}`
     + `<span class="tag ${fit}">fit ${a.fit_score}</span><span class="tag">${esc(a.effort)} effort</span></div>`;
 }
 function where(o) {
@@ -238,6 +242,11 @@ function worthSection(o) {
     <div class="k">Where</div><p style="margin:4px 0 0">${esc(a.format)} · ${esc(a.location || o.location || "not stated")}</p>
     <div class="result ${travel}"><div class="head">${TRAVEL_LABEL[a.travel]}</div><div class="why">${esc(a.travel_details)}
       ${a.travel_source_url ? ` <a href="${esc(a.travel_source_url)}" target="_blank" rel="noopener">Source</a>` : ""}</div></div>
+    ${o.picked ? `<div class="result ok"><div class="head">★ Picked for you</div><div class="why">${esc(o.picked)}. Marked Interested, so the morning run applies.</div></div>` : ""}
+    <div class="k">Can you take part?</div><p style="margin:4px 0 0">${esc({ yes: "Yes", no: "No", unclear: "Unclear from its pages" }[a.eligible] || a.eligible)}</p>
+    ${a.sponsors && a.sponsors.length ? `<div class="k">Sponsors</div><p style="margin:4px 0 0">${a.sponsors.map(esc).join(", ")}</p>` : ""}
+    <div class="k">Prizes</div><p style="margin:4px 0 0">${esc(a.prizes)}</p>
+    <div class="k">How your work gets recognized</div><p style="margin:4px 0 0">${esc(a.recognition)}</p>
     <div class="k">Cost to you</div><p style="margin:4px 0 0">${esc(a.cost)}</p>
     <div class="k">How much work</div><p style="margin:4px 0 0">${esc(a.effort_details)}</p>
     ${list("How your skills apply", a.fit)}${list("Why it's worth it", a.highlights)}
@@ -529,7 +538,7 @@ $("find").addEventListener("click", async e => {
       b.textContent = "Reading 5 events' pages… (a minute or two)";
       const r = await api("/api/opportunities/check", { limit: 5 });
       const paid = r.checked.filter(o => TRAVEL.has(o.assessment.travel));
-      toast(`Checked ${r.checked.length}. ${paid.length ? "Travel paid: " + paid.map(o => o.title).join(", ") : "None of these pay for travel."}`);
+      toast(`Checked ${r.checked.length}. ${r.picked.length ? `Picked for you: ${r.picked.map(o => o.title).join(", ")}. ` : ""}${paid.length ? "Travel paid: " + paid.map(o => o.title).join(", ") : "None of these pay for travel."}`);
     } else if (kind === "feeds" || kind === "events") {
       b.textContent = kind === "feeds" ? "Reading Devpost, MLH, confs.tech and ccfddl…" : "Searching Luma, Eventbrite, Meetup, LinkedIn and X… (a minute or two)";
       const r = await api(kind === "feeds" ? "/api/opportunities/refresh" : "/api/opportunities/find-events", {});
