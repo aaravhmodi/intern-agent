@@ -15,7 +15,12 @@ PATTERNS = {
 }
 
 
+# Letters that don't break down into a plain letter plus an accent.
+_SPELLED_OUT = str.maketrans({"ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "ł": "l", "đ": "d"})
+
+
 def _clean(part: str) -> str:
+    part = part.lower().translate(_SPELLED_OUT)
     ascii_part = unicodedata.normalize("NFKD", part).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z]", "", ascii_part.lower())
 

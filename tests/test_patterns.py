@@ -28,11 +28,16 @@ def test_outcomes_learn_from_bounces_and_settled_sends() -> None:
         founder("jane@acme.ai", followups_stopped="bounced"),
         founder("jane.doe@acme.ai", bounced_emails=["jane@acme.ai"]),
         founder("jdoe@acme.ai", ago=timedelta(hours=2)),  # too early to tell
+        founder("j.doe@acme.ai", ago=timedelta(hours=2), followups_stopped="bounced"),
     ]
     counts = patterns.outcomes(leads, NOW)
     assert counts["first"] == [0, 2]
     assert counts["first.last"] == [1, 0]
     assert counts["flast"] == [0, 0]
+    assert counts["f.last"] == [0, 0]  # a bounce is not counted before deliveries can be
+    assert patterns.guess_email("Søren Brøkær", "pandektes.com", "first.last") == (
+        "soren.brokaer@pandektes.com"
+    )
 
 
 def test_a_bounced_format_is_never_retried_and_the_domain_is_their_own() -> None:

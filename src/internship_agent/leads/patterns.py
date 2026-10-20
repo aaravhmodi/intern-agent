@@ -69,15 +69,14 @@ def outcomes(leads: list[Lead], now: datetime) -> dict[str, list[int]]:
         for address in lead.bounced_emails:
             if fmt := format_of(address, lead.contact_name):
                 counts[fmt][1] += 1
-        if not lead.sent_to or not lead.sent_at:
+        # A bounce comes back in minutes but a delivery only shows after a day, so a send
+        # younger than that counts for neither (it would make every format look worse).
+        if not lead.sent_to or not lead.sent_at or now - lead.sent_at < SETTLED:
             continue
         fmt = format_of(lead.sent_to, lead.contact_name)
         if fmt is None:
             continue
-        if lead.followups_stopped == "bounced":
-            counts[fmt][1] += 1
-        elif lead.replied_at is not None or now - lead.sent_at >= SETTLED:
-            counts[fmt][0] += 1
+        counts[fmt][1 if lead.followups_stopped == "bounced" else 0] += 1
     return counts
 
 
