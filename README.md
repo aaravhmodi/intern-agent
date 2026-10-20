@@ -231,7 +231,8 @@ about/team page, names someone on the filing or shows the legal name ("Motaris I
 founder's email is published if that site shows an address with their name in it; otherwise
 it is a `first@domain` guess marked unverified. New leads get open roles from their job board
 and the usual fit score (the only OpenAI use). The server runs it after the 7:30 AM scrape,
-reading the last three days of filings; `--days 30` backfills a month.
+reading the last three days of filings; `--days 30` backfills a month, and `--days 365 --min-usd 5000000` a year of
+midsize raises (saved day by day, so a stopped run keeps what it found).
 
 ## Other connectors
 

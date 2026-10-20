@@ -328,22 +328,29 @@ def find_startups(
 
 
 def find_form_d_startups(
-    settings: Settings, days: int = 3, log: Callable[[str], None] = lambda _: None
+    settings: Settings,
+    days: int = 3,
+    log: Callable[[str], None] = lambda _: None,
+    *,
+    min_usd: int = 0,
 ) -> list[Lead]:
     """US tech startups that filed a Form D in the last few days, with a site and an email.
 
     Finding the website and email is free (likely domains are tried directly); only the
-    usual fit score of each new lead uses OpenAI.
+    usual fit score of each new lead uses OpenAI. min_usd skips smaller raises.
     """
     if not settings.gmail_address:
         raise ValueError("Set GMAIL_ADDRESS: the SEC asks for a contact address")
     store = lead_store(settings)
     known = {form_d.company_name(lead.company).lower() for lead in store.load()}
-    found: list[Lead] = []
+    new: list[Lead] = []
     for back in range(1, days + 1):
         day = date.today() - timedelta(days=back)
-        filings = form_d.filings(day, settings.gmail_address)
+        filings = [
+            f for f in form_d.filings(day, settings.gmail_address) if f.amount_usd >= min_usd
+        ]
         log(f"{day}: {len(filings)} tech Form D filing(s)")
+        found: list[Lead] = []
         for filing in filings:
             if filing.company.lower() in known:
                 continue
@@ -356,14 +363,15 @@ def find_form_d_startups(
                 found.append(form_d.to_lead(filing, site))
             except ValueError as error:  # one odd site must not lose the whole run
                 log(f"{filing.company}: skipped ({error})")
-    existing = store.load()
-    leads, added = merge(existing, found)
-    new = leads[len(existing) :]
-    roles = [p for f in new for p in startup_postings(f)]
-    leads, _ = merge(leads, roles)
-    store.save(leads)
-    log(f"+{added} startups, +{len(roles)} open roles")
-    new = store.load()[len(existing) :]
+        # Saved day by day, so a long backfill keeps what it found if it stops partway.
+        existing = store.load()
+        leads, added = merge(existing, found)
+        roles = [p for f in leads[len(existing) :] for p in startup_postings(f)]
+        leads, _ = merge(leads, roles)
+        store.save(leads)
+        new += leads[len(existing) :]
+        if found:
+            log(f"+{added} startups, +{len(roles)} open roles")
     score(settings, new)
     return new
 

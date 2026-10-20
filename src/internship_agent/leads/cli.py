@@ -237,9 +237,10 @@ def scrape_jobs_cmd() -> None:
 @leads_app.command("form-d")
 def form_d_cmd(
     days: Annotated[int, typer.Option(help="How many past days of filings to read.")] = 3,
+    min_usd: Annotated[int, typer.Option(help="Skip raises smaller than this.")] = 0,
 ) -> None:
     """Add US tech startups that just filed an SEC Form D, with their site and an email."""
-    new = find_form_d_startups(get_settings(), days=days, log=console.print)
+    new = find_form_d_startups(get_settings(), days=days, log=console.print, min_usd=min_usd)
     console.print(f"Added {len(new)} lead(s) from Form D filings.")
 
 
