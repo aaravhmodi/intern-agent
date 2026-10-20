@@ -515,14 +515,15 @@ def add_team_contacts(
                     ],
                 )
             )
+        # Saved company by company, so a run cut short keeps who it found.
+        existing = store.load()
+        merged, _ = merge(existing, added[-len(people) :] if people else [])
+        store.save(merged)
         names = ", ".join(f"{p.name} ({p.role})" for p in people) or "nobody confirmed"
         lead.notes.append(Note(at=now, text=f"{TEAM_SEARCHED}: {names}."))
         store.upsert(lead)
         log(f"{lead.company}: {names}")
-    existing = store.load()
-    merged, _ = merge(existing, added)
-    store.save(merged)
-    return merged[len(existing) :]
+    return added
 
 
 def guess_and_send(
