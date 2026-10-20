@@ -1,9 +1,9 @@
 import re
 from datetime import date
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from internship_agent.leads.store import normalize_url
 
@@ -56,6 +56,7 @@ class OpportunityAssessment(BaseModel):
 
     format: Literal["in person", "online", "hybrid", "unknown"]
     location: str  # venue and city as the event states them
+    apply_by: date | None  # last day to apply or register, if the pages state one
     travel: Literal["covered", "partial", "none", "unknown"]
     travel_details: str  # what is paid for, caps, how and when to apply
     travel_source_url: str  # the page that states the travel support; "" if none
@@ -66,6 +67,15 @@ class OpportunityAssessment(BaseModel):
     fit: list[str]  # how the candidate's skills and projects apply
     highlights: list[str]  # what makes it fun or worth it
     summary: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _stored_before_apply_by(cls, data: Any) -> Any:
+        # Checks saved before apply_by existed load with none. No default on the field itself:
+        # structured outputs need every field required in the schema.
+        if isinstance(data, dict):
+            data.setdefault("apply_by", None)
+        return data
 
 
 class Opportunity(BaseModel):

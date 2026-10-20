@@ -32,6 +32,8 @@ Toronto, Canada and is a Canadian citizen, decide whether to go to the event bel
 {today}. Use web search to read the event's own pages (home, FAQ, travel or reimbursement,
 schedule, registration, eligibility) and report only what they state:
 - format and location: in person, online or hybrid; the venue and city.
+- apply_by: the last day to apply, register or RSVP (YYYY-MM-DD) as the pages state it, even
+  if it has passed; null if they give none.
 - travel: "covered" if the organizers pay a student's way there (flights, buses, train or a
   reimbursement), "partial" if support is capped, limited, by lottery or application only,
   "none" if they say there is none, "unknown" if their pages do not say. travel_details: what

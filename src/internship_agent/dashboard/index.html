@@ -44,6 +44,7 @@
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
+  calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
   early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
   mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
@@ -63,7 +64,7 @@ const VIEWS = {
 const PLANNED = new Set(["interested", "registered", "submitted"]);
 const TRAVEL = new Set(["covered", "partial"]);
 const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events" };
-let state = { leads: [], opps: [], view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+let state = { leads: [], opps: [], cal: [], calMonth: new Date().toISOString().slice(0, 7), calAll: false, view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -77,8 +78,8 @@ async function api(path, body) {
   return res.json();
 }
 async function load() {
-  const [data, opps] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] }))]);
-  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities;
+  const [data, opps, cal] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] }))]);
+  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items;
   renderNav(); renderRows(); renderDetail();
 }
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
@@ -91,10 +92,10 @@ function renderNav() {
   let html = `<div class="brand"><span class="brand-mark">W.</span><span>Winter 2027<small>Internships & opportunities</small></span></div><div class="nav-sections">`;
   let group = null, section = null;
   for (const [id, v] of Object.entries(VIEWS)) {
-    const s = v.opp ? "Opportunity agent" : "Internship agent";
+    const s = v.cal ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
     if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -118,6 +119,7 @@ function renderRows() {
   const v = VIEWS[state.view];
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
+    calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
     early: "Small teams where your work can have immediate reach.",
     mid: "Growing companies with room to build and learn.",
@@ -134,15 +136,16 @@ function renderRows() {
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules");
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = v.opp ? "none" : "";
+  $("region").style.display = v.opp || v.cal ? "none" : "";
   if (state.view === "rules") return renderRules();
+  if (v.cal) return renderCalendar();
   const items = visible();
   $("view-count").textContent = items.length;
   if (v.opp) return renderOpps(items);
@@ -262,6 +265,54 @@ function renderOpp(o) {
   </div>`;
 }
 
+// Calendar: one month grid and the next 30 days, for both agents.
+const CAL_KIND = { apply: "Apply by", deadline: "Deadline", event: "Event", followup: "Follow-up" };
+const addDays = (iso, n) => { const d = new Date(iso + "T00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function calShown() {
+  return state.cal.filter(i => (state.calAll || i.mine) && (!state.q || `${i.title} ${i.detail}`.toLowerCase().includes(state.q)));
+}
+function calChip(i) {
+  return `<button class="cal-item k-${i.kind}" data-cal-key="${esc(i.key)}" title="${esc(CAL_KIND[i.kind] + ": " + i.title)}">${esc(i.title)}</button>`;
+}
+function renderCalendar() {
+  const shown = calShown();
+  $("view-count").textContent = shown.filter(i => i.day >= today()).length;
+  const byDay = {};
+  for (const i of shown) {
+    // A short event shows on each of its days; one longer than 4 days (a weeks-long online
+    // hackathon) only on its first, since its closing deadline is an item of its own.
+    const last = i.end && i.end <= addDays(i.day, 4) ? i.end : i.day;
+    for (let d = i.day; d <= last; d = addDays(d, 1)) (byDay[d] ||= []).push(i);
+  }
+  const [y, m] = state.calMonth.split("-").map(Number);
+  const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;  // weeks start on Monday
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let cells = "";
+  for (let k = 0; k < lead; k++) cells += `<div class="cal-day blank"></div>`;
+  for (let d = 1; d <= days; d++) {
+    const iso = `${state.calMonth}-${String(d).padStart(2, "0")}`, xs = byDay[iso] || [];
+    cells += `<div class="cal-day ${iso === today() ? "today" : ""}"><span class="cal-num">${d}</span>
+      ${xs.slice(0, 3).map(calChip).join("")}${xs.length > 3 ? `<div class="cal-more">+${xs.length - 3} more</div>` : ""}</div>`;
+  }
+  const soon = shown.filter(i => i.day >= today() && i.day <= addDays(today(), 30));
+  const month = new Date(Date.UTC(y, m - 1, 1)).toLocaleString([], { month: "long", year: "numeric", timeZone: "UTC" });
+  $("rows").innerHTML = `<div class="cal">
+    <div class="cal-bar">
+      <button class="btn" data-cal-nav="-1" aria-label="Previous month">‹</button><h2>${esc(month)}</h2><button class="btn" data-cal-nav="1" aria-label="Next month">›</button>
+      <button class="btn" data-cal-nav="0">Today</button><span class="spacer"></span>
+      <label><input type="checkbox" id="cal-all" ${state.calAll ? "checked" : ""}> Show everything</label>
+      <a class="btn" href="/api/calendar.ics${state.calAll ? "?everything=true" : ""}" download>Download .ics</a>
+    </div>
+    <div class="cal-legend">${Object.entries(CAL_KIND).map(([k, label]) => `<span class="cal-item k-${k}">${label}</span>`).join("")}</div>
+    <div class="cal-grid">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => `<div class="cal-dow">${d}</div>`).join("")}${cells}</div>
+    <div class="agenda"><div class="k">Next 30 days</div>
+      ${soon.length ? soon.map(i => `<div class="agenda-row"><span class="sub">${esc(i.day)}${i.end && i.end !== i.day ? " → " + esc(i.end) : ""}</span>${calChip(i)}<span class="sub">${esc(i.detail || CAL_KIND[i.kind])}</span></div>`).join("")
+        : `<div class="hint">Nothing in the next 30 days. ${state.calAll ? "" : "Tick Show everything, or mark events Interested to add them."}</div>`}
+    </div>
+    <div class="hint">Shown by default: your follow-ups, events you marked, and checked events with fit 75+ or travel paid.</div>
+  </div>`;
+}
+
 // The lead's main contact, or one of its other people (p).
 function linkedinUrl(l, p) {
   const url = p ? p.linkedin_url : l.linkedin_url, name = p ? p.name : l.contact_name;
@@ -325,7 +376,7 @@ function applicationSection(l) {
   </section>`;
 }
 function renderDetail() {
-  const opp = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  const opp = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (opp) return renderOpp(opp);
   const l = VIEWS[state.view].opp ? null : state.leads.find(x => x.key === state.selected);
   const aside = $("aside"), detail = $("detail");
@@ -413,9 +464,20 @@ $("nav").addEventListener("click", e => {
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
+$("rows").addEventListener("change", e => {
+  if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }
+});
 $("rows").addEventListener("click", async e => {
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
+  const item = e.target.closest("[data-cal-key]");
+  if (item) { state.selected = item.dataset.calKey; state.armed = null; return renderDetail(); }
+  const nav = e.target.closest("[data-cal-nav]");
+  if (nav) {
+    const step = Number(nav.dataset.calNav), [y, m] = state.calMonth.split("-").map(Number);
+    state.calMonth = step ? new Date(Date.UTC(y, m - 1 + step, 1)).toISOString().slice(0, 7) : today().slice(0, 7);
+    return renderRows();
+  }
   const r = e.target.closest(".row"); if (!r) return;
   state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
 });
@@ -447,7 +509,7 @@ $("find").addEventListener("click", async e => {
   finally { b.disabled = false; b.textContent = label; }
 });
 $("detail").addEventListener("click", async e => {
-  const o = VIEWS[state.view].opp && state.opps.find(x => x.key === state.selected);
+  const o = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (o) {
     const b = e.target.closest("button"); if (!b) return;
     try {

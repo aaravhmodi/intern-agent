@@ -298,6 +298,20 @@ uv run internship-agent opportunities strategy https://chi2027.acm.org
 uv run internship-agent opportunities mark <url> interested
 ```
 
+**Calendar.** The dashboard's Calendar (top of the sidebar) puts both agents on one month
+grid, with a list of the next 30 days:
+
+- **Apply by:** the last day to apply or register for an event (from its check) and any
+  posting's application deadline;
+- **Deadlines:** submissions, papers and talk proposals;
+- **Events:** the event dates;
+- **Follow-ups:** when each emailed person is due a follow-up (overdue ones show today).
+
+By default it shows your follow-ups, events you marked, and checked events with fit 75+ or
+travel paid; "Show everything" adds the rest. **Download .ics** exports the same items for
+Google, Apple or Outlook Calendar (`/api/calendar.ics`, `?everything=true` for all). Each item
+keeps a stable ID across exports, so apps that match on it update events when you import again.
+
 For events announced only on LinkedIn, X or Luma, run `/find-opportunities` in Claude Code. It
 browses read-only in Chrome, writes `data/opportunities-inbox.json`, and imports it with
 `opportunities import`.
