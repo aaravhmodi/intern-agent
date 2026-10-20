@@ -583,8 +583,10 @@ def apply_to_posting(
         return SubmissionResult("failed", f"Browser automation failed ({type(exc).__name__})")
 
 
-def open_login_browser(browser_dir: Path) -> None:
-    """Open the persistent browser for one-time manual sign-in to job sites."""
+def open_login_browser(
+    browser_dir: Path, urls: tuple[str, ...] = ("https://jobs.ashbyhq.com",)
+) -> None:
+    """Open the persistent browser for one-time manual sign-in, one tab per site."""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as playwright:
@@ -592,6 +594,7 @@ def open_login_browser(browser_dir: Path) -> None:
             str(browser_dir), headless=False, accept_downloads=False
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://jobs.ashbyhq.com", wait_until="domcontentloaded")
-        input("Sign in to the job sites you use, then press Enter here to close the browser... ")
+        for index, url in enumerate(urls):
+            (page if index == 0 else context.new_page()).goto(url, wait_until="domcontentloaded")
+        input("Sign in to the sites you use, then press Enter here to close the browser... ")
         context.close()

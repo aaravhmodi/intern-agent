@@ -518,6 +518,39 @@ def find_events() -> dict[str, Any]:
     return {"added": [_opportunity_view(o) for o in added]}
 
 
+@app.post("/api/opportunities/apply")
+def apply_to_event(request: KeyRequest) -> dict[str, Any]:
+    """Apply to a hackathon or RSVP to an event now, in the saved browser (uses OpenAI)."""
+    item = _opportunity(request.key)
+    if item.kind not in opportunity_run.APPLIABLE:
+        raise HTTPException(400, "Only hackathons and networking events can be applied to for you")
+    try:
+        opportunity_run.apply_events(get_settings(), [request.key])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"opportunity": _opportunity_view(_opportunity(request.key))}
+
+
+@app.post("/api/opportunities/apply/retry")
+def allow_event_retry(request: KeyRequest) -> dict[str, Any]:
+    """You checked it didn't go through: clear the attempt so it can be tried again."""
+    item = _opportunity(request.key)
+    if item.application is None or item.application.status == "submitted":
+        raise HTTPException(400, "Only an attempt that didn't go through can be reopened")
+    item.application = None
+    OpportunityStore(get_settings()).upsert(item)
+    return {"opportunity": _opportunity_view(item)}
+
+
+@app.get("/api/opportunities/proof")
+def event_proof(key: str) -> FileResponse:
+    """Screenshot of the event's confirmation page, taken right after applying."""
+    path = opportunity_run.proof_path(get_settings(), _opportunity(key).key)
+    if not path.is_file():
+        raise HTTPException(404, "No confirmation screenshot for this event")
+    return FileResponse(path, media_type="image/png")
+
+
 @app.post("/api/opportunities/strategy")
 def opportunity_strategy(request: KeyRequest) -> dict[str, Any]:
     """Read the venue's call for papers and plan a submission (uses OpenAI)."""

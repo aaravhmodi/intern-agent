@@ -321,6 +321,34 @@ becomes all of them, not just the next 30 days. **Download .ics** exports the sa
 Google, Apple or Outlook Calendar (`/api/calendar.ics`, `?everything=true` for all). Each item
 keeps a stable ID across exports, so apps that match on it update events when you import again.
 
+**Applying for you.** Mark a hackathon or networking event **Interested** and the morning run
+(after the feed refresh) applies or RSVPs in the saved browser. "Apply for me now" on an event
+does it immediately. A browser agent works through the site one page at a time: Devpost, an MLH
+event's own site, Luma, Eventbrite, Typeform or a Google Form. It fills the form from
+`candidate_context.md`, your resume and your saved answers. Personal details come from the
+answer bank and are filled in locally; the model only sees the question names. Hard rules,
+in code:
+
+- three checks online first: the page is the event's own site or a known event platform, the
+  landing page names the event, and nothing asks for payment;
+- no password, card or billing fields and no pay, buy or checkout clicks; only free tickets;
+- stops at a CAPTCHA or "verify you're human" page, a sign-in page, or a required question
+  your material can't answer (it names the question; add the answer and apply again);
+- ticks required rules and code-of-conduct boxes, never newsletter or marketing ones;
+- "Applied" only when the page itself confirms it, with a screenshot; anything else is "not
+  confirmed" and is never retried on its own. "Allow another try" reopens it once you've checked.
+
+The result card shows what it did page by page, and one ntfy push lists what went through and
+what needs you. Sign in once to Devpost, MLH, Luma and Eventbrite in the application browser:
+`uv run internship-agent opportunities browser-login`. Devpost puts a Cloudflare check in front of
+automated browsers, so expect most Devpost hackathons to come back "needs you". MLH event sites
+load fine. Talk proposals and research submissions are never sent for you.
+
+```text
+uv run internship-agent opportunities apply                 # everything marked Interested
+uv run internship-agent opportunities apply <url> --dry-run # say what it would do, send nothing
+```
+
 **Ask.** The **Ask ✦** button opens a chat that knows you and the agent:
 
 - your profile: `candidate_context.md`, the resume, your website's pages (`WEBSITE_URL`,
