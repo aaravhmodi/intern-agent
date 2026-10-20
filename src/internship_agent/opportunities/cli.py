@@ -146,20 +146,38 @@ def apply_cmd(
         )
 
 
-@opportunities_app.command("browser-login")
-def browser_login_cmd() -> None:
-    """Sign in once to Devpost, MLH, Luma and Eventbrite in the application browser."""
-    from internship_agent.applications.browser import open_login_browser
+@opportunities_app.command("sign-in")
+def sign_in_cmd(
+    site: list[str] = typer.Option(  # noqa: B008
+        list(run.SIGN_IN_SITES), help="luma, eventbrite, mlh, devpost (default: all)."
+    ),
+    server: str | None = typer.Option(
+        None, help="Dashboard to give the sign-ins to (default DASHBOARD_URL)."
+    ),
+) -> None:
+    """Sign in or sign up to event sites with your Gmail, then give the server the sessions.
 
-    open_login_browser(
-        get_settings().application_browser_dir,
-        (
-            "https://secure.devpost.com/users/login",
-            "https://my.mlh.io/",
-            "https://luma.com/signin",
-            "https://www.eventbrite.ca/signin/",
-        ),
-    )
+    Opens a browser window: it types GMAIL_ADDRESS, reads the code or link each site emails,
+    and waits for you to tick any "verify you're human" box. Sites it can't finish (a password
+    or Google sign-in) stay open for you to finish by hand.
+    """
+    settings = get_settings()
+    unknown = [s for s in site if s not in run.SIGN_IN_SITES]
+    if unknown:
+        raise typer.BadParameter(f"Unknown site(s): {', '.join(unknown)}")
+
+    def finish_by_hand(names: list[str]) -> None:
+        input(f"Finish signing in to {', '.join(names)} in the browser window, then press Enter… ")
+
+    results, cookies = run.sign_in(settings, site, log=console.print, finish_by_hand=finish_by_hand)
+    target = server or settings.dashboard_url
+    if not target:
+        console.print(
+            "Signed in here. Set DASHBOARD_URL (or pass --server) to give the server these too."
+        )
+        return
+    added = run.send_sessions(target, cookies)
+    console.print(f"Gave the server {added} sign-in cookies for {', '.join(site)}.")
 
 
 @opportunities_app.command("mark")

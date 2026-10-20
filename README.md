@@ -339,10 +339,23 @@ in code:
   confirmed" and is never retried on its own. "Allow another try" reopens it once you've checked.
 
 The result card shows what it did page by page, and one ntfy push lists what went through and
-what needs you. Sign in once to Devpost, MLH, Luma and Eventbrite in the application browser:
-`uv run internship-agent opportunities browser-login`. Devpost puts a Cloudflare check in front of
-automated browsers, so expect most Devpost hackathons to come back "needs you". MLH event sites
-load fine. Talk proposals and research submissions are never sent for you.
+what needs you. Devpost puts a Cloudflare check in front of automated browsers, so expect most
+Devpost hackathons to come back "needs you". MLH event sites load fine. Talk proposals and
+research submissions are never sent for you.
+
+**Signing in.** Run this once on your laptop (it needs a screen):
+
+```text
+uv run internship-agent opportunities sign-in      # --site luma --site mlh for just some
+```
+
+A browser opens on Luma, Eventbrite, MLH and Devpost. For each, the agent types `GMAIL_ADDRESS`,
+reads the code or sign-in link the site emails (read-only from Gmail), and creates the account
+if there isn't one, using your saved answers. It never uses a password or Google sign-in. When a
+site shows a "verify you're human" box it waits for you to tick it. Anything it can't finish
+stays open for you to do by hand before you press Enter. Then the sign-in cookies for those
+four sites only go to the server's application browser (`DASHBOARD_URL`, over Tailscale), so the
+morning run applies while signed in. Run it again whenever a site signs you out.
 
 ```text
 uv run internship-agent opportunities apply                 # everything marked Interested

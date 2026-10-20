@@ -19,12 +19,13 @@ from internship_agent.notify import Push
 from internship_agent.opportunities import apply, feeds
 from internship_agent.opportunities.ai import (
     APPLY_INSTRUCTIONS,
+    SIGN_IN_INSTRUCTIONS,
     assess,
     next_step,
     search_events,
     write_strategy,
 )
-from internship_agent.opportunities.apply import Snapshot, describe
+from internship_agent.opportunities.apply import SIGNED_IN, Snapshot, describe
 from internship_agent.opportunities.schemas import (
     BrowserStep,
     EventApplication,
@@ -331,6 +332,116 @@ def apply_events(
             log(f"{event.title}: {result.status}: {result.detail}")
             done.append(event)
     return done
+
+
+# Sites the application browser signs in to: brand in their email sender, name, sign-in page,
+# and the cookie domains that carry the session.
+SIGN_IN_SITES = {
+    "luma": ("Luma", "https://luma.com/signin", ("luma.com", "lu.ma")),
+    "eventbrite": (
+        "Eventbrite",
+        "https://www.eventbrite.ca/signin/",
+        ("eventbrite.ca", "eventbrite.com"),
+    ),
+    "mlh": ("MLH", "https://www.mlh.com/signin", ("mlh.com", "mlh.io")),
+    "devpost": ("Devpost", "https://secure.devpost.com/users/login", ("devpost.com",)),
+}
+
+
+def sign_in(
+    settings: Settings,
+    sites: list[str],
+    *,
+    log: Callable[[str], None] = lambda _: None,
+    page_factory: Callable[[], Any] | None = None,
+    finish_by_hand: Callable[[list[str]], None] = lambda _: None,
+) -> tuple[dict[str, EventApplication], list[dict[str, Any]]]:
+    """Sign in (or sign up) to each site with GMAIL_ADDRESS and the code or link it emails.
+
+    Runs in a visible browser: when a site shows a "verify you're human" box, it waits for you
+    to tick it. Sites it couldn't finish are passed to `finish_by_hand` while the window is
+    still open. Returns each site's result and the session cookies for those sites only.
+    """
+    from internship_agent.applications.verification_mail import wait_for_sign_in
+    from internship_agent.opportunities.browser import saved_browser
+
+    if not settings.gmail_ready:
+        raise ValueError("Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD so emailed codes can be read")
+    assert settings.gmail_address and settings.gmail_app_password
+    address, password = settings.gmail_address, settings.gmail_app_password.get_secret_value()
+    client, bank = _openai(settings), answer_bank(settings).load()
+    results: dict[str, EventApplication] = {}
+    open_page = page_factory or (
+        lambda: saved_browser(settings.application_browser_dir, headless=False)
+    )
+    with open_page() as page:
+        for site in sites:
+            name, url, _ = SIGN_IN_SITES[site]
+            started = datetime.now(UTC)
+            instructions = SIGN_IN_INSTRUCTIONS.format(
+                site=name, email=address, bank="\n".join(f"- {q}" for q in sorted(bank))
+            )
+
+            def step(
+                snapshot: Snapshot, history: list[str], text: str = instructions
+            ) -> BrowserStep:
+                return next_step(client, settings.openai_model, text, describe(snapshot), history)
+
+            def inbox(want: str, brand: str = site, since: datetime = started) -> str | None:
+                return wait_for_sign_in(address, password, since, brand, want)
+
+            def wait(name: str = name) -> bool:
+                log(f"{name}: tick the 'verify you're human' box in the browser window…")
+                return bool(page.wait_for_human())
+
+            target = Opportunity(
+                kind=OpportunityKind.NETWORKING, title=name, url=url, source="sign-in"
+            )
+            try:
+                result = apply.run(
+                    page,
+                    target,
+                    bank,
+                    step,
+                    settings.resume_path,
+                    settings.application_browser_dir / "sign-in" / f"{site}.png",
+                    confirmed=SIGNED_IN,
+                    wait_for_human=wait,
+                    inbox=inbox,
+                )
+            except Exception as error:
+                result = EventApplication(
+                    status="failed",
+                    detail=f"Browser automation failed ({type(error).__name__})",
+                    at=datetime.now(UTC),
+                )
+            results[site] = result
+            outcome = "signed in" if result.status == "submitted" else result.status
+            log(f"{name}: {outcome}: {result.detail}")
+        if unfinished := [s for s, r in results.items() if r.status != "submitted"]:
+            finish_by_hand([SIGN_IN_SITES[s][0] for s in unfinished])
+        domains = tuple(d for s in sites for d in SIGN_IN_SITES[s][2])
+        cookies = [
+            c
+            for c in page.sessions().get("cookies", [])
+            if c.get("domain", "").lstrip(".").endswith(domains)
+        ]
+    return results, cookies
+
+
+def send_sessions(server: str, cookies: list[dict[str, Any]]) -> int:
+    """Give the server's application browser these sign-ins (over Tailscale)."""
+    import urllib.request
+
+    request = urllib.request.Request(
+        server.rstrip("/") + "/api/browser-sessions",
+        data=json.dumps({"cookies": cookies}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        added: int = json.loads(response.read())["added"]
+    return added
 
 
 def plan_submission(settings: Settings, key: str) -> Opportunity:
