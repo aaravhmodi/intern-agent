@@ -63,11 +63,21 @@ class PlaywrightPage:
         self.page.wait_for_timeout(1500)
 
     def snapshot(self) -> Snapshot:
-        self._latest()
-        elements = [Element(**e) for e in self.page.evaluate(_SNAPSHOT_JS)]
-        text = self.page.locator("body").inner_text(timeout=8000)
-        captcha = _visible_captcha(self.page) and not self.page.evaluate(_SOLVED_JS)
-        return Snapshot(self.page.url, text, elements, captcha)
+        # A redirect while the page is being read (Eventbrite does this) destroys the
+        # JavaScript context; wait for the new page and read it again.
+        for attempt in range(4):
+            self._latest()
+            try:
+                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                elements = [Element(**e) for e in self.page.evaluate(_SNAPSHOT_JS)]
+                text = self.page.locator("body").inner_text(timeout=8000)
+                captcha = _visible_captcha(self.page) and not self.page.evaluate(_SOLVED_JS)
+                return Snapshot(self.page.url, text, elements, captcha)
+            except Exception as error:
+                if attempt == 3 or "context was destroyed" not in str(error):
+                    raise
+                self.page.wait_for_timeout(1500)
+        raise AssertionError("unreachable")
 
     def wait_for_human(self, timeout_seconds: int = 240) -> bool:
         """Someone is at the screen: wait for them to clear the check. True once it's gone."""
@@ -102,7 +112,13 @@ class PlaywrightPage:
         elif action.kind == "upload_resume":
             target.set_input_files(str(resume))
         else:
-            target.click()
+            try:
+                target.click(timeout=10000)
+            except Exception as error:
+                # A CAPTCHA overlay (Eventbrite's hCaptcha) covers the button: let the next
+                # snapshot find the challenge and wait for the person, instead of crashing.
+                if "Timeout" not in type(error).__name__:
+                    raise
             try:
                 self.page.wait_for_load_state("domcontentloaded", timeout=10000)
             except Exception:

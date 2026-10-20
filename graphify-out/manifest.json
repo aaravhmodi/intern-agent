@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/notify.py": {
-    "mtime": 1792521601.166644,
-    "seen": 1792521645.5384693,
-    "ast_hash": "293404eac531d435856015ab709f2b69",
+    "mtime": 1792521654.7234268,
+    "seen": 1792522357.2924957,
+    "ast_hash": "a697524de5de7f1884bd5c78347e2d08",
     "semantic_hash": ""
   },
   "src/internship_agent/outlook/__init__.py": {
@@ -618,15 +618,15 @@
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/apply.py": {
-    "mtime": 1792521472.180362,
-    "seen": 1792521645.5384693,
-    "ast_hash": "6431a284bc7acfd70916b4cc29f5beeb",
+    "mtime": 1792522034.4381707,
+    "seen": 1792522357.2924957,
+    "ast_hash": "d510e8a68f338fe19d0a4d1cce797f8c",
     "semantic_hash": ""
   },
   "src/internship_agent/opportunities/browser.py": {
-    "mtime": 1792521555.5488436,
-    "seen": 1792521645.5384693,
-    "ast_hash": "e4df603ac8212fea8803392d96a7e996",
+    "mtime": 1792522136.172158,
+    "seen": 1792522357.2924957,
+    "ast_hash": "70b25b46937af49d266a18e97a17e1e5",
     "semantic_hash": ""
   },
   "tests/test_apply_events.py": {
@@ -636,9 +636,9 @@
     "semantic_hash": ""
   },
   "tests/test_sign_in.py": {
-    "mtime": 1792521623.7472966,
-    "seen": 1792521645.5384693,
-    "ast_hash": "51577000db4558a763ab5843ad0a5c74",
+    "mtime": 1792522034.4381707,
+    "seen": 1792522357.2924957,
+    "ast_hash": "4531bb0ccb53ff92a494a84ca5236af2",
     "semantic_hash": ""
   }
 }
