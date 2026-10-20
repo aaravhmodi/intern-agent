@@ -151,15 +151,34 @@ def checked(
     return found
 
 
-def worth_checking(items: list[Opportunity], today: date, limit: int) -> list[Opportunity]:
-    """Unchecked upcoming events: in person before online (travel matters there), research
-    venues last (their strategy covers them), soonest first."""
+# Which unchecked events to check first. Student hackathons are where travel is paid (MLH
+# reimbursements, buses); research venues last, since their strategy covers them.
+_CHECK_ORDER = {
+    OpportunityKind.HACKATHON: 0,
+    OpportunityKind.NETWORKING: 1,
+    OpportunityKind.CONFERENCE: 2,
+    OpportunityKind.RESEARCH: 3,
+}
+
+
+def worth_checking(
+    items: list[Opportunity], today: date, limit: int, cities: list[str]
+) -> list[Opportunity]:
+    """Unchecked upcoming events by kind, then in Canada or your cities before elsewhere,
+    in person before online, soonest first."""
     todo = [
         o
         for o in items
         if o.assessment is None and o.status is not OpportunityStatus.SKIPPED and upcoming(o, today)
     ]
-    todo.sort(key=lambda o: (o.kind is OpportunityKind.RESEARCH, o.online, next_date(o, today)))
+    todo.sort(
+        key=lambda o: (
+            _CHECK_ORDER[o.kind],
+            not nearby(o, {Region.CANADA}, cities) or o.online,
+            o.online,
+            next_date(o, today),
+        )
+    )
     return todo[:limit]
 
 
@@ -175,7 +194,7 @@ def check_events(
     todo = (
         [o for o in items if o.key in set(keys)]
         if keys
-        else worth_checking(items, date.today(), limit)
+        else worth_checking(items, date.today(), limit, settings.event_cities)
     )
     resume, context = _candidate(settings)
 

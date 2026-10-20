@@ -353,14 +353,40 @@ def test_check_marks_unconfirmed_travel_unknown(
     assert a.travel_details.startswith("Not confirmed on the event's pages:")
 
 
-def test_worth_checking_puts_in_person_first_and_research_last() -> None:
-    research = _opp(kind="research", title="R", url="https://r.dev", starts_on=date(2026, 10, 21))
-    online = _opp(title="O", url="https://o.dev", online=True, starts_on=date(2026, 10, 22))
-    later = _opp(title="L", url="https://l.dev", starts_on=date(2026, 12, 1))
-    soon = _opp(title="S", url="https://s.dev", starts_on=date(2026, 11, 1))
-    done = _opp(title="D", url="https://d.dev", assessment=_assessment())
-    picked = run.worth_checking([research, online, later, soon, done], TODAY, 10)
-    assert [o.title for o in picked] == ["S", "L", "O", "R"]
+def test_worth_checking_puts_nearby_hackathons_first_and_research_last() -> None:
+    def opp(title: str, **kw: object) -> Opportunity:
+        return _opp(title=title, url=f"https://{title.lower()}.dev", **kw)
+
+    picked = run.worth_checking(
+        [
+            opp("Research", kind="research", location="Toronto", starts_on=date(2026, 10, 21)),
+            opp(
+                "Rome conf", kind="conference", location="Rome, Italy", starts_on=date(2026, 10, 22)
+            ),
+            opp("Toronto conf", kind="conference", location="Toronto", starts_on=date(2026, 12, 1)),
+            opp("Online hack", online=True, location="Online", starts_on=date(2026, 10, 22)),
+            opp("SF hack", location="San Francisco, CA, USA", starts_on=date(2026, 10, 23)),
+            opp(
+                "Hamilton hack later",
+                location="Hamilton, Ontario, Canada",
+                starts_on=date(2026, 12, 1),
+            ),
+            opp("Toronto hack", location="Toronto", starts_on=date(2026, 11, 1)),
+            opp("Checked", location="Toronto", assessment=_assessment()),
+        ],
+        TODAY,
+        10,
+        ["Toronto", "Waterloo"],
+    )
+    assert [o.title for o in picked] == [
+        "Toronto hack",
+        "Hamilton hack later",
+        "SF hack",
+        "Online hack",
+        "Toronto conf",
+        "Rome conf",
+        "Research",
+    ]
 
 
 def test_check_events_saves_results_and_survives_one_failure(
