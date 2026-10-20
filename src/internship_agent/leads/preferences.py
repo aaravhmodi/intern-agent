@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
+from internship_agent.db import Table
 from internship_agent.leads.schemas import (
     Lead,
     LeadStatus,
@@ -23,15 +24,20 @@ def _normalize(rule: str) -> str:
 
 
 class PreferenceStore:
-    def __init__(self, path: Path) -> None:
-        self.path = path
+    def __init__(self, path: Path, table: Table | None = None) -> None:
+        self.path, self.table = path, table
 
     def load(self) -> list[Preference]:
+        if self.table:
+            return [Preference.model_validate_json(data) for _, data in self.table.rows()]
         if not self.path.exists():
             return []
         return _PREFS.validate_json(self.path.read_bytes())
 
     def save(self, prefs: list[Preference]) -> None:
+        if self.table:
+            self.table.put([(p.id, p.model_dump_json()) for p in prefs], replace_all=True)
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_bytes(_PREFS.dump_json(prefs, indent=2))
 

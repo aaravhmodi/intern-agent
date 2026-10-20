@@ -1,6 +1,5 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
-import json
 import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -10,7 +9,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from internship_agent import mailer, notify
+from internship_agent import db, mailer, notify
 from internship_agent.ai import (
     STATUS_FROM_NOTE,
     assess_fit,
@@ -67,8 +66,6 @@ def _openai(settings: Settings) -> OpenAI:
 
 def _record_openai_usage(settings: Settings, operation: str, model: str, usage: Any) -> None:
     """Store token counts only, so scheduled AI spending can be audited."""
-    path = settings.data_dir / "openai-usage.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
     details = getattr(usage, "input_tokens_details", None)
     cached = getattr(details, "cached_tokens", 0) or 0
     record = {
@@ -90,8 +87,7 @@ def _record_openai_usage(settings: Settings, operation: str, model: str, usage: 
             / 1_000_000,
             8,
         )
-    with path.open("a", encoding="utf-8") as log:
-        log.write(json.dumps(record) + "\n")
+    db.append(settings, "openai-usage", record)
 
 
 def resume_text(settings: Settings) -> str:
@@ -99,7 +95,8 @@ def resume_text(settings: Settings) -> str:
 
 
 def preference_store(settings: Settings) -> PreferenceStore:
-    return PreferenceStore(settings.data_dir / "preferences.json")
+    path = settings.data_dir / "preferences.json"
+    return PreferenceStore(path, db.table(settings, "preferences"))
 
 
 def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
@@ -191,11 +188,8 @@ XAI_BASE_URL = "https://api.x.ai/v1"
 
 def _log_xai(settings: Settings, region: Region, usage: dict[str, int]) -> None:
     """Record each Grok call's token usage so spending on the xAI credit is visible."""
-    log = settings.data_dir / "xai-usage.jsonl"
-    log.parent.mkdir(parents=True, exist_ok=True)
     record = {"at": datetime.now(UTC).isoformat(), "region": region.value, **usage}
-    with log.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
+    db.append(settings, "xai-usage", record)
 
 
 def startup_postings(founder: Lead) -> list[Lead]:
@@ -403,16 +397,13 @@ def send_email(
     lead.sent_to = to.strip().lower()
     lead.status = LeadStatus.CONTACTED
     store.upsert(lead)
-    log = settings.data_dir / "sent-log.jsonl"
-    with log.open("a", encoding="utf-8") as f:
-        at = lead.sent_at.isoformat()
-        record = {"at": at, "key": key, "to": lead.sent_to, "subject": subject}
-        f.write(json.dumps(record) + "\n")
+    record = {"at": lead.sent_at.isoformat(), "key": key, "to": lead.sent_to, "subject": subject}
+    db.append(settings, "sent-log", record)
     return lead
 
 
 def answer_bank(settings: Settings) -> AnswerBank:
-    return AnswerBank(settings.data_dir / "answer-bank.json")
+    return AnswerBank(settings.data_dir / "answer-bank.json", db.table(settings, "answer_bank"))
 
 
 def _use_gmail_for_applications(settings: Settings, answers: list[PreparedAnswer]) -> None:
@@ -725,13 +716,9 @@ class DailyReport:
 
 def _run_ai_cost(settings: Settings, started: datetime) -> float:
     """Add token-based Luna estimates for calls recorded during this run."""
-    path = settings.data_dir / "openai-usage.jsonl"
-    if not path.exists():
-        return 0.0
     total = 0.0
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for record in db.read_log(settings, "openai-usage"):
         try:
-            record = json.loads(line)
             if datetime.fromisoformat(record["at"]) >= started:
                 total += float(record.get("estimated_usd", 0))
         except (ValueError, KeyError, TypeError):

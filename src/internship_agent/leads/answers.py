@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 
+from internship_agent.db import Table
 from internship_agent.leads.schemas import FormQuestion, PreparedAnswer, QuestionKind
 
 # Questions only the candidate can answer. Never guessed by AI.
@@ -74,16 +75,21 @@ def validate(question: FormQuestion, answer: str) -> str | None:
 class AnswerBank:
     """Answers the candidate typed for personal questions, reused across applications."""
 
-    def __init__(self, path: Path) -> None:
-        self.path = path
+    def __init__(self, path: Path, table: Table | None = None) -> None:
+        self.path, self.table = path, table
 
     def load(self) -> dict[str, str]:
+        if self.table:
+            return {key: json.loads(data) for key, data in self.table.rows() if key}
         if not self.path.exists():
             return {}
         data: dict[str, str] = json.loads(self.path.read_text(encoding="utf-8"))
         return data
 
     def remember(self, question: str, answer: str) -> None:
+        if self.table:
+            self.table.put([(normalize(question), json.dumps(answer.strip()))])
+            return
         bank = self.load()
         bank[normalize(question)] = answer.strip()
         self.path.parent.mkdir(parents=True, exist_ok=True)

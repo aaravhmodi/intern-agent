@@ -1,11 +1,10 @@
 import json
 from pathlib import Path
-from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-import psycopg
 from pydantic import TypeAdapter
 
+from internship_agent.db import Table
 from internship_agent.leads.schemas import Lead
 
 _LEADS = TypeAdapter(list[Lead])
@@ -53,22 +52,11 @@ class PostgresLeadStore:
     """
 
     def __init__(self, url: str) -> None:
-        self.url = url
+        self.table = Table(url, "leads")
         self._loaded: dict[str, str] = {}
 
-    def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
-        conn = psycopg.connect(self.url)
-        # id keeps the order leads were added in, which callers rely on.
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS leads ("
-            "id bigserial, key text PRIMARY KEY, data jsonb NOT NULL)"
-        )
-        return conn
-
     def load(self) -> list[Lead]:
-        with self._connect() as conn:
-            rows = conn.execute("SELECT data::text FROM leads ORDER BY id").fetchall()
-        leads = [Lead.model_validate_json(data) for (data,) in rows]
+        leads = [Lead.model_validate_json(data) for _, data in self.table.rows()]
         self._loaded = {lead.key: lead.model_dump_json() for lead in leads}
         return leads
 
@@ -78,26 +66,17 @@ class PostgresLeadStore:
             for lead in leads
             if self._loaded.get(lead.key) != (data := lead.model_dump_json())
         ]
-        with self._connect() as conn, conn.cursor() as cur:
-            cur.executemany(_UPSERT, changed)
+        self.table.put(list(changed))
         self._loaded.update(changed)
 
     def get(self, key: str) -> Lead:
-        with self._connect() as conn:
-            row = conn.execute("SELECT data::text FROM leads WHERE key = %s", (key,)).fetchone()
-        if row is None:
+        rows = self.table.rows(key)
+        if not rows:
             raise KeyError(key)
-        return Lead.model_validate_json(row[0])
+        return Lead.model_validate_json(rows[0][1])
 
     def upsert(self, updated: Lead) -> None:
-        with self._connect() as conn:
-            conn.execute(_UPSERT, (updated.key, updated.model_dump_json()))
-
-
-_UPSERT = (
-    "INSERT INTO leads (key, data) VALUES (%s, %s) "
-    "ON CONFLICT (key) DO UPDATE SET data = excluded.data"
-)
+        self.table.put([(updated.key, updated.model_dump_json())])
 
 
 def open_lead_store(data_dir: Path, database_url: str | None) -> LeadStore | PostgresLeadStore:

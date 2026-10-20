@@ -6,14 +6,13 @@ someone who has written back or whose address bounced. If the mailbox can't be r
 nothing is sent.
 """
 
-import json
 import time
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
-from internship_agent import mailer
+from internship_agent import db, mailer
 from internship_agent.config import Settings
 from internship_agent.leads.followups import (
     TEMPLATES,
@@ -58,15 +57,8 @@ class FollowupReport(BaseModel):
 
 def _logged_subject(settings: Settings, key: str) -> str | None:
     """The subject the first email went out with, from the send log."""
-    log = settings.data_dir / "sent-log.jsonl"
-    if not log.exists():
-        return None
     subject = None
-    for line in log.read_text(encoding="utf-8").splitlines():
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue
+    for record in db.read_log(settings, "sent-log"):
         if record.get("key") == key and not record.get("followup"):
             subject = record.get("subject")
     return subject
@@ -213,15 +205,14 @@ def run_followups(
                 )
             )
             store.upsert(lead)
-            with (settings.data_dir / "sent-log.jsonl").open("a", encoding="utf-8") as log:
-                record = {
-                    "at": moment.isoformat(),
-                    "key": lead.key,
-                    "to": sending.to,
-                    "subject": sending.subject,
-                    "followup": number,
-                }
-                log.write(json.dumps(record) + "\n")
+            record = {
+                "at": moment.isoformat(),
+                "key": lead.key,
+                "to": sending.to,
+                "subject": sending.subject,
+                "followup": number,
+            }
+            db.append(settings, "sent-log", record)
             if pause_seconds:
                 time.sleep(pause_seconds)
         report.sent.append(sending)
