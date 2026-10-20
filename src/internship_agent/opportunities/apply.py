@@ -69,6 +69,19 @@ SIGNED_IN = re.compile(
     r"your events|my tickets)\b",
     re.I,
 )
+_SIGN_IN_CONTROL = re.compile(r"^(sign ?in|log ?in|sign ?up|continue with \w+|send code)$", re.I)
+
+
+def nothing_to_sign_in(snap: "Snapshot") -> bool:
+    """After a sign-in, a page with no sign-in link or button and no field left to fill
+    (Luma's "create a passkey?" prompt, say) means the session exists."""
+    return not any(
+        _SIGN_IN_CONTROL.match(e.label.strip())
+        or (e.tag in ("input", "textarea") and e.type not in ("checkbox", "radio", "search"))
+        for e in snap.elements
+    )
+
+
 # Bot checks (Cloudflare and the like) that show a page instead of the site.
 HUMAN_CHECK = re.compile(
     r"verify (that )?you are (a )?human|verifying you are human|just a moment\.\.\.|"
@@ -272,6 +285,10 @@ def run(
         if step.outcome == "submitted":
             if done_text.search(snap.text):
                 return done("submitted", _quote(snap.text, done_text), shot=True)
+            if done_text is SIGNED_IN and acted and nothing_to_sign_in(snap):
+                return done(
+                    "submitted", "Signed in: no sign-in form or link left on the page", shot=True
+                )
             return done(
                 "uncertain",
                 "The agent thought it was done, but the page doesn't "

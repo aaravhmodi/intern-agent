@@ -167,6 +167,42 @@ def test_waits_for_a_person_at_a_human_check_then_follows_the_emailed_link(tmp_p
     assert "you cleared a 'verify you're human' check" in " ".join(result.steps)
 
 
+def test_a_quiet_page_after_signing_in_counts_but_a_code_page_does_not(tmp_path: Path) -> None:
+    passkey = Snapshot(
+        "https://luma.com/home",
+        "Create a Passkey · Create Event",
+        [
+            Element(0, "button", label="Create Passkey"),
+            Element(1, "button", label="Not Now"),
+            Element(2, "a", label="Create Event"),
+        ],
+    )
+    said_done = BrowserStep(page="p", actions=[], outcome="submitted", reason="")
+    signed = apply.run(
+        FakePage([EMAIL_PAGE, passkey]),
+        LUMA,
+        {},
+        scripted(step(("fill", 0, "me@gmail.com"), ("click", 1, "")), said_done),
+        Path("r"),
+        tmp_path / "a.png",
+        confirmed=apply.SIGNED_IN,
+    )
+    assert (signed.status, signed.detail) == (
+        "submitted",
+        "Signed in: no sign-in form or link left on the page",
+    )
+    early = apply.run(
+        FakePage([EMAIL_PAGE, CODE_PAGE]),
+        LUMA,
+        {},
+        scripted(step(("fill", 0, "me@gmail.com"), ("click", 1, "")), said_done),
+        Path("r"),
+        tmp_path / "b.png",
+        confirmed=apply.SIGNED_IN,
+    )
+    assert early.status == "uncertain"  # the code field is still there
+
+
 def test_no_email_link_means_needs_you(tmp_path: Path) -> None:
     page = FakePage([EMAIL_PAGE])
     result = apply.run(
