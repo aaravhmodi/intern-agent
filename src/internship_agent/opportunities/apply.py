@@ -63,8 +63,14 @@ _OPTIONAL_BOX = re.compile(
     r"updates from (our )?(sponsors|partners)",
     re.I,
 )
+# Signs that a sign-in worked: an account menu or a way out.
+SIGNED_IN = re.compile(
+    r"\b(sign out|log ?out|my account|account settings|my profile|your profile|my events|"
+    r"your events|my tickets)\b",
+    re.I,
+)
 # Bot checks (Cloudflare and the like) that show a page instead of the site.
-_HUMAN_CHECK = re.compile(
+HUMAN_CHECK = re.compile(
     r"verify (that )?you are (a )?human|verifying you are human|just a moment\.\.\.|"
     r"checking (if the site connection is secure|your browser)|performing security verification",
     re.I,
@@ -199,7 +205,17 @@ def run(
     *,
     dry_run: bool = False,
     max_steps: int = MAX_STEPS,
+    confirmed: re.Pattern[str] | None = None,
+    wait_for_human: Callable[[], bool] | None = None,
+    inbox: Callable[[str], str | None] | None = None,
 ) -> EventApplication:
+    """Work through the event's pages until it confirms (or a rule stops it).
+
+    `confirmed` is the page text that counts as done (an application or RSVP by default).
+    With `wait_for_human` (someone is at the screen) a CAPTCHA waits for them instead of
+    stopping. `inbox("code")` / `inbox("link")` read the sign-in code or link just emailed.
+    """
+    done_text = confirmed or _CONFIRMED
     history: list[str] = []
 
     def done(status: str, detail: str, *, shot: bool = False) -> EventApplication:
@@ -225,7 +241,10 @@ def run(
         snap = page.snapshot()
         if not allowed(snap.url, event.url):
             return done("blocked", f"Left the event's sites for {_host(snap.url)}", shot=acted)
-        if snap.captcha or _HUMAN_CHECK.search(snap.text[:1500]):
+        if snap.captcha or HUMAN_CHECK.search(snap.text[:1500]):
+            if wait_for_human is not None and wait_for_human():
+                history.append("  you cleared a 'verify you're human' check")
+                continue
             return done(
                 "needs_you",
                 "A CAPTCHA or 'verify you're human' check appeared; finish this one yourself",
@@ -236,8 +255,8 @@ def run(
         if any(e.type == "password" for e in snap.elements):
             return done(
                 "needs_you",
-                f"Sign in to {_site(_host(snap.url))} in the application browser first "
-                "(internship-agent opportunities browser-login)",
+                f"{_site(_host(snap.url))} asks for a password; sign in there yourself "
+                "(internship-agent opportunities sign-in)",
             )
         if any(
             _PAYMENT.search(f"{e.label} {e.autocomplete}")
@@ -245,14 +264,14 @@ def run(
             if e.tag in ("input", "select")
         ):
             return done("blocked", "The form asks for payment details", shot=acted)
-        if acted and _CONFIRMED.search(snap.text):
-            return done("submitted", _quote(snap.text), shot=True)
+        if acted and done_text.search(snap.text):
+            return done("submitted", _quote(snap.text, done_text), shot=True)
 
         step = next_step(snap, history)
         history.append(f"Page {step_number + 1}: {step.page}")
         if step.outcome == "submitted":
-            if _CONFIRMED.search(snap.text):
-                return done("submitted", _quote(snap.text), shot=True)
+            if done_text.search(snap.text):
+                return done("submitted", _quote(snap.text, done_text), shot=True)
             return done(
                 "uncertain",
                 "The agent thought it was done, but the page doesn't "
@@ -267,12 +286,28 @@ def run(
 
         elements = {e.index: e for e in snap.elements}
         for action in step.actions:
+            if action.kind == "email_link":
+                link = inbox("link") if inbox else None
+                if not link or not allowed(link, event.url):
+                    return done("needs_you", "No sign-in link arrived by email", shot=acted)
+                page.open(link)
+                acted = True
+                history.append("  opened the sign-in link from your email")
+                continue
             element = elements.get(action.element)
             if reason := _refusal(action, element):
                 return done("blocked", f"Stopped before {reason}", shot=acted)
             assert element is not None
             if action.kind == "check" and _OPTIONAL_BOX.search(element.label):
                 history.append(f"  left unticked: {element.label[:60]}")
+                continue
+            if action.value == "@inbox_code":
+                code = inbox("code") if inbox else None
+                if not code:
+                    return done("needs_you", "No sign-in code arrived by email", shot=acted)
+                page.act(action, code, resume)
+                acted = True
+                history.append(f"  {action.kind} {element.label[:60]!r} = (emailed code)")
                 continue
             value = resolve(action.value, bank)
             if value is None:
@@ -293,9 +328,9 @@ def run(
     return done("uncertain", "Ran out of steps before the event confirmed anything", shot=acted)
 
 
-def _quote(text: str) -> str:
+def _quote(text: str, pattern: re.Pattern[str] = _CONFIRMED) -> str:
     """The page's own confirmation line, as proof."""
-    match = _CONFIRMED.search(text)
+    match = pattern.search(text)
     if match is None:
         return "Confirmed"
     start = text.rfind("\n", 0, match.start()) + 1

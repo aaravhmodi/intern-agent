@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from internship_agent.applications.browser import _visible_captcha
-from internship_agent.opportunities.apply import Element, Snapshot
+from internship_agent.opportunities.apply import HUMAN_CHECK, Element, Snapshot
 from internship_agent.opportunities.schemas import StepAction
 
 # Numbers every visible field and button so the model can name them.
@@ -41,6 +41,12 @@ _SNAPSHOT_JS = """() => {
 }"""
 
 
+# A ticked Turnstile / reCAPTCHA / hCaptcha box stays on the page; its token says it's solved.
+_SOLVED_JS = """() => Array.from(document.querySelectorAll(
+  "input[name='cf-turnstile-response'], textarea[name='g-recaptcha-response'], " +
+  "textarea[name='h-captcha-response']")).some(el => (el.value || "").length > 20)"""
+
+
 class PlaywrightPage:
     def __init__(self, context: Any) -> None:
         self.context = context
@@ -60,7 +66,22 @@ class PlaywrightPage:
         self._latest()
         elements = [Element(**e) for e in self.page.evaluate(_SNAPSHOT_JS)]
         text = self.page.locator("body").inner_text(timeout=8000)
-        return Snapshot(self.page.url, text, elements, _visible_captcha(self.page))
+        captcha = _visible_captcha(self.page) and not self.page.evaluate(_SOLVED_JS)
+        return Snapshot(self.page.url, text, elements, captcha)
+
+    def wait_for_human(self, timeout_seconds: int = 240) -> bool:
+        """Someone is at the screen: wait for them to clear the check. True once it's gone."""
+        for _ in range(timeout_seconds // 2):
+            self.page.wait_for_timeout(2000)
+            snap = self.snapshot()
+            if not snap.captcha and not HUMAN_CHECK.search(snap.text[:1500]):
+                return True
+        return False
+
+    def sessions(self) -> dict[str, Any]:
+        """Cookies of every site signed in to, in Playwright's portable form."""
+        state: dict[str, Any] = self.context.storage_state()
+        return state
 
     def act(self, action: StepAction, value: str, resume: Path) -> None:
         target = self.page.locator(f'[data-agent-i="{action.element}"]').first
@@ -94,7 +115,7 @@ class PlaywrightPage:
 
 @contextmanager
 def saved_browser(browser_dir: Path, headless: bool = True) -> Iterator[PlaywrightPage]:
-    """The persistent profile you signed in to with `browser-login`."""
+    """The persistent application profile (sign-ins come from `opportunities sign-in`)."""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as playwright:
@@ -105,3 +126,10 @@ def saved_browser(browser_dir: Path, headless: bool = True) -> Iterator[Playwrig
             yield PlaywrightPage(context)
         finally:
             context.close()
+
+
+def import_sessions(browser_dir: Path, cookies: list[dict[str, Any]]) -> int:
+    """Add sign-in cookies (exported elsewhere) to the saved profile. Returns how many."""
+    with saved_browser(browser_dir) as page:
+        page.context.add_cookies(cookies)
+    return len(cookies)

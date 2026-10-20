@@ -133,7 +133,7 @@ def test_registers_from_saved_answers_and_keeps_proof(tmp_path: Path) -> None:
             [landing(elements=[Element(0, "input", "password", "Password")])],
             [],
             "needs_you",
-            "Sign in to devpost.com",
+            "devpost.com asks for a password",
         ),
         (
             [landing(url="https://evil.example/")],

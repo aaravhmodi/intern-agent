@@ -518,6 +518,36 @@ def find_events() -> dict[str, Any]:
     return {"added": [_opportunity_view(o) for o in added]}
 
 
+class Cookie(BaseModel):
+    """One browser cookie in Playwright's form; values are never logged."""
+
+    model_config = {"extra": "allow"}
+    name: str
+    value: str
+    domain: str
+    path: str = "/"
+
+
+class SessionsRequest(BaseModel):
+    cookies: list[Cookie]
+
+
+@app.post("/api/browser-sessions")
+def browser_sessions(request: SessionsRequest) -> dict[str, Any]:
+    """Sign-ins made on your laptop (`opportunities sign-in`), for the application browser."""
+    from internship_agent.opportunities.browser import import_sessions
+
+    allowed = tuple(d for _, _, domains in opportunity_run.SIGN_IN_SITES.values() for d in domains)
+    cookies = [c.model_dump() for c in request.cookies if c.domain.lstrip(".").endswith(allowed)]
+    try:
+        added = import_sessions(get_settings().application_browser_dir, cookies)
+    except Exception as exc:  # most often: the browser is busy applying right now
+        raise HTTPException(
+            409, f"Couldn't open the application browser ({type(exc).__name__})"
+        ) from exc
+    return {"added": added}
+
+
 @app.post("/api/opportunities/apply")
 def apply_to_event(request: KeyRequest) -> dict[str, Any]:
     """Apply to a hackathon or RSVP to an event now, in the saved browser (uses OpenAI)."""

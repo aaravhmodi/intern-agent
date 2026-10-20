@@ -83,10 +83,12 @@ class StepAction(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["fill", "select", "check", "uncheck", "click", "upload_resume"]
+    # email_link opens the sign-in link the site just emailed (element is ignored).
+    kind: Literal["fill", "select", "check", "uncheck", "click", "upload_resume", "email_link"]
     element: int
     # Text to type or the option to pick; "@bank:<question>" uses a saved personal answer,
-    # filled in locally so personal details never reach the model. "" for clicks and boxes.
+    # filled in locally so personal details never reach the model; "@inbox_code" is the
+    # sign-in code the site just emailed. "" for clicks and boxes.
     value: str
 
 
