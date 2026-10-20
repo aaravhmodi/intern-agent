@@ -1,5 +1,6 @@
 # Runs the dashboard on a home server, reachable only over Tailscale.
 # Set TAILSCALE_IP in .env (e.g. TAILSCALE_IP=100.76.57.23) and put your resume PDF in data/.
+# Leads live in the homelab Postgres: set DATABASE_URL=postgresql://user:pass@postgres:5432/intern_agent.
 services:
   dashboard:
     build: .
@@ -13,3 +14,9 @@ services:
       - ./data:/app/data
     ports:
       - "${TAILSCALE_IP}:8765:8765"
+    networks: [default, homelab]
+
+networks:
+  homelab:
+    name: homelab_default
+    external: true

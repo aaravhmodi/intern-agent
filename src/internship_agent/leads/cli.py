@@ -14,7 +14,13 @@ from internship_agent.followup_run import run_followups
 from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Region, Segment
-from internship_agent.leads.store import LeadStore, load_inbox, merge
+from internship_agent.leads.store import (
+    LeadStore,
+    PostgresLeadStore,
+    load_inbox,
+    merge,
+    open_lead_store,
+)
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.resume import load_resume_text
@@ -35,8 +41,8 @@ console = Console()
 DEFAULT_OUTREACH = Path("data/outreach.md")
 
 
-def _store(settings: Settings) -> LeadStore:
-    return LeadStore(settings.data_dir / "leads.json")
+def _store(settings: Settings) -> LeadStore | PostgresLeadStore:
+    return open_lead_store(settings.data_dir, settings.database_url)
 
 
 def _openai(settings: Settings) -> OpenAI:

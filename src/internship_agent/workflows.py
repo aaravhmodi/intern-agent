@@ -45,7 +45,7 @@ from internship_agent.leads.schemas import (
 )
 from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
-from internship_agent.leads.store import LeadStore, merge
+from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
 from internship_agent.sources import form_d, simplify, startups
 from internship_agent.sources.application_form import fetch_questions
@@ -55,8 +55,8 @@ from internship_agent.sources.startup_jobs import find_intern_roles
 from internship_agent.x_search import post_confirms, search_x_raises
 
 
-def lead_store(settings: Settings) -> LeadStore:
-    return LeadStore(settings.data_dir / "leads.json")
+def lead_store(settings: Settings) -> LeadStore | PostgresLeadStore:
+    return open_lead_store(settings.data_dir, settings.database_url)
 
 
 def _openai(settings: Settings) -> OpenAI:

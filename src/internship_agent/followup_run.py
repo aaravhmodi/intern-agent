@@ -23,7 +23,7 @@ from internship_agent.leads.followups import (
     reply_subject,
 )
 from internship_agent.leads.schemas import Lead, LeadStatus, Note
-from internship_agent.leads.store import LeadStore
+from internship_agent.leads.store import open_lead_store
 from internship_agent.mailbox import Mailbox
 
 
@@ -113,7 +113,7 @@ def run_followups(
     if not settings.gmail_address or not settings.gmail_app_password:
         raise mailer.MailError("Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD in .env to send email.")
     moment = now or datetime.now(UTC)
-    store = LeadStore(settings.data_dir / "leads.json")
+    store = open_lead_store(settings.data_dir, settings.database_url)
     report = FollowupReport(dry_run=dry_run)
     leads = store.load()
     misaddressed = _misaddressed(leads)

@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import psycopg
 from pydantic import TypeAdapter
 
 from internship_agent.leads.schemas import Lead
@@ -40,6 +42,67 @@ class LeadStore:
         else:
             leads.append(updated)
         self.save(leads)
+
+
+class PostgresLeadStore:
+    """The same store as one Postgres row per lead, so writers no longer undo each other.
+
+    save() writes only the leads that changed since this store's last load(): a long job
+    that loaded every lead and saves at the end (the morning scrape) adds its new leads
+    without reverting a status you set on the dashboard meanwhile. Leads are never deleted.
+    """
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+        self._loaded: dict[str, str] = {}
+
+    def _connect(self) -> psycopg.Connection[tuple[Any, ...]]:
+        conn = psycopg.connect(self.url)
+        # id keeps the order leads were added in, which callers rely on.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS leads ("
+            "id bigserial, key text PRIMARY KEY, data jsonb NOT NULL)"
+        )
+        return conn
+
+    def load(self) -> list[Lead]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT data::text FROM leads ORDER BY id").fetchall()
+        leads = [Lead.model_validate_json(data) for (data,) in rows]
+        self._loaded = {lead.key: lead.model_dump_json() for lead in leads}
+        return leads
+
+    def save(self, leads: list[Lead]) -> None:
+        changed = [
+            (lead.key, data)
+            for lead in leads
+            if self._loaded.get(lead.key) != (data := lead.model_dump_json())
+        ]
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.executemany(_UPSERT, changed)
+        self._loaded.update(changed)
+
+    def get(self, key: str) -> Lead:
+        with self._connect() as conn:
+            row = conn.execute("SELECT data::text FROM leads WHERE key = %s", (key,)).fetchone()
+        if row is None:
+            raise KeyError(key)
+        return Lead.model_validate_json(row[0])
+
+    def upsert(self, updated: Lead) -> None:
+        with self._connect() as conn:
+            conn.execute(_UPSERT, (updated.key, updated.model_dump_json()))
+
+
+_UPSERT = (
+    "INSERT INTO leads (key, data) VALUES (%s, %s) "
+    "ON CONFLICT (key) DO UPDATE SET data = excluded.data"
+)
+
+
+def open_lead_store(data_dir: Path, database_url: str | None) -> LeadStore | PostgresLeadStore:
+    """Postgres when DATABASE_URL is set (the server); otherwise data/leads.json."""
+    return PostgresLeadStore(database_url) if database_url else LeadStore(data_dir / "leads.json")
 
 
 def normalize_url(url: str) -> str:

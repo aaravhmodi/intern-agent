@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     resume_path: Path = Path("../website/public/ModiAaravResume.pdf")
     candidate_context_path: Path = Path("candidate_context.md")
     data_dir: Path = Path("data")
+    # Postgres for leads (set on the server); without it they live in data/leads.json.
+    database_url: str | None = None
     # Open (not applied/skipped) postings the dashboard keeps topped up.
     target_open_postings: int = 15
     # Grok is used only for searching X posts (x_search), kept cheap and capped.

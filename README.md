@@ -72,7 +72,7 @@ flowchart LR
     BOARDS[Startup job boards<br/>Greenhouse · Ashby · Lever]
     WEB[OpenAI web search<br/>recent funding rounds]
   end
-  SIM & BOARDS & WEB --> STORE[(data/leads.json)]
+  SIM & BOARDS & WEB --> STORE[(Postgres leads table)]
   STORE --> SCORE[Fit score vs resume<br/>+ your learned rules]
   SCORE --> PREP[Answers + cover letter<br/>answer bank, then AI]
   PREP --> SUBMIT[Playwright submits<br/>the real form]
@@ -86,7 +86,7 @@ flowchart LR
 | Part | Where | What it does |
 |---|---|---|
 | Sources | `sources/simplify.py`, `sources/startup_jobs.py`, `sources/startups.py` | Collect Winter 2027 postings and recently funded startups; every lead keeps its source URL |
-| Lead store | `leads/store.py`, `leads/schemas.py` | One JSON file (`data/leads.json`) holding leads, fit, drafts and application state |
+| Lead store | `leads/store.py`, `leads/schemas.py` | A Postgres `leads` table (one JSONB row per lead) when `DATABASE_URL` is set, else `data/leads.json`; holds leads, fit, drafts and application state |
 | Scoring | `workflows.score`, `ai.py`, `leads/preferences.py` | Fit 0-100 from the resume and posting text; your notes become skip/boost rules |
 | Answers | `workflows.prepare_application`, `leads/answers.py`, `sources/application_form.py` | Reads the posting's real form; personal questions come from `data/answer-bank.json`, the rest are AI-written |
 | Submission | `applications/browser.py`, `applications/verification_mail.py` | Fills and submits the form in a saved browser profile; reads Greenhouse's emailed code from Gmail; marks anything it can't confirm `uncertain` and never retries it on its own |
