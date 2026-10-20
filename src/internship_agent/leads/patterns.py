@@ -49,7 +49,7 @@ NOT_COMPANY = {
     "medium.com",
 }
 _RECRUITER = re.compile(r"recruit|talent|people partner|\bhr\b|human resources", re.I)
-_ENGINEER = re.compile(r"engineer|developer|\bswe\b|programmer", re.I)
+_ENGINEER = re.compile(r"engineer|developer|\bswe\b|programmer|technical staff", re.I)
 _LEADER = re.compile(r"chief|\bcto\b|\bceo\b|found(?:er|ing)|\bvp\b|head|director", re.I)
 
 
@@ -65,34 +65,46 @@ def format_of(address: str, name: str) -> str | None:
     return None
 
 
-def results(leads: list[Lead], now: datetime) -> Iterator[tuple[str, str, bool]]:
-    """(domain, format, delivered) for every guess whose result is known."""
+def results(leads: list[Lead], now: datetime) -> Iterator[tuple[str, str, bool, bool]]:
+    """(domain, format, delivered, settled) for every guess with a known result.
+
+    A bounce comes back in minutes but a delivery only shows after a day: a send younger
+    than that is yielded only if it bounced, and marked unsettled.
+    """
     for lead in leads:
         if not lead.contact_name:
             continue
         for address in lead.bounced_emails:
             if fmt := format_of(address, lead.contact_name):
-                yield address.rsplit("@", 1)[-1], fmt, False
-        # A bounce comes back in minutes but a delivery only shows after a day, so a send
-        # younger than that counts for neither (it would make every format look worse).
-        if not lead.sent_to or not lead.sent_at or now - lead.sent_at < SETTLED:
+                yield address.rsplit("@", 1)[-1], fmt, False, True
+        if not lead.sent_to or not lead.sent_at:
             continue
-        if fmt := format_of(lead.sent_to, lead.contact_name):
-            yield lead.sent_to.rsplit("@", 1)[-1], fmt, lead.followups_stopped != "bounced"
+        settled = now - lead.sent_at >= SETTLED
+        bounced = lead.followups_stopped == "bounced"
+        if (settled or bounced) and (fmt := format_of(lead.sent_to, lead.contact_name)):
+            yield lead.sent_to.rsplit("@", 1)[-1], fmt, not bounced, settled
 
 
 def outcomes(leads: list[Lead], now: datetime) -> dict[str, list[int]]:
-    """[delivered, bounced] per format, across every company."""
+    """[delivered, bounced] per format, across every company.
+
+    Only settled sends count: fresh bounces without the fresh deliveries beside them would
+    make every format look worse than it is.
+    """
     counts = {fmt: [0, 0] for fmt in PATTERNS}
-    for _, fmt, delivered in results(leads, now):
-        counts[fmt][0 if delivered else 1] += 1
+    for _, fmt, delivered, settled in results(leads, now):
+        if settled:
+            counts[fmt][0 if delivered else 1] += 1
     return counts
 
 
 def by_domain(leads: list[Lead], now: datetime) -> dict[str, dict[str, bool]]:
-    """Per domain, each format tried there and whether it reached someone."""
+    """Per domain, each format tried there and whether it reached someone.
+
+    A bounce counts at once: it already shows that format is wrong at that company.
+    """
     known: dict[str, dict[str, bool]] = {}
-    for domain, fmt, delivered in results(leads, now):
+    for domain, fmt, delivered, _ in results(leads, now):
         seen = known.setdefault(domain, {})
         seen[fmt] = seen.get(fmt, False) or delivered
     return known

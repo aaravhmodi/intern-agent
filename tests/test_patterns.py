@@ -39,6 +39,8 @@ def test_outcomes_learn_from_bounces_and_settled_sends() -> None:
     assert counts["first.last"] == [1, 0]
     assert counts["flast"] == [0, 0]
     assert counts["f.last"] == [0, 0]  # a bounce is not counted before deliveries can be
+    # ...but at the company itself it already rules the format out.
+    assert patterns.by_domain(leads, NOW)["acme.ai"]["f.last"] is False
     assert patterns.guess_email("Søren Brøkær", "pandektes.com", "first.last") == (
         "soren.brokaer@pandektes.com"
     )
@@ -122,6 +124,7 @@ def test_roles_pick_the_email() -> None:
     assert role("Senior Software Engineer") == role("Staff Engineer") == "engineer"
     assert role("Chief Executive Officer") == role("CTO") == role("VP of Engineering") == "founder"
     assert role("Founding Engineer") == "founder"
+    assert role("Member of Technical Staff") == "engineer"
 
 
 def test_a_published_address_is_used_as_is() -> None:
