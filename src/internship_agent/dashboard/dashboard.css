@@ -376,6 +376,10 @@ textarea.short { min-height: 80px; }
 
 /* Ask: a chat about you, your GitHub and the agent's data. */
 .ask-open { position: fixed; right: 22px; bottom: 22px; z-index: 20; min-height: 40px; padding: 9px 16px; border-radius: 99px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+/* With the side panel docked (wide screens) the button sits left of it, so it doesn't cover
+   the Notes Save button; when the panel is an overlay (narrow screens) it hides while that is open. */
+@media (min-width: 1251px) { .ask-open { right: calc(clamp(360px, 100vw - 646px, 425px) + 22px); } }
+@media (max-width: 1250px) { .app:has(aside.open) ~ .ask-open { display: none; } }
 .ask { position: fixed; right: 22px; bottom: 22px; z-index: 21; display: none; flex-direction: column; width: min(460px, calc(100vw - 24px)); height: min(640px, calc(100vh - 44px)); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 18px 60px rgba(0, 0, 0, .5); }
 .ask.open { display: flex; }
 .ask-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
