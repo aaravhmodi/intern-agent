@@ -334,9 +334,22 @@ def followups_cmd(
     send: Annotated[
         bool, typer.Option("--send", help="Send them. Without this, only show what would go.")
     ] = False,
+    check_only: Annotated[
+        bool,
+        typer.Option(
+            "--check-only",
+            help="Record replies and bounces in both inboxes and push new replies; send nothing.",
+        ),
+    ] = False,
 ) -> None:
     """Follow up on emails with no reply after 5 days, at most twice per person."""
     settings = get_settings()
+    # n8n already pushes replies in the main inbox; this covers the outreach Gmail's.
+    waiting = {
+        lead.key
+        for lead in _store(settings).load()
+        if lead.sent_from and lead.sent_at and lead.replied_at is None
+    }
     if send and not settings.followups_enabled:
         console.print("[red]Set FOLLOWUPS_ENABLED=true in .env to send follow-ups.[/red]")
         raise typer.Exit(1)
@@ -354,11 +367,30 @@ def followups_cmd(
             ) as outreach,
         ):
             report = run_followups(
-                settings, mailbox, dry_run=not send, pause_seconds=2, outreach_mailbox=outreach
+                settings,
+                mailbox,
+                dry_run=not (send or check_only),
+                pause_seconds=2,
+                outreach_mailbox=outreach,
+                send_due=not check_only,
             )
     except (MailboxError, MailError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
+    replied = [lead for lead in _store(settings).load() if lead.key in waiting and lead.replied_at]
+    if check_only and replied and settings.ntfy_topic:
+        names = ", ".join(f"{lead.contact_name} ({lead.company})" for lead in replied)
+        notify.send(
+            settings.ntfy_server,
+            settings.ntfy_topic,
+            notify.Push(
+                title=f"New reply: {names}"[:120],
+                message=f"{names} wrote back to {settings.outreach_gmail_address}. Answer from "
+                "that inbox so it stays in the same thread.",
+                priority=4,
+                tags=["email"],
+            ),
+        )
     for item in report.sent:
         verb = "sent" if send else "would send"
         console.print(f"{verb} follow-up {item.number}: {item.contact} at {item.company}")

@@ -1,0 +1,10 @@
+[Unit]
+Description=Check both Gmail inboxes every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+AccuracySec=1min
+Unit=internship-inbox-check.service
+
+[Install]
+WantedBy=timers.target

@@ -101,6 +101,7 @@ def run_followups(
     dry_run: bool = False,
     pause_seconds: float = 0,
     outreach_mailbox: Mailbox | None = None,
+    send_due: bool = True,
 ) -> FollowupReport:
     """Stop follow-ups for anyone who replied, then send the ones that are due.
 
@@ -154,6 +155,8 @@ def run_followups(
                     Note(at=moment, text=f"The email to {lead.sent_to} bounced; no follow-ups.")
                 )
                 store.upsert(lead)
+            continue
+        if not send_due:  # only recording replies and bounces this time
             continue
         if len(lead.followups) >= len(TEMPLATES):
             report.finished += 1

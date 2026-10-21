@@ -249,6 +249,10 @@ as leads of their own. `guess-send` emails them only once the CEO's email has sh
 company's address format (a guess with no bounce a day later); a format that bounced at a
 company is never tried there again. Everyone gets the same email as the CEOs. New
 outreach goes from `OUTREACH_GMAIL_ADDRESS` when set, so bounces stay off the main Gmail.
+Every 30 minutes the server runs `leads followups --check-only` (systemd timer
+`internship-inbox-check`): it records replies and bounces in both inboxes, so the next guess
+learns from a bounce within half an hour, and pushes new replies to the outreach Gmail to
+ntfy (n8n already pushes the main inbox's). It never sends.
 
 ## Opportunity agent
 

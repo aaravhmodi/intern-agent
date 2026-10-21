@@ -165,6 +165,20 @@ def test_outreach_sent_from_the_backup_gmail_is_checked_and_followed_up_there(
     assert settings.gmail_account(None)[0] == "me@gmail.com"
 
 
+def test_a_check_only_run_records_replies_and_bounces_but_sends_nothing(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    store = save(settings, emailed(), emailed("Acme", "Jane Doe"), emailed("Zeta", "Sam Lee"))
+    inbox = FakeMailbox({"jane@acme.io": SENT + timedelta(days=1)}, {"sam@zeta.io"})
+
+    report = run_followups(settings, inbox, now=NOW, send_due=False)
+
+    assert outbox == [] and report.sent == []  # Pranav's follow-up is due, but not sent
+    assert report.replied == ["Jane Doe at Acme"] and report.bounced == ["Sam Lee at Zeta"]
+    leads = store.load()
+    assert leads[1].replied_at is not None and leads[2].followups_stopped == "bounced"
+
+
 def test_someone_who_wrote_back_gets_nothing(
     settings: Settings, outbox: list[EmailMessage]
 ) -> None:
