@@ -1,7 +1,7 @@
 # Graph Report - opportunity-agent  (2026-10-20)
 
 ## Corpus Check
-- 103 files · ~127,225 words
+- 103 files · ~127,315 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 16 file(s) not represented in the graph (top: (none) 5, .service 4, .timer 4)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `725d7d5f`
+- Built from commit: `6b446c3b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -413,7 +413,7 @@ Nodes (38): Big-company postings from the SimplifyJobs off-season list, More peo
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Lead` connect `Lead` to `test_pipeline.py`, `simplify.py`, `notify.py`, `Settings`, `applications/browser.py`, `test_application_browser.py`, `test_daily_campaign.py`, `form_d.py`, `pytest`, `agenda.py`, `assess_fit`, `get_settings`, `app.py`, `typing`, `answers.py`, `leads/cli.py`, `internship_agent/ai.py`, `Table`, `Region`, `leads/schemas.py`, `patterns.py`, `test_notes.py`, `test_refill.py`, `export.py`, `send_email`, `FormQuestion`, `prepare_application`, `pipeline.py`, `test_agenda.py`, `find-founders.md`, `Person`, `rank`, `set_status`, `insights`, `open_lead_store`?**
-  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+  _High betweenness centrality (0.120) - this node is a cross-community bridge._
 - **Are the 112 inferred relationships involving `Lead` (e.g. with `Posting lead JSON appended to data/leads-inbox.json` and `items()`) actually correct?**
   _`Lead` has 112 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cmd`, `internship-agent`, `compose.yaml: the dashboard on a home server` to the rest of the system?**
@@ -421,7 +421,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `test_pipeline.py` be split into smaller, more focused modules?**
   _Cohesion score 0.12413793103448276 - nodes in this community are weakly interconnected._
 - **Why does `Settings` connect `Settings` to `test_sign_in.py`, `test_pipeline.py`, `notify.py`, `Opportunity`, `test_daily_campaign.py`, `internship_agent/cli.py`, `json`, `agenda.py`, `test_opportunities.py`, `get_settings`, `app.py`, `typing`, `answers.py`, `leads/cli.py`, `apply_events`, `Table`, `patterns.py`, `test_chat.py`, `client.py`, `test_notes.py`, `send_email`, `FormQuestion`, `checked`, `prepare_application`, `pipeline.py`, `test_auto_pick.py`, `test_agenda.py`, `test_people.py`, `run.py`, `Lead`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
+  _High betweenness centrality (0.102) - this node is a cross-community bridge._
 - **Are the 95 inferred relationships involving `Settings` (e.g. with `dashboard service, reachable only over Tailscale` and `answer()`) actually correct?**
   _`Settings` has 95 INFERRED edges - model-reasoned connections that need verification._
 - **Should `simplify.py` be split into smaller, more focused modules?**

@@ -152,12 +152,18 @@ _APPLIED_TO = re.compile(
     r"\b(?:applying to|application to|application for|interest in|applied to)\s+(?:the\s+)?"
     r"([A-Z0-9][\w&.'\- ]{1,40}?)(?=\s*(?:[!.,:|(\-–]|$| for | position| role| team))"
 )
+# "Astranis: Thank You for Launching Your Application".
+_NAME_FIRST = re.compile(
+    r"^([A-Z0-9][\w&.' \-]{1,40}?):\s+(?:thank you|thanks|your application)", re.I
+)
 
 
 def display_company(event: InboxEvent) -> str:
     """The company a mail is from: its lead's name, else the one its subject names (ATS
     mail comes from greenhouse-mail.io, not the company), else what was stored."""
-    if event.lead_key is None and (named := _APPLIED_TO.search(event.subject)):
+    if event.lead_key is None and (
+        named := _APPLIED_TO.search(event.subject) or _NAME_FIRST.match(event.subject)
+    ):
         return named.group(1).strip()
     return event.company
 

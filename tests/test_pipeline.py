@@ -358,6 +358,7 @@ def test_replies_are_not_pushed_twice() -> None:
         ("Thank you for applying to Vercel!", "Vercel"),
         ("Thank you for applying to Legend Biotech US", "Legend Biotech US"),
         ("Your application to Kodiak Robotics for Software Intern", "Kodiak Robotics"),
+        ("Astranis: Thank You for Launching Your Application", "Astranis"),
         ("Weekly digest", "us.greenhouse-mail.io"),  # nothing to go on: keep what was stored
     ],
 )
