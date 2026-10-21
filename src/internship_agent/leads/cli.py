@@ -258,11 +258,14 @@ def guess_send_cmd(
     retries: Annotated[
         bool, typer.Option(help="Also retry people whose guess bounced (up to 3 guesses).")
     ] = False,
+    area: Annotated[
+        str | None, typer.Option(help="Only toronto, europe, new-york, sf or others.")
+    ] = None,
 ) -> None:
     """Email people never emailed, at the address format most likely to work."""
     with busy(get_settings()):  # a deploy waits until this ends
         picked = guess_and_send(
-            get_settings(), limit, send=send, retries=retries, log=console.print
+            get_settings(), limit, send=send, retries=retries, area=area, log=console.print
         )
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
@@ -271,10 +274,13 @@ def guess_send_cmd(
 def inbox_send_cmd(
     limit: Annotated[int, typer.Option(help="Most company inboxes to email in this run.")] = 20,
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
+    area: Annotated[
+        str | None, typer.Option(help="Only toronto, europe, new-york, sf or others.")
+    ] = None,
 ) -> None:
     """Email the shared inboxes startups publish (careers@ first), once each."""
     with busy(get_settings()):  # a deploy waits until this ends
-        picked = inbox_send(get_settings(), limit, send=send, log=console.print)
+        picked = inbox_send(get_settings(), limit, send=send, area=area, log=console.print)
     console.print(f"{len(picked)} inbox(es) {'emailed' if send else 'would be emailed'}.")
 
 

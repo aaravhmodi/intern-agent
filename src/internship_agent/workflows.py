@@ -35,6 +35,7 @@ from internship_agent.leads.answers import (
     prefill,
     validate,
 )
+from internship_agent.leads.areas import in_area, spread
 from internship_agent.leads.deadlines import find_deadline
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import (
@@ -612,6 +613,7 @@ def guess_and_send(
     *,
     send: bool = False,
     retries: bool = False,
+    area: str | None = None,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[tuple[Lead, str]]:
@@ -620,7 +622,9 @@ def guess_and_send(
     With `retries`, someone whose guess bounced (found by the inbox check) is also picked,
     with the next most likely format, up to three guesses each. A company gets one guess a
     day until one reaches someone there; then its format is known and its recruiter and
-    engineer, who wait until then, are emailed with it. Dry run unless `send`.
+    engineer, who wait until then, are emailed with it. With `area`, only that batch's leads
+    (see leads/areas.py); "others" is split evenly across Europe, Canada and the USA.
+    Dry run unless `send`.
     """
     store = lead_store(settings)
     leads = store.load()
@@ -634,6 +638,10 @@ def guess_and_send(
         key=lambda lead: lead.fit.score if lead.fit else 0,
         reverse=True,
     )
+    if area:
+        wanted = [lead for lead in wanted if in_area(lead, area)]
+        if area == "others":
+            wanted = spread(wanted)
     picked: list[tuple[Lead, str]] = []
     domains: set[str] = set()
     # A shared inbox (careers@...) is written to once, however many people point at it.
@@ -689,6 +697,7 @@ def inbox_send(
     limit: int,
     *,
     send: bool = False,
+    area: str | None = None,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[Lead]:
@@ -707,6 +716,8 @@ def inbox_send(
         address = lead.company_email
         if lead.kind is not LeadKind.FOUNDER or not address or address in emailed:
             continue
+        if area and not in_area(lead, area):
+            continue
         if lead.company not in done:
             best.setdefault(lead.company, lead)
     ranked = sorted(
@@ -716,6 +727,8 @@ def inbox_send(
             -(lead.fit.score if lead.fit else 0),
         ),
     )
+    if area == "others":
+        ranked = spread(ranked)
     picked: list[Lead] = []
     for source in ranked[:limit]:
         inbox = Lead(

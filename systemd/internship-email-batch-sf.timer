@@ -1,0 +1,10 @@
+[Unit]
+Description=Email batch sf at 13:00 Toronto (10 AM in San Francisco)
+
+[Timer]
+OnCalendar=*-*-* 13:00:00 America/Toronto
+AccuracySec=1min
+Unit=internship-email-batch@sf.service
+
+[Install]
+WantedBy=timers.target

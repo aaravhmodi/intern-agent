@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# One outreach batch, five a day: email up to 20 people never emailed (best-guess address
-# format, sent from the outreach Gmail), topping up from startups' published shared inboxes
-# when there are fewer than 20 founders left to try.
+# One outreach batch: email people never emailed (best-guess address format, sent from the
+# outreach Gmail), topping up from startups' published shared inboxes when there are fewer
+# founders left than the batch size.
+#   run-email-batch.sh toronto|europe|new-york|sf   20 emails from that area
+#   run-email-batch.sh others                        40 emails spread across Europe, Canada, USA
 set -euo pipefail
 
+area=${1:?usage: run-email-batch.sh toronto|europe|new-york|sf|others}
 batch=20
+[ "$area" = others ] && batch=40
 cd /home/aaravmodi/projects/intern-agent
 run() {
   flock -w 3600 /tmp/intern-agent-workflows.lock \
     docker compose exec -T dashboard /app/.venv/bin/internship-agent leads "$@"
 }
 
-out=$(run guess-send --limit "$batch" --send | tee /dev/stderr)
+out=$(run guess-send --area "$area" --limit "$batch" --send | tee /dev/stderr)
 sent=$(grep -oE '^[0-9]+ founder' <<<"$out" | tail -1 | grep -oE '^[0-9]+' || echo 0)
 left=$((batch - sent))
 if [ "$left" -gt 0 ]; then
-  run inbox-send --limit "$left" --send
+  run inbox-send --area "$area" --limit "$left" --send
 fi
