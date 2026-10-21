@@ -448,7 +448,13 @@ def send_email(
     lead.status = LeadStatus.CONTACTED
     lead.notes.append(sent_note(settings, lead.sent_to, sender, lead.sent_at))
     store.upsert(lead)
-    record = {"at": lead.sent_at.isoformat(), "key": key, "to": lead.sent_to, "subject": subject}
+    record = {
+        "at": lead.sent_at.isoformat(),
+        "key": key,
+        "to": lead.sent_to,
+        "from": sender.lower(),
+        "subject": subject,
+    }
     db.append(settings, "sent-log", record)
     return lead
 

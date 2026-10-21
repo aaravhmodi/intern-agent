@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
-from internship_agent import agenda, chat, pipeline
+from internship_agent import agenda, batches, chat, db, pipeline
 from internship_agent.ai import draft_outreach
 from internship_agent.applications.browser import screenshot_path
 from internship_agent.config import get_settings
@@ -536,6 +536,7 @@ def job_pipeline() -> dict[str, Any]:
         "cards": pipeline.board(leads, found),
         "insights": pipeline.insights(leads, found, settings.outreach_gmail_address, date.today()),
         "inboxes": [address for address, _ in pipeline.inboxes(settings)],
+        "batches": batches.batches(leads, db.read_log(settings, "sent-log")),
         "last_scan": _pipeline_state["at"],
         "error": _pipeline_state["error"],
     }

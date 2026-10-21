@@ -416,6 +416,12 @@ textarea.short { min-height: 80px; }
 .funnel-bar { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--s1); }
 .funnel-num { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
 .funnel-num small { margin-left: 6px; color: var(--faint); }
+.batches { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.batches th { padding: 4px 8px; color: var(--faint); font-weight: 500; text-align: right; }
+.batches td { padding: 6px 8px; border-top: 1px solid var(--line); color: var(--ink); text-align: right; }
+.batches th:nth-child(-n+2), .batches td:nth-child(-n+2) { text-align: left; }
+.batches small { color: var(--faint); }
+@media (max-width: 640px) { .batches th:nth-child(2), .batches td:nth-child(2) { display: none; } }
 .brk-bar { display: flex; gap: 2px; height: 14px; }
 .brk-bar .seg { min-width: 3px; }
 .brk-bar .seg:last-child { border-radius: 0 4px 4px 0; }

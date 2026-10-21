@@ -360,6 +360,15 @@ function vizNotes(notes, median) {
   const all = median !== null && median !== undefined ? [...notes, { tone: "info", text: `Replies arrive ${lag} the first email.` }] : notes;
   return `<div class="viz-card wide"><h3>What this says</h3><ul class="takeaways">${all.map(n => `<li class="${esc(n.tone)}"><span aria-hidden="true">${mark[n.tone] || "•"}</span>${esc(n.text)}</li>`).join("") || `<li class="info"><span>•</span>Not enough mail yet to say much.</li>`}</ul></div>`;
 }
+// Each run of first emails: how many went out, bounced, got a reply, or are still waiting.
+function vizBatches(rows) {
+  const at = s => new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `<div class="viz-card wide"><h3>Outreach batches</h3>${rows.length ? `<table class="batches">
+    <thead><tr><th>Sent at</th><th>From</th><th>Sent</th><th>Bounced</th><th>Replied</th><th>Waiting</th></tr></thead>
+    <tbody>${rows.map(b => `<tr><td>${esc(at(b.started))}</td><td>${esc(b.from || "")}</td><td>${b.sent}</td>
+      <td>${b.bounced} <small>${pctOf(b.bounced, b.sent)}%</small></td><td>${b.replied} <small>${pctOf(b.replied, b.sent - b.bounced)}%</small></td>
+      <td>${b.waiting}</td></tr>`).join("")}</tbody></table>` : `<div class="hint">Nothing sent yet.</div>`}</div>`;
+}
 // Companies as a board: one column per stage in pipeline order, most recent first.
 const BOARD_COLUMNS = ["waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced"];
 const BOARD_CAP = 20;  // cards per column before "Show all"
@@ -397,6 +406,7 @@ function renderPipeline() {
       ${vizNotes(ins.notes, ins.median_reply_days)}
       ${vizDaily(ins.daily)}
       ${vizBreakdown(ins)}` : ""}
+    ${vizBatches(p.batches || [])}
     ${companyBoard(cards)}
   </div>`;
 }
