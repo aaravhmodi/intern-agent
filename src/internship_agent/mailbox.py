@@ -17,8 +17,21 @@ from pydantic import BaseModel
 from internship_agent.leads.followups import company_domain
 
 GMAIL_IMAP = "imap.gmail.com"
-# Bounce notices come from the mail system, not the person.
-_BOUNCE_SENDER = "mailer-daemon"
+# Bounce notices come from the mail system, not the person: Gmail's mailer-daemon, or the
+# company's own postmaster@ (Microsoft 365). Neither, nor a no-reply sender, is a reply.
+_SYSTEM_SENDERS = ("mailer-daemon", "postmaster", "no-reply", "noreply")
+
+
+def reply_search(sender: str, since: datetime) -> list[str]:
+    """IMAP search for mail from this person (or anyone at their company) since a day."""
+    skip = [part for name in _SYSTEM_SENDERS for part in ("NOT", "FROM", _quoted(name))]
+    return ["FROM", _quoted(sender), *skip, "SINCE", _imap_date(since)]
+
+
+def bounce_search(address: str, since: datetime) -> list[str]:
+    """IMAP search for bounce notices about this address since a day."""
+    systems = ["OR", "FROM", _quoted("mailer-daemon"), "FROM", _quoted("postmaster")]
+    return [*systems, "SINCE", _imap_date(since), "BODY", _quoted(address.strip().lower())]
 
 
 class MailboxError(RuntimeError):
@@ -130,20 +143,12 @@ class GmailMailbox:
             senders.append(f"@{domain}")
         arrived: list[datetime] = []
         for sender in senders:
-            ids = self._search("\\All", "FROM", _quoted(sender), "SINCE", _imap_date(since))
+            ids = self._search("\\All", *reply_search(sender, since))
             arrived += [time for time in self._received(ids) if time > since]
         return min(arrived) if arrived else None
 
     def bounced(self, address: str, since: datetime) -> bool:
-        ids = self._search(
-            "\\All",
-            "FROM",
-            _quoted(_BOUNCE_SENDER),
-            "SINCE",
-            _imap_date(since),
-            "BODY",
-            _quoted(address.strip().lower()),
-        )
+        ids = self._search("\\All", *bounce_search(address, since))
         return any(time > since for time in self._received(ids))
 
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
