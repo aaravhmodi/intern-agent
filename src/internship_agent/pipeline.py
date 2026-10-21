@@ -9,7 +9,7 @@ the dashboard shows.
 
 import re
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from email.header import decode_header, make_header
 from email.message import Message
 from email.utils import parseaddr, parsedate_to_datetime
@@ -147,6 +147,21 @@ def _bounced_lead(body: str, leads: list[Lead]) -> Lead | None:
     return next((lead for lead in leads if lead.sent_to and lead.sent_to.lower() in text), None)
 
 
+# "Thank you for applying to Astranis!", "Your application to Vercel", "interest in Sony".
+_APPLIED_TO = re.compile(
+    r"\b(?:applying to|application to|application for|interest in|applied to)\s+(?:the\s+)?"
+    r"([A-Z0-9][\w&.'\- ]{1,40}?)(?=\s*(?:[!.,:|(\-–]|$| for | position| role| team))"
+)
+
+
+def display_company(event: InboxEvent) -> str:
+    """The company a mail is from: its lead's name, else the one its subject names (ATS
+    mail comes from greenhouse-mail.io, not the company), else what was stored."""
+    if event.lead_key is None and (named := _APPLIED_TO.search(event.subject)):
+        return named.group(1).strip()
+    return event.company
+
+
 def to_event(inbox: str, message: Message, leads: list[Lead]) -> InboxEvent | None:
     sender_name, sender = parseaddr(_header(message, "From"))
     sender = sender.lower()
@@ -244,8 +259,8 @@ def sync(
     return added
 
 
+# Replies aren't here: n8n (main inbox) and `followups --check-only` (outreach) push those.
 _NOTABLE = {
-    "reply": "Reply",
     "assessment": "Assessment",
     "interview": "Interview",
     "offer": "Offer",
@@ -253,7 +268,7 @@ _NOTABLE = {
 
 
 def push_for(new: list[InboxEvent], click: str | None) -> Push | None:
-    """A phone push for what needs you: replies, assessments, interviews, offers."""
+    """A phone push for what needs you: assessments, interviews, offers."""
     lines = [
         f"{_NOTABLE[e.stage]}: {e.company}: {e.subject[:80]}" for e in new if e.stage in _NOTABLE
     ]
@@ -297,7 +312,7 @@ def board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
         (
             by_lead.setdefault(e.lead_key, [])
             if e.lead_key
-            else unmatched.setdefault(e.company, [])
+            else unmatched.setdefault(display_company(e), [])
         ).append(e)
     cards = []
     for lead in leads:
@@ -328,3 +343,243 @@ def _card(
         "last": mail[-1].received_at.isoformat() if mail else None,
         "emails": [e.model_dump(mode="json") for e in reversed(mail)],
     }
+
+
+HEARD = {"reply", "assessment", "interview", "offer"}  # a person, not a robot, wrote back
+_SOURCES = {"pattern": "Guessed address", "published": "Published address"}
+
+
+def _pct(part: int, whole: int) -> int:
+    return round(100 * part / whole) if whole else 0
+
+
+def insights(
+    leads: list[Lead], found: list[InboxEvent], outreach: str | None, today: date
+) -> dict[str, Any]:
+    """The numbers behind the board, and what they say: outreach and application funnels,
+    where emails bounce, inbound mail by day, and takeaways computed from them."""
+    seen: dict[str, set[str]] = {}
+    first_heard: dict[str, datetime] = {}
+    for e in sorted(found, key=lambda e: e.received_at):
+        if e.lead_key:
+            seen.setdefault(e.lead_key, set()).add(e.stage)
+            if e.stage in HEARD:
+                first_heard.setdefault(e.lead_key, e.received_at)
+
+    def got(lead: Lead) -> set[str]:
+        return seen.get(lead.key, set())
+
+    emailed = [lead for lead in leads if lead.sent_at]
+    bounced = [lead for lead in emailed if "bounced" in got(lead)]
+    heard = [lead for lead in emailed if got(lead) & HEARD]
+    delivered = len(emailed) - len(bounced)
+    applied = [
+        lead
+        for lead in leads
+        if lead.status is LeadStatus.APPLIED
+        or (lead.application is not None and lead.application.submission_status == "submitted")
+    ]
+    confirmed = [lead for lead in leads if "applied" in got(lead)]
+    # Companies (by name, as shown) with at least one email at each stage.
+    by_stage = {
+        s: {display_company(e) for e in found if e.stage == s} for s in HEARD | {"rejected"}
+    }
+
+    def split(rows: dict[str, list[Lead]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "label": label,
+                "sent": len(group),
+                "bounced": sum("bounced" in got(lead) for lead in group),
+                "heard": sum(bool(got(lead) & HEARD) for lead in group),
+            }
+            for label, group in rows.items()
+            if group
+        ]
+
+    def grouped(name: Callable[[Lead], str]) -> dict[str, list[Lead]]:
+        rows: dict[str, list[Lead]] = {}
+        for lead in emailed:
+            rows.setdefault(name(lead), []).append(lead)
+        return rows
+
+    outreach_box = (outreach or "").lower()
+    sources = split(grouped(lambda lead: _SOURCES.get(lead.email_status.value, "Other address")))
+    inboxes_ = split(
+        grouped(
+            lambda lead: (
+                "Outreach Gmail"
+                if (lead.sent_from or "").lower() in ("outreach", outreach_box) and lead.sent_from
+                else "Main Gmail"
+            )
+        )
+    )
+    segments = split(
+        grouped(
+            lambda lead: {"early": "Early-stage", "mid": "Mid-stage", "big": "Big company"}.get(
+                lead.segment.value if lead.segment else "", "Unclassified"
+            )
+        )
+    )
+
+    start = today - timedelta(days=20)
+    daily = []
+    for offset in range(21):
+        day = start + timedelta(days=offset)
+        inbound = [e for e in found if e.received_at.astimezone(UTC).date() == day]
+        daily.append(
+            {
+                "day": day.isoformat(),
+                "sent": sum(
+                    lead.sent_at.astimezone(UTC).date() == day for lead in emailed if lead.sent_at
+                ),
+                "confirmation": sum(e.stage == "applied" for e in inbound),
+                "bounced": sum(e.stage == "bounced" for e in inbound),
+                "heard": sum(e.stage in HEARD for e in inbound),
+                "rejected": sum(e.stage == "rejected" for e in inbound),
+            }
+        )
+
+    lags = sorted(
+        (first_heard[lead.key] - lead.sent_at).days
+        for lead in heard
+        if lead.sent_at and lead.key in first_heard and first_heard[lead.key] > lead.sent_at
+    )
+    notes = _takeaways(sources, segments, emailed, heard, delivered, leads, got, by_stage, today)
+    return {
+        "tiles": [
+            {"label": "Emailed", "value": len(emailed), "sub": f"{len(bounced)} bounced"},
+            {
+                "label": "Delivered",
+                "value": f"{_pct(delivered, len(emailed))}%",
+                "sub": f"{delivered} of {len(emailed)}",
+            },
+            {
+                "label": "Replies",
+                "value": len(heard),
+                "sub": f"{_pct(len(heard), delivered)}% of delivered",
+            },
+            {
+                "label": "Applied",
+                "value": len(applied),
+                "sub": f"{len(confirmed)} confirmed by email",
+            },
+            {
+                "label": "Interviews",
+                "value": len(by_stage["interview"]),
+                "sub": f"{len(by_stage['offer'])} offers",
+            },
+            {"label": "Rejections", "value": len(by_stage["rejected"]), "sub": "by email"},
+        ],
+        "funnels": {
+            "outreach": [
+                ["Emailed", len(emailed)],
+                ["Delivered", delivered],
+                ["Replied", len(heard)],
+                ["Interview", sum("interview" in got(lead) for lead in emailed)],
+            ],
+            "applications": [
+                ["Applied", len(applied)],
+                ["Confirmed by email", len(confirmed)],
+                ["Heard back", sum(bool(got(lead) & HEARD) for lead in applied)],
+                ["Interview", sum("interview" in got(lead) for lead in applied)],
+            ],
+        },
+        "sources": sources,
+        "inboxes": inboxes_,
+        "segments": segments,
+        "daily": daily,
+        "median_reply_days": lags[len(lags) // 2] if lags else None,
+        "notes": notes,
+    }
+
+
+def _takeaways(
+    sources: list[dict[str, Any]],
+    segments: list[dict[str, Any]],
+    emailed: list[Lead],
+    heard: list[Lead],
+    delivered: int,
+    leads: list[Lead],
+    got: Callable[[Lead], set[str]],
+    by_stage: dict[str, set[str]],
+    today: date,
+) -> list[dict[str, str]]:
+    """Plain-language takeaways, each computed from the numbers above (no model involved)."""
+    notes = []
+    by_label = {row["label"]: row for row in sources}
+    guessed = by_label.get("Guessed address")
+    if guessed and guessed["sent"] >= 10 and _pct(guessed["bounced"], guessed["sent"]) >= 20:
+        notes.append(
+            {
+                "tone": "warn",
+                "text": (
+                    f"{_pct(guessed['bounced'], guessed['sent'])}% of emails to guessed "
+                    f"addresses bounced ({guessed['bounced']} of {guessed['sent']}). Bounces "
+                    "count against your Gmail's sender reputation, so send to a guessed "
+                    "address only once its format is proven at that company."
+                ),
+            }
+        )
+    if delivered:
+        rate = _pct(len(heard), delivered)
+        text = f"{len(heard)} of {delivered} delivered emails got a reply from a person ({rate}%)."
+        compare = [r for r in segments if r["sent"] - r["bounced"] >= 15]
+        if len(compare) >= 2:
+            text += (
+                " By stage: "
+                + ", ".join(
+                    f"{r['label'].lower()} {_pct(r['heard'], r['sent'] - r['bounced'])}%"
+                    for r in compare
+                )
+                + "."
+            )
+        notes.append({"tone": "info", "text": text})
+    went_through = [
+        lead.company
+        for lead in leads
+        if lead.application is not None
+        and lead.application.submission_status in ("uncertain", "failed", "blocked", "pending")
+        and got(lead) & {"applied", "rejected", "interview", "assessment"}
+    ]
+    if went_through:
+        notes.append(
+            {
+                "tone": "ok",
+                "text": (
+                    f"{len(went_through)} application(s) recorded as not confirmed did reach "
+                    f"the employer, who emailed back: {', '.join(sorted(went_through))}."
+                ),
+            }
+        )
+    if by_stage["interview"] or by_stage["offer"]:
+        notes.append(
+            {
+                "tone": "ok",
+                "text": (
+                    "Needs you: "
+                    + ", ".join(sorted(by_stage["offer"] | by_stage["interview"]))
+                    + ". Open the card to see the email."
+                ),
+            }
+        )
+    cold = [
+        lead
+        for lead in emailed
+        if lead.sent_at
+        and lead.sent_at.astimezone(UTC).date() <= today - timedelta(days=14)
+        and not got(lead) & (HEARD | {"bounced"})
+        and len(lead.followups) >= 2
+    ]
+    if cold:
+        notes.append(
+            {
+                "tone": "info",
+                "text": (
+                    f"{len(cold)} people emailed over two weeks ago have had both follow-ups "
+                    "and no reply. A LinkedIn note is the remaining channel; otherwise let "
+                    "them go."
+                ),
+            }
+        )
+    return notes

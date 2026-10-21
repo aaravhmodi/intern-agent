@@ -300,33 +300,112 @@ function renderOpp(o) {
   </div>`;
 }
 
-// Job pipeline: a column per stage, moved along by what arrives in your Gmail inboxes.
-const PIPE_COLUMNS = [["waiting", "Waiting"], ["reply", "Replied"], ["assessment", "Assessment"], ["interview", "Interview"], ["offer", "Offer"], ["rejected", "Rejected"], ["bounced", "Bounced"]];
-const STAGE_LABEL = { applied: "Application received", reply: "Reply", assessment: "Assessment", interview: "Interview", offer: "Offer", rejected: "Rejected", bounced: "Bounced" };
-function pipeCard(c) {
-  const last = c.emails[0];
-  const shown = c.key ? `data-pipe-key="${esc(c.key)}"` : "";
-  return `<div class="pipe-card ${state.selected && state.selected === c.key ? "on" : ""}" ${shown}>
-    <div class="co">${esc(c.company)}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
-    ${last ? `<div class="sub">${esc(STAGE_LABEL[last.stage])} · ${esc(last.received_at.slice(0, 10))}</div><div class="pipe-subject">${esc(last.subject)}</div>`
-      : `<div class="sub">${esc(c.status === "contacted" ? "Emailed" : "Applied")}, no reply yet</div>`}
-    ${!c.key && c.emails.length ? `<details><summary class="hint">${c.emails.length} email${c.emails.length > 1 ? "s" : ""}</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))} · ${esc(e.sender)}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
-  </div>`;
+// Job pipeline: what came back to your Gmail inboxes, as numbers, trends and a company list.
+// Stage order puts what needs you first; colors are the validated categorical slots.
+const STAGE_ORDER = ["offer", "interview", "assessment", "reply", "rejected", "waiting", "bounced"];
+const STAGE_LABEL = { applied: "Application received", reply: "Replied", assessment: "Assessment", interview: "Interview", offer: "Offer", rejected: "Rejected", bounced: "Bounced", waiting: "Waiting" };
+const INBOUND = [["confirmation", "Confirmation", "s1"], ["bounced", "Bounced", "s2"], ["heard", "Heard back", "s3"], ["rejected", "Rejected", "s4"]];
+const BREAKDOWNS = [["sources", "By address"], ["inboxes", "By inbox"], ["segments", "By company stage"]];
+const pctOf = (a, b) => b ? Math.round(100 * a / b) : 0;
+const NEEDS_YOU = new Set(["offer", "interview", "assessment", "reply"]);
+
+function vizTile(t) {
+  return `<div class="tile"><div class="tile-label">${esc(t.label)}</div><div class="tile-value">${esc(t.value)}</div><div class="tile-sub">${esc(t.sub)}</div></div>`;
+}
+function vizFunnel(title, steps) {
+  const top = steps[0][1] || 1;
+  return `<div class="viz-card"><h3>${esc(title)}</h3>${steps.map(([label, n], i) => {
+    const prev = i ? steps[i - 1][1] : 0;
+    const tip = i ? `${label}: ${n} (${pctOf(n, prev)}% of ${steps[i - 1][0].toLowerCase()}, ${prev - n} dropped)` : `${label}: ${n}`;
+    return `<div class="funnel-row" data-tip="${esc(tip)}"><span class="funnel-label">${esc(label)}</span>
+      <span class="funnel-track"><span class="funnel-bar" style="width:${n ? Math.max(1.5, 100 * n / top) : 0}%"></span></span>
+      <span class="funnel-num">${n}${i ? `<small>${pctOf(n, prev)}%</small>` : ""}</span></div>`;
+  }).join("")}</div>`;
+}
+function vizLegend(series) {
+  return `<div class="viz-legend">${series.map(([, label, s]) => `<span><i class="sw ${s}"></i>${esc(label)}</span>`).join("")}</div>`;
+}
+function vizDaily(days) {
+  const sentMax = Math.max(1, ...days.map(d => d.sent));
+  const inMax = Math.max(1, ...days.map(d => INBOUND.reduce((n, [k]) => n + d[k], 0)));
+  const axis = days.map((d, i) => `<span>${i % 5 === 0 || i === days.length - 1 ? esc(d.day.slice(5)) : ""}</span>`).join("");
+  const sent = days.map(d => `<div class="col" data-tip="${esc(d.day)}: ${d.sent} email${d.sent === 1 ? "" : "s"} sent">
+      <span class="seg sent" style="height:${100 * d.sent / sentMax}%"></span></div>`).join("");
+  const back = days.map(d => {
+    const total = INBOUND.reduce((n, [k]) => n + d[k], 0);
+    const tip = `${d.day}: ` + (total ? INBOUND.filter(([k]) => d[k]).map(([k, label]) => `${d[k]} ${label.toLowerCase()}`).join(", ") : "nothing");
+    return `<div class="col" data-tip="${esc(tip)}">${INBOUND.map(([k, , s]) => d[k] ? `<span class="seg ${s}" style="height:${100 * d[k] / inMax}%"></span>` : "").join("")}</div>`;
+  }).join("");
+  return `<div class="viz-card wide"><h3>Day by day, last 3 weeks</h3>
+    <div class="viz-sub">Emails you sent <b>${days.reduce((n, d) => n + d.sent, 0)}</b></div><div class="cols short">${sent}</div>
+    <div class="viz-sub">What came back <b>${days.reduce((n, d) => n + INBOUND.reduce((m, [k]) => m + d[k], 0), 0)}</b></div>${vizLegend(INBOUND)}
+    <div class="cols">${back}</div><div class="cols-axis">${axis}</div></div>`;
+}
+function vizBreakdown(ins) {
+  const which = state.pipeBreak || "sources", rows = ins[which] || [];
+  const parts = [["heard", "Replied", "s3"], ["quiet", "No reply yet", "s1"], ["bounced", "Bounced", "s2"]];
+  return `<div class="viz-card wide"><h3>Who replies, and where emails bounce</h3>
+    <div class="viz-tabs" role="tablist">${BREAKDOWNS.map(([id, label]) => `<button class="btn ${which === id ? "on" : ""}" role="tab" aria-selected="${which === id}" data-break="${id}">${label}</button>`).join("")}</div>
+    ${vizLegend(parts)}
+    ${rows.map(r => {
+      const v = { heard: r.heard, bounced: r.bounced, quiet: Math.max(0, r.sent - r.bounced - r.heard) };
+      return `<div class="brk-row"><span class="funnel-label">${esc(r.label)}</span>
+        <span class="brk-bar">${parts.map(([k, label, s]) => v[k] ? `<span class="seg ${s}" style="flex:${v[k]}" data-tip="${esc(r.label)}: ${v[k]} ${label.toLowerCase()} of ${r.sent}"></span>` : "").join("")}</span>
+        <span class="funnel-num">${r.sent}<small>${pctOf(r.bounced, r.sent)}% bounced · ${pctOf(r.heard, r.sent - r.bounced)}% replied</small></span></div>`;
+    }).join("") || `<div class="hint">Nothing sent yet.</div>`}</div>`;
+}
+function vizNotes(notes, median) {
+  const mark = { warn: "!", ok: "✓", info: "•" };
+  const lag = median === 0 ? "within a day of" : `a median of ${median} day${median === 1 ? "" : "s"} after`;
+  const all = median !== null && median !== undefined ? [...notes, { tone: "info", text: `Replies arrive ${lag} the first email.` }] : notes;
+  return `<div class="viz-card wide"><h3>What this says</h3><ul class="takeaways">${all.map(n => `<li class="${esc(n.tone)}"><span aria-hidden="true">${mark[n.tone] || "•"}</span>${esc(n.text)}</li>`).join("") || `<li class="info"><span>•</span>Not enough mail yet to say much.</li>`}</ul></div>`;
+}
+function companyRows(cards) {
+  const counts = Object.fromEntries(STAGE_ORDER.map(s => [s, cards.filter(c => c.column === s).length]));
+  const picked = state.pipeStages || new Set();
+  const shown = cards.filter(c => !picked.size || picked.has(c.column))
+    .sort((a, b) => STAGE_ORDER.indexOf(a.column) - STAGE_ORDER.indexOf(b.column) || (b.last || "").localeCompare(a.last || ""));
+  return `<div class="viz-card wide"><h3>Companies</h3>
+    <div class="viz-tabs">${STAGE_ORDER.filter(s => counts[s]).map(s => `<button class="btn ${picked.has(s) ? "on" : ""}" data-stage="${s}" aria-pressed="${picked.has(s)}">${STAGE_LABEL[s]} <small>${counts[s]}</small></button>`).join("")}
+      ${picked.size ? `<button class="btn" data-stage="">All</button>` : ""}</div>
+    ${shown.slice(0, 200).map(c => {
+      const last = c.emails[0];
+      return `<div class="co-row ${c.key ? "link" : ""} ${state.selected === c.key ? "on" : ""}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
+        <span class="stage-chip ${esc(c.column)}">${NEEDS_YOU.has(c.column) ? "● " : ""}${esc(STAGE_LABEL[c.column])}</span>
+        <span><span class="co">${esc(c.company)}</span>${c.title ? `<span class="sub"> · ${esc(c.title)}</span>` : ""}
+          <div class="sub">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div></span>
+        <span class="sub">${last ? esc(last.received_at.slice(0, 10)) : ""}</span></div>`;
+    }).join("")}
+    ${shown.length > 200 ? `<div class="hint">Showing 200 of ${shown.length}; filter by stage or search to narrow.</div>` : ""}</div>`;
 }
 function renderPipeline() {
-  const p = state.pipe, q = state.q;
+  const p = state.pipe, q = state.q, ins = p.insights;
   const cards = p.cards.filter(c => !q || `${c.company} ${c.title} ${c.emails.map(e => e.subject).join(" ")}`.toLowerCase().includes(q));
-  $("view-count").textContent = cards.filter(c => c.column !== "waiting").length;
-  const scanned = p.last_scan ? `Last checked ${when(p.last_scan)}` : "Not checked since the dashboard started";
-  $("rows").innerHTML = `<div class="pipe">
-    <div class="hint">${p.inboxes.length ? `Reading ${p.inboxes.map(esc).join(" and ")} every 30 minutes (read-only). ${esc(scanned)}.` : "Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD (and OUTREACH_GMAIL_*) to .env to track replies."}
+  $("view-count").textContent = cards.filter(c => NEEDS_YOU.has(c.column)).length;
+  const scanned = p.last_scan ? `last checked ${when(p.last_scan)}` : "not checked since the dashboard started";
+  $("rows").innerHTML = `<div class="pipe viz">
+    <div class="hint">${p.inboxes.length ? `Reading ${p.inboxes.map(esc).join(" and ")} every 30 minutes, read-only; ${esc(scanned)}.` : "Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD (and OUTREACH_GMAIL_*) to .env to track replies."}
       ${p.error ? ` <span class="tag">Last check failed: ${esc(p.error)}</span>` : ""}</div>
-    <div class="pipe-board">${PIPE_COLUMNS.map(([id, label]) => {
-      const col = cards.filter(c => c.column === id);
-      return `<div class="pipe-col"><div class="pipe-head"><span>${label}</span><span>${col.length}</span></div>${col.map(pipeCard).join("") || `<div class="hint">None</div>`}</div>`;
-    }).join("")}</div>
+    ${ins ? `<div class="tiles">${ins.tiles.map(vizTile).join("")}</div>
+      <div class="viz-grid">${vizFunnel("Outreach", ins.funnels.outreach)}${vizFunnel("Applications", ins.funnels.applications)}</div>
+      ${vizNotes(ins.notes, ins.median_reply_days)}
+      ${vizDaily(ins.daily)}
+      ${vizBreakdown(ins)}` : ""}
+    ${companyRows(cards)}
   </div>`;
 }
+// One tooltip for every chart mark that carries data-tip.
+(() => {
+  const tip = document.createElement("div");
+  tip.id = "viz-tip"; tip.setAttribute("role", "tooltip"); document.body.appendChild(tip);
+  document.addEventListener("mousemove", e => {
+    const t = e.target.closest && e.target.closest("[data-tip]");
+    if (!t) { tip.style.display = "none"; return; }
+    tip.textContent = t.dataset.tip; tip.style.display = "block";
+    tip.style.left = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+  });
+})();
 // The emails about one lead, newest first, on its detail page.
 function inboxSection(l) {
   const card = state.pipe.cards.find(c => c.key === l.key);
@@ -551,6 +630,14 @@ $("rows").addEventListener("change", e => {
 $("rows").addEventListener("click", async e => {
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
+  const brk = e.target.closest("[data-break]");
+  if (brk) { state.pipeBreak = brk.dataset.break; return renderRows(); }
+  const stage = e.target.closest("[data-stage]");
+  if (stage) {
+    const s = stage.dataset.stage, picked = state.pipeStages || (state.pipeStages = new Set());
+    if (!s) picked.clear(); else if (!picked.delete(s)) picked.add(s);
+    return renderRows();
+  }
   const card = e.target.closest("[data-pipe-key]");
   if (card) { state.selected = card.dataset.pipeKey; state.armed = null; renderRows(); return renderDetail(); }
   const item = e.target.closest("[data-cal-key]");

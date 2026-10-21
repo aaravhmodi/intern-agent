@@ -383,9 +383,23 @@ uv run internship-agent opportunities apply                 # everything marked 
 uv run internship-agent opportunities apply <url> --dry-run # say what it would do, send nothing
 ```
 
-**Job pipeline.** The dashboard's **Job pipeline** board shows every company you applied to
-or emailed, in the column of its latest email: Waiting, Replied, Assessment, Interview, Offer,
-Rejected or Bounced. Every 30 minutes (`PIPELINE_SYNC_MINUTES`) the dashboard reads both Gmail
+**Job pipeline.** The dashboard's **Job pipeline** view shows how your search is converting,
+from top to bottom:
+
+- headline numbers: emailed, delivered, replies, applied, interviews, rejections;
+- an outreach funnel (emailed → delivered → replied → interview) and an applications funnel
+  (applied → confirmed by email → heard back → interview), each step with its drop-off;
+- takeaways computed from the numbers, with no model: how often guessed addresses bounce,
+  reply rate by company stage, applications recorded as "not confirmed" that the employer
+  in fact confirmed by email, what needs you, who is done with follow-ups, how fast replies
+  come;
+- day by day for three weeks: what you sent, and what came back (confirmations, bounces,
+  replies, rejections);
+- replied / no reply / bounced by address type, by inbox and by company stage;
+- every company at the stage of its latest email (Offer, Interview, Assessment, Replied,
+  Rejected, Waiting, Bounced), filterable by stage, with what needs you first.
+
+Every 30 minutes (`PIPELINE_SYNC_MINUTES`) the dashboard reads both Gmail
 inboxes read-only: `GMAIL_ADDRESS`, plus `OUTREACH_GMAIL_ADDRESS` if set. It looks back
 `PIPELINE_DAYS` (45) and downloads only new mail from recruiting systems (Greenhouse, Lever,
 Ashby, Workday, CodeSignal and others), from people at companies you emailed, bounce notices,
@@ -393,10 +407,10 @@ and mail whose subject is about an application or interview. Each email is class
 same patterns as the Outlook tracker. It's matched to its lead by the address you emailed,
 then the company's domain, then the company's name, and stored as one event (sender, subject,
 stage, a 240-character snippet; never the full email) in the `pipeline` table. An
-application-received confirmation doesn't move a card; a person's reply does. Click a card to
-see the lead with its **Inbox** timeline. "Check inboxes now" scans on demand. A phone push
-goes out for new replies, assessments, interviews and offers; the very first scan backfills
-quietly.
+application-received confirmation doesn't change a company's stage; a person's reply does.
+Click a company to see the lead with its **Inbox** timeline. "Check inboxes now" scans on
+demand. A phone push goes out for new assessments, interviews and offers (replies are already
+pushed by the follow-up checks); the very first scan backfills quietly.
 
 **Ask.** The **Ask ✦** button opens a chat that knows you and the agent:
 
