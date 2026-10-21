@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from openai import OpenAI
 
@@ -404,6 +405,15 @@ def find_form_d_startups(
     return new
 
 
+def sent_note(settings: Settings, to: str, sender: str | None, at: datetime) -> Note:
+    """'Emailed jane@acme.ai from you@gmail.com on Oct 20 at 8:03 PM.' (local time)"""
+    local = at.astimezone(ZoneInfo(settings.timezone))
+    when = f"{local:%b} {local.day} at {local.hour % 12 or 12}:{local:%M} {local:%p}"
+    return Note(
+        at=at, text=f"Emailed {to}" + (f" from {sender}" if sender else "") + f" on {when}."
+    )
+
+
 def send_email(
     settings: Settings,
     key: str,
@@ -436,6 +446,7 @@ def send_email(
     lead.sent_to = to.strip().lower()
     lead.sent_from = sender.lower() if sender != settings.gmail_address else None
     lead.status = LeadStatus.CONTACTED
+    lead.notes.append(sent_note(settings, lead.sent_to, sender, lead.sent_at))
     store.upsert(lead)
     record = {"at": lead.sent_at.isoformat(), "key": key, "to": lead.sent_to, "subject": subject}
     db.append(settings, "sent-log", record)

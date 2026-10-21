@@ -133,3 +133,15 @@ def test_a_published_address_is_used_as_is() -> None:
     social = founder()
     social.company_url = "https://linkedin.com/company/acme"
     assert patterns.domain_of(social) is None
+
+
+def test_the_sent_note_says_when_and_from_where_in_toronto_time() -> None:
+    settings = Settings(_env_file=None)
+    at = datetime(2026, 10, 21, 0, 3, tzinfo=UTC)  # 8:03 PM the evening before, in Toronto
+    note = workflows.sent_note(settings, "paul@nodal.io", "itsaaravmodi@gmail.com", at)
+    assert note.text == "Emailed paul@nodal.io from itsaaravmodi@gmail.com on Oct 20 at 8:03 PM."
+    assert note.at == at
+    assert (
+        workflows.sent_note(settings, "a@b.co", None, at).text
+        == "Emailed a@b.co on Oct 20 at 8:03 PM."
+    )
