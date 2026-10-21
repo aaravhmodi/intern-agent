@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792614219.6095164,
-    "seen": 1792614230.8870778,
-    "ast_hash": "11f00f7a4f8955ac33e04f7b887ae0dc",
+    "mtime": 1792615069.55627,
+    "seen": 1792615091.8606367,
+    "ast_hash": "69eb8bb732ab6129a4f4d1420f8f7c1a",
     "semantic_hash": ""
   },
   "compose.yaml": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/internship_agent/dashboard/index.html": {
-    "mtime": 1792614174.6355996,
-    "seen": 1792614230.8870778,
-    "ast_hash": "d1ce93db2dc1c14649c8ad70e3cd377a",
+    "mtime": 1792615044.0087168,
+    "seen": 1792615091.8606367,
+    "ast_hash": "9e7c756cf1429ef411052b48022ed6c9",
     "semantic_hash": ""
   },
   "docs/images/application.png": {
@@ -696,9 +696,9 @@
     "semantic_hash": ""
   },
   "tests/test_links.py": {
-    "mtime": 1792614058.297776,
-    "seen": 1792614230.8870778,
-    "ast_hash": "39fa8d4ad7bf7dd38e0f47194e0a2cda",
+    "mtime": 1792615069.6511693,
+    "seen": 1792615091.8606367,
+    "ast_hash": "cc8deffea43801c24fad4bde37c509bc",
     "semantic_hash": ""
   },
   "tests/test_mailbox.py": {

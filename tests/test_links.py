@@ -88,7 +88,7 @@ def test_job_pipeline_push_opens_the_company_or_the_board() -> None:
 
 
 @pytest.mark.parametrize(
-    "view", ["today", "jobs", "picked", "plans", "calendar", "hackathons", "big", "applied"]
+    "view", ["home", "today", "jobs", "picked", "plans", "calendar", "hackathons", "big", "applied"]
 )
 def test_every_linked_view_exists_in_the_dashboard(view: str) -> None:
     from importlib.resources import files

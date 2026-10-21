@@ -7,6 +7,13 @@
 <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
+<header id="topbar">
+  <button class="bar-btn" id="menu-toggle" aria-label="Collapse the menu" aria-expanded="true" aria-controls="nav">☰</button>
+  <a class="bar-brand" href="#/home"><span class="brand-mark">W.</span><span class="bar-title">Winter 2027</span></a>
+  <div class="crumbs" id="crumbs" role="navigation" aria-label="You are here"></div>
+  <span class="spacer"></span>
+  <button class="bar-btn wide" id="detail-toggle" aria-label="Collapse the details panel" aria-expanded="true" aria-controls="aside">Details</button>
+</header>
 <div class="app">
   <nav id="nav" aria-label="Workspace views"></nav>
   <div class="list">
@@ -51,6 +58,7 @@
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
+  home:     { title: "Home", group: "Start", label: "Home", home: true, test: () => false },
   today:    { title: "Today", group: "Now", label: "Today", today: true, test: () => false },
   calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   jobs:     { title: "Job pipeline", group: "Track", label: "Job pipeline", pipe: true, test: () => false, find: "inbox" },
@@ -99,7 +107,7 @@ function parseRoute() {
   const m = location.hash.match(/^#\/([a-z]+)(?:\/(.+))?$/);
   let key = null;
   try { key = m && m[2] ? decodeURIComponent(m[2]) : null; } catch { key = null; }
-  return { view: m && VIEWS[m[1]] ? m[1] : "today", key };
+  return { view: m && VIEWS[m[1]] ? m[1] : "home", key };
 }
 function go(view, key) { location.hash = "/" + view + (key ? "/" + enc(key) : ""); }
 function applyRoute() {
@@ -116,18 +124,46 @@ function subtitle(l) {
   return [l.round.replace("-", " "), money(l.amount_usd), l.announced_on && "raised " + l.announced_on].filter(Boolean).join(" · ");
 }
 
+const sectionOf = v => v.home ? "" : v.cal || v.today ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
+function navCount(id, v) {
+  return id === "rules" ? state.prefs.length : v.today ? todayCount() : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+}
+// Home on top, then the three sections, each of which folds away (and stays open if it holds the current page).
 function renderNav() {
-  let html = `<div class="brand"><span class="brand-mark">W.</span><span>Winter 2027<small>Internships & opportunities</small></span></div><div class="nav-sections">`;
-  let group = null, section = null;
+  const sections = [];
   for (const [id, v] of Object.entries(VIEWS)) {
-    const s = v.cal || v.today ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
-    if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
-    if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : v.today ? todayCount() : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
-    html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
+    const name = sectionOf(v);
+    let sec = sections.find(s => s.name === name); if (!sec) sections.push(sec = { name, groups: [] });
+    let g = sec.groups.find(x => x.name === v.group); if (!g) sec.groups.push(g = { name: v.group, items: [] });
+    g.items.push([id, v]);
   }
-  html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
-  $("nav").innerHTML = html;
+  const item = ([id, v]) => `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span>${v.home ? "" : `<span>${navCount(id, v)}</span>`}</button>`;
+  const html = sections.map(sec => {
+    const body = sec.groups.map(g => `<div class="group">${sec.name ? `<h3>${esc(g.name)}</h3>` : ""}${g.items.map(item).join("")}</div>`).join("");
+    if (!sec.name) return `<div class="nav-top">${body}</div>`;
+    const here = sec.groups.some(g => g.items.some(([id]) => id === state.view));
+    const shut = shell.sections.has(sec.name) && !here;
+    return `<div class="nav-sec ${shut ? "shut" : ""}"><button class="section-h" data-section="${esc(sec.name)}" aria-expanded="${!shut}"><span>${esc(sec.name)}</span><span class="chev" aria-hidden="true">${shut ? "▸" : "▾"}</span></button><div class="sec-body">${body}</div></div>`;
+  }).join("");
+  $("nav").innerHTML = `<div class="nav-sections">${html}</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
+}
+// The site frame: a collapsible menu and details panel, and where you are. Choices persist.
+const shell = { nav: false, aside: false, sections: new Set() };
+try { const s = JSON.parse(localStorage.getItem("shell") || "{}"); shell.nav = !!s.nav; shell.aside = !!s.aside; shell.sections = new Set(s.sections || []); } catch {}
+function saveShell() { try { localStorage.setItem("shell", JSON.stringify({ nav: shell.nav, aside: shell.aside, sections: [...shell.sections] })); } catch {} }
+const phone = () => window.matchMedia("(max-width: 700px)").matches;
+function applyShell() {
+  const v = VIEWS[state.view], app = document.querySelector(".app");
+  app.classList.toggle("nav-collapsed", shell.nav);
+  app.classList.toggle("aside-collapsed", shell.aside || !!v.home);
+  document.querySelector(".list").classList.toggle("is-home", !!v.home);
+  $("menu-toggle").setAttribute("aria-expanded", String(phone() ? document.body.classList.contains("menu-open") : !shell.nav));
+  $("menu-toggle").setAttribute("aria-label", shell.nav ? "Open the menu" : "Collapse the menu");
+  $("detail-toggle").hidden = !!v.home;
+  $("detail-toggle").setAttribute("aria-expanded", String(!shell.aside));
+  $("detail-toggle").classList.toggle("on", !shell.aside);
+  const sec = sectionOf(v), name = v.label;
+  $("crumbs").innerHTML = [`<a href="#/home">Home</a>`, ...(v.home ? [] : [sec && `<span>${esc(sec)}</span>`, `<a href="#/${state.view}" aria-current="${!state.selected}">${esc(name)}</a>`])].filter(Boolean).join(`<i>/</i>`);
 }
 function visible() {
   const v = VIEWS[state.view];
@@ -145,8 +181,10 @@ function renderRules() {
 }
 function renderRows() {
   const v = VIEWS[state.view];
+  applyShell();
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
+    home: "Both agents at a glance.",
     today: "What needs you now: replies and interviews, events that stopped at a check, and what closes this week.",
     calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     jobs: "Everything you applied to or emailed, moved along by what comes back to your Gmail inboxes.",
@@ -179,6 +217,7 @@ function renderRows() {
   if (state.view === "rules") return renderRules();
   if (v.cal) return renderCalendar();
   if (v.today) return renderToday();
+  if (v.home) return renderHome();
   if (v.pipe) return renderPipeline();
   const items = visible();
   $("view-count").textContent = items.length;
@@ -455,6 +494,44 @@ function inboxSection(l) {
     <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
 }
 
+// Home: the landing page. Where things stand across both agents, and a door into each part.
+function renderHome() {
+  const tiles = (state.pipe.insights?.tiles) || [], tile = l => tiles.find(t => t.label === l)?.value ?? "–";
+  const h = new Date().getHours(), greet = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const needs = todayCount(), picked = state.opps.filter(o => o.picked && o.status !== "skipped").length;
+  const dueSoon = state.cal.filter(i => i.day >= today() && ["deadline", "apply"].includes(i.kind) && i.mine).sort((a, b) => a.day.localeCompare(b.day));
+  const said = [needs ? `${needs} thing${needs > 1 ? "s" : ""} need${needs > 1 ? "" : "s"} you` : "Nothing needs you right now",
+    picked ? `${picked} hackathon${picked > 1 ? "s" : ""} picked for you` : "", dueSoon[0] ? `next deadline ${dueSoon[0].day.slice(5)}: ${dueSoon[0].title.replace(/^[^:]+: /, "")}` : ""].filter(Boolean).join(" · ");
+  const checked = state.opps.filter(o => o.assessment).length, paid = state.opps.filter(o => o.assessment && ["covered", "partial"].includes(o.assessment.travel)).length;
+  const count = id => navCount(id, VIEWS[id]);
+  const doors = [
+    ["today", "Today", "What needs you now, with a link to each thing."],
+    ["jobs", "Job pipeline", "Replies, bounces and interviews from both inboxes, as charts and a board."],
+    ["startups", "Startups", "Recently funded teams, scored against your resume."],
+    ["big", "Big companies", "Open Winter 2027 postings."],
+    ["hackathons", "Hackathons", "Devpost and MLH, checked for travel, sponsors and fit."],
+    ["conferences", "Tech conferences", "Talk deadlines and events worth a trip."],
+    ["research", "Research venues", "Student tracks, posters and papers, with a plan."],
+    ["calendar", "Calendar", "Every deadline, event and follow-up in one place."],
+  ];
+  const recent = state.pipe.cards.flatMap(c => c.emails.slice(0, 1).map(e => ({ ...e, key: c.key, company: c.company }))).sort((a, b) => b.received_at.localeCompare(a.received_at)).slice(0, 6);
+  const p = state.pipe;
+  $("rows").innerHTML = `<div class="home">
+    <div class="hero"><div class="eyebrow">Winter 2027 · Waterloo</div><h2>${greet}, Aarav.</h2><p>${esc(said)}.</p>
+      <div class="hero-links"><a class="btn primary" href="#/today">What needs me</a><a class="btn" href="#/jobs">Job pipeline</a><a class="btn" href="#/picked">Picked hackathons</a></div></div>
+    <h3 class="home-h">Internship agent</h3>
+    <div class="tiles">${[["Leads tracked", state.leads.length, `${state.leads.filter(l => l.status === "contacted").length} contacted`], ["Emailed", tile("Emailed"), "outreach sent"], ["Replies", tile("Replies"), "from people"], ["Applied", tile("Applied"), "applications"]].map(([l, v, s]) => vizTile({ label: l, value: v, sub: s })).join("")}</div>
+    <h3 class="home-h">Opportunity agent</h3>
+    <div class="tiles">${[["Events found", state.opps.length, "hackathons, conferences, research"], ["Checked", checked, "location, travel, fit"], ["Picked for you", picked, "sponsored hackathons"], ["Travel paid", paid, "events that pay your way"]].map(([l, v, s]) => vizTile({ label: l, value: v, sub: s })).join("")}</div>
+    <h3 class="home-h">Jump in</h3>
+    <div class="doors">${doors.map(([id, title, blurb]) => `<a class="door" href="#/${id}"><span class="door-top"><b>${esc(title)}</b><span>${count(id)}</span></span><span class="sub">${esc(blurb)}</span></a>`).join("")}</div>
+    <div class="home-cols">
+      <section><h3 class="home-h">Latest from your inboxes</h3>${recent.map(e => `<a class="today-row" href="#/jobs${e.key ? "/" + enc(e.key) : ""}"><span class="co">${esc(e.company)}</span><span class="sub">${esc(STAGE_LABEL[e.stage])}: ${esc(e.subject)}</span><span class="when">${esc(e.received_at.slice(0, 10))}</span></a>`).join("") || `<div class="hint">No recruiting mail yet.</div>`}</section>
+      <section><h3 class="home-h">Closing soon</h3>${dueSoon.slice(0, 6).map(i => `<a class="today-row" href="#/calendar"><span class="co">${esc(i.title)}</span><span class="sub">${esc(CAL_KIND[i.kind])}</span><span class="when">${esc(i.day.slice(5))}</span></a>`).join("") || `<div class="hint">No deadlines on the calendar yet.</div>`}</section>
+    </div>
+    <div class="hint home-foot">${p.inboxes && p.inboxes.length ? `Reading ${p.inboxes.map(esc).join(" and ")} every 30 minutes${p.last_scan ? `, last ${esc(when(p.last_scan))}` : ""}.` : "Gmail isn't connected."} ${state.sender ? `Sending as ${esc(state.sender)}.` : "Email sending is off."}</div>
+  </div>`;
+}
 // Today: what needs you now, each row a link to its own page.
 function todaySections() {
   const t = today(), week = addDays(t, 7);
@@ -616,6 +693,8 @@ function applicationSection(l) {
   </section>`;
 }
 function renderDetail() {
+  if (state.selected) shell.aside = false;  // choosing something opens its details
+  applyShell();
   $("ask-ctx").textContent = askAbout();
   const opp = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (opp) return renderOpp(opp);
@@ -930,6 +1009,17 @@ $("ask-clear").addEventListener("click", () => { askLog = []; saveAsk(); renderA
 $("ask-send").addEventListener("click", sendAsk);
 $("ask-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAsk(); } });
 
+$("menu-toggle").addEventListener("click", () => {
+  if (phone()) document.body.classList.toggle("menu-open"); else { shell.nav = !shell.nav; saveShell(); }
+  applyShell();
+});
+$("detail-toggle").addEventListener("click", () => { shell.aside = !shell.aside; saveShell(); applyShell(); });
+$("nav").addEventListener("click", e => {
+  const s = e.target.closest("[data-section]"); if (!s) return;
+  const name = s.dataset.section;
+  if (!shell.sections.delete(name)) shell.sections.add(name);
+  saveShell(); renderNav();
+});
 $("tabs").addEventListener("click", e => { if (e.target.closest("#tab-more")) document.body.classList.toggle("menu-open"); });
 {
   const first = parseRoute(); state.view = first.view; state.selected = first.key;

@@ -135,6 +135,7 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 
 | Section | View | What's there |
 |---|---|---|
+| Start | **Home** | The landing page: a greeting and headline, key numbers for both agents, a door into each section, the latest from your inboxes, what closes soon |
 | Both agents | **Today** | What needs you now: replies and interviews, events that stopped at a check or sign-in, what closes within 7 days, picks queued for tomorrow, follow-ups due |
 | | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
 | Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by its latest email ([more](#job-pipeline)) |
@@ -152,6 +153,12 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 notifications link to the most specific one: a push about one interview opens that company; one
 about several things opens the right list; a mix opens **Today**. Set `DASHBOARD_URL` for the
 links to work (the n8n workflows use `INTERN_AGENT_URL`).
+
+**The site frame.** A top bar holds the menu toggle, breadcrumbs and a **Details** toggle. The
+left menu collapses completely, and each of its sections (Internship agent, Opportunity agent,
+Both agents) folds on its own, though the section holding the page you're on stays open. The
+details panel collapses too, giving lists and charts the full width, and reopens when you pick
+something. Home hides the panel. Your choices are remembered in the browser.
 
 **On a phone** there's a bottom tab bar (Today, Jobs, Events, Calendar, More) with the full menu
 behind More, and a selected item opens full screen with a Close button.
