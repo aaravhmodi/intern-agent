@@ -22,6 +22,7 @@ from internship_agent.leads.store import (
     merge,
     open_lead_store,
 )
+from internship_agent.links import page_url
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.resume import load_resume_text
@@ -416,6 +417,9 @@ def followups_cmd(
                 title=f"New reply: {names}"[:120],
                 message=f"{names} wrote back to {settings.outreach_gmail_address}. Answer from "
                 "that inbox so it stays in the same thread.",
+                click=page_url(
+                    settings.dashboard_url, "jobs", replied[0].key if len(replied) == 1 else None
+                ),
                 priority=4,
                 tags=["email"],
             ),

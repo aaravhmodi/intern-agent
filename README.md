@@ -135,7 +135,8 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 
 | Section | View | What's there |
 |---|---|---|
-| Both agents | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
+| Both agents | **Today** | What needs you now: replies and interviews, events that stopped at a check or sign-in, what closes within 7 days, picks queued for tomorrow, follow-ups due |
+| | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
 | Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by its latest email ([more](#job-pipeline)) |
 | | **Startups** · Early · Mid | Recently funded startups by fit |
 | | **Big companies** | Open postings from the SimplifyJobs list |
@@ -145,6 +146,15 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 | | **Travel paid ✈** | Events that pay some or all of your way |
 | | **Picked for you ★** | Hackathons picked and applied to for you |
 | | **Interested & registered · Skipped** | Your plans |
+
+**Every view is a page with its own address**, and so is every item in it: `/#/jobs`,
+`/#/picked/<event>`, `/#/jobs/<company>`. Back and forward work, and a page can be bookmarked. Push
+notifications link to the most specific one: a push about one interview opens that company; one
+about several things opens the right list; a mix opens **Today**. Set `DASHBOARD_URL` for the
+links to work (the n8n workflows use `INTERN_AGENT_URL`).
+
+**On a phone** there's a bottom tab bar (Today, Jobs, Events, Calendar, More) with the full menu
+behind More, and a selected item opens full screen with a Close button.
 
 Select anything for its detail panel. Leads show fit, people, drafts, application answers and
 an **Inbox** timeline; events show "Is it worth going?", the application result and a

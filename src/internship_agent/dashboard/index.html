@@ -41,6 +41,7 @@
   </aside>
 </div>
 <div id="toast"></div>
+<div id="tabs" role="navigation" aria-label="Main pages"></div>
 <button class="btn primary ask-open" id="ask-open" aria-label="Ask about you, your GitHub and your search">Ask ✦</button>
 <div class="ask" id="ask" role="dialog" aria-label="Ask">
   <div class="ask-head"><b>Ask</b><span id="ask-ctx"></span><button class="btn" id="ask-clear">Clear</button><button class="btn" id="ask-close" aria-label="Close">×</button></div>
@@ -50,6 +51,7 @@
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
+  today:    { title: "Today", group: "Now", label: "Today", today: true, test: () => false },
   calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   jobs:     { title: "Job pipeline", group: "Track", label: "Job pipeline", pipe: true, test: () => false, find: "inbox" },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
@@ -88,8 +90,26 @@ async function api(path, body) {
 async function load() {
   const [data, opps, cal, pipe] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] })), api("/api/pipeline").catch(() => ({ cards: [], inboxes: [] }))]);
   state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items; state.pipe = pipe;
-  renderNav(); renderRows(); renderDetail();
+  renderNav(); renderRows(); renderDetail(); renderTabs();
 }
+// Every view is a page with its own address: #/jobs, and #/picked/<key> for one item in it.
+// Pushes link here, so they open exactly what they're about.
+const enc = encodeURIComponent;
+function parseRoute() {
+  const m = location.hash.match(/^#\/([a-z]+)(?:\/(.+))?$/);
+  let key = null;
+  try { key = m && m[2] ? decodeURIComponent(m[2]) : null; } catch { key = null; }
+  return { view: m && VIEWS[m[1]] ? m[1] : "today", key };
+}
+function go(view, key) { location.hash = "/" + view + (key ? "/" + enc(key) : ""); }
+function applyRoute() {
+  const r = parseRoute();
+  state.view = r.view; state.selected = r.key; state.armed = null;
+  document.body.classList.remove("menu-open");
+  renderNav(); renderRows(); renderDetail(); renderTabs();
+  if (!r.key) window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", applyRoute);
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
 function subtitle(l) {
   if (l.kind === "posting") return l.posting_title;
@@ -100,10 +120,10 @@ function renderNav() {
   let html = `<div class="brand"><span class="brand-mark">W.</span><span>Winter 2027<small>Internships & opportunities</small></span></div><div class="nav-sections">`;
   let group = null, section = null;
   for (const [id, v] of Object.entries(VIEWS)) {
-    const s = v.cal ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
+    const s = v.cal || v.today ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
     if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : v.today ? todayCount() : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -127,6 +147,7 @@ function renderRows() {
   const v = VIEWS[state.view];
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
+    today: "What needs you now: replies and interviews, events that stopped at a check, and what closes this week.",
     calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     jobs: "Everything you applied to or emailed, moved along by what comes back to your Gmail inboxes.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
@@ -146,16 +167,18 @@ function renderRows() {
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe);
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe || !!v.today);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = v.opp || v.cal || v.pipe ? "none" : "";
+  $("region").style.display = v.opp || v.cal || v.pipe || v.today ? "none" : "";
+  $("q").style.display = v.today ? "none" : "";
   if (state.view === "rules") return renderRules();
   if (v.cal) return renderCalendar();
+  if (v.today) return renderToday();
   if (v.pipe) return renderPipeline();
   const items = visible();
   $("view-count").textContent = items.length;
@@ -432,6 +455,47 @@ function inboxSection(l) {
     <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
 }
 
+// Today: what needs you now, each row a link to its own page.
+function todaySections() {
+  const t = today(), week = addDays(t, 7);
+  const needs = [
+    ...state.pipe.cards.filter(c => NEEDS_YOU.has(c.column)).map(c => ({
+      href: `#/jobs/${enc(c.key || "")}`.replace(/\/$/, ""), title: c.company,
+      sub: `${STAGE_LABEL[c.column]}${c.emails[0] ? ": " + c.emails[0].subject : ""}`, when: c.emails[0]?.received_at.slice(0, 10) })),
+    ...state.opps.filter(o => o.application && ["needs_you", "uncertain"].includes(o.application.status) && o.status !== "skipped").map(o => ({
+      href: `#/plans/${enc(o.key)}`, title: o.title, sub: o.application.detail, when: o.deadline || o.starts_on })),
+  ];
+  const closing = state.opps.filter(o => ["interested", "registered"].includes(o.status) && openDeadline(o) && o.deadline <= week && !(o.application && o.application.status === "submitted"))
+    .sort((a, b) => a.deadline.localeCompare(b.deadline)).map(o => ({
+      href: `#/plans/${enc(o.key)}`, title: o.title, sub: `${o.deadline_label || "Closes"} ${o.deadline}`, when: daysTo(o.deadline) }));
+  const queued = state.opps.filter(o => o.picked && o.status === "interested" && !o.application).map(o => ({
+    href: `#/picked/${enc(o.key)}`, title: o.title, sub: `Picked for you: ${o.picked}`, when: o.deadline || o.starts_on }));
+  const due = state.cal.filter(i => i.kind === "followup" && i.day <= t);
+  const followups = due.length ? [{ href: "#/calendar", title: `${due.length} follow-up${due.length > 1 ? "s" : ""} due`, sub: "People emailed 5+ days ago with no reply", when: "" }] : [];
+  return [["Needs you", needs, "Replies, interviews, and events that stopped at a check or a sign-in."],
+    ["Closing this week", closing, "Events you're going to or applying to that close within 7 days."],
+    ["Queued for tomorrow's run", queued, "Hackathons picked for you; the morning run applies."],
+    ["Follow-ups", followups, ""]];
+}
+const todayCount = () => todaySections().slice(0, 2).reduce((n, [, rows]) => n + rows.length, 0);
+function renderToday() {
+  const sections = todaySections();
+  $("view-count").textContent = todayCount();
+  const empty = sections.every(([, rows]) => !rows.length);
+  $("rows").innerHTML = `<div class="today">${empty ? `<div class="empty">Nothing needs you right now.</div>` : sections.filter(([, rows]) => rows.length).map(([title, rows, hint]) => `
+    <section class="today-sec"><h3>${esc(title)} <span>${rows.length}</span></h3>${hint ? `<div class="hint">${esc(hint)}</div>` : ""}
+      ${rows.slice(0, 12).map(r => `<a class="today-row" href="${esc(r.href)}"><span class="co">${esc(r.title)}</span><span class="sub">${esc(r.sub)}</span><span class="when">${esc(r.when || "")}</span></a>`).join("")}
+      ${rows.length > 12 ? `<div class="hint">+${rows.length - 12} more</div>` : ""}</section>`).join("")}</div>`;
+}
+// Bottom tab bar (phones): the four pages you use most, and the rest under More.
+const TABS = [["today", "Today"], ["jobs", "Jobs"], ["hackathons", "Events"], ["calendar", "Calendar"]];
+function renderTabs() {
+  const v = VIEWS[state.view];
+  const active = v.today ? "today" : v.pipe ? "jobs" : v.opp ? "hackathons" : v.cal ? "calendar" : "more";
+  const n = todayCount();
+  $("tabs").innerHTML = TABS.map(([id, label]) => `<a class="tab ${active === id ? "on" : ""}" href="#/${id}">${label}${id === "today" && n ? `<b>${n}</b>` : ""}</a>`).join("")
+    + `<button class="tab ${active === "more" ? "on" : ""}" id="tab-more">More</button>`;
+}
 // Calendar: one month grid and the next 30 days, for both agents.
 const CAL_KIND = { apply: "Apply by", deadline: "Deadline", event: "Event", followup: "Follow-up" };
 const addDays = (iso, n) => { const d = new Date(iso + "T00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -638,7 +702,8 @@ function renderDetail() {
 
 $("nav").addEventListener("click", e => {
   const b = e.target.closest("[data-view]"); if (!b) return;
-  state.view = b.dataset.view; renderNav(); renderRows();
+  document.body.classList.remove("menu-open");
+  go(b.dataset.view);
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
@@ -657,9 +722,9 @@ $("rows").addEventListener("click", async e => {
     return renderRows();
   }
   const card = e.target.closest("[data-pipe-key]");
-  if (card) { state.selected = card.dataset.pipeKey; state.armed = null; renderRows(); return renderDetail(); }
+  if (card) return go("jobs", card.dataset.pipeKey);
   const item = e.target.closest("[data-cal-key]");
-  if (item) { state.selected = item.dataset.calKey; state.armed = null; return renderDetail(); }
+  if (item) return go(state.view, item.dataset.calKey);
   const kind = e.target.closest("[data-cal-kind]");
   if (kind) {
     const k = kind.dataset.calKind;
@@ -674,7 +739,7 @@ $("rows").addEventListener("click", async e => {
     return renderRows();
   }
   const r = e.target.closest(".row"); if (!r) return;
-  state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
+  go(state.view, r.dataset.key);
 });
 $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
@@ -712,7 +777,7 @@ $("detail").addEventListener("click", async e => {
   if (o) {
     const b = e.target.closest("button"); if (!b) return;
     try {
-      if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+      if (b.id === "close") go(state.view);
       else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
       else if (b.id === "apply-now") {
         b.disabled = true; b.textContent = "Filling in the form… (a few minutes)";
@@ -737,7 +802,7 @@ $("detail").addEventListener("click", async e => {
   const l = state.leads.find(x => x.key === state.selected); if (!l) return;
   const b = e.target.closest("button"); if (!b) return;
   try {
-    if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+    if (b.id === "close") go(state.view);
     else if (b.dataset.status) {
       b.disabled = true;
       if (b.dataset.status === "applied") b.textContent = "Saving, finding more…";
@@ -865,6 +930,12 @@ $("ask-clear").addEventListener("click", () => { askLog = []; saveAsk(); renderA
 $("ask-send").addEventListener("click", sendAsk);
 $("ask-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAsk(); } });
 
+$("tabs").addEventListener("click", e => { if (e.target.closest("#tab-more")) document.body.classList.toggle("menu-open"); });
+{
+  const first = parseRoute(); state.view = first.view; state.selected = first.key;
+  $("view-title").textContent = VIEWS[first.view].title;  // right page from the first paint
+  $("rows").innerHTML = `<div class="empty">Loading…</div>`;
+}
 load().catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
 </script>
 </body>

@@ -70,7 +70,7 @@ def test_summary_lists_top_scores() -> None:
     b.company = "Beta"
     push = summary_push([a, b], [a, b], "http://100.76.57.23:8765")
     assert "Top: Beta 90, Acme 70" in push.message
-    assert push.click == "http://100.76.57.23:8765"
+    assert push.click == "http://100.76.57.23:8765/#/big"  # opens the postings, not the home page
 
 
 def test_campaign_summary_reports_actual_result_and_shortfall() -> None:

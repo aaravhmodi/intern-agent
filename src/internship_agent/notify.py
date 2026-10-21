@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from internship_agent.leads.answers import category
 from internship_agent.leads.schemas import Lead, PreparedAnswer
+from internship_agent.links import page_url
 
 # ntfy turns messages over 4096 bytes into file attachments; stay comfortably under.
 MESSAGE_BYTES = 3800
@@ -116,7 +117,8 @@ def summary_push(
             else "Internship agent: today's postings"
         ),
         message=message,
-        click=dashboard_url,
+        # The application report opens what was applied to; the day's postings open the list.
+        click=page_url(dashboard_url, "applied" if target is not None else "big"),
         tags=["sunrise"],
     )
 

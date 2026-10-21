@@ -23,6 +23,7 @@ from internship_agent.applications.verification_mail import _message_text
 from internship_agent.config import Settings
 from internship_agent.leads.followups import company_domain
 from internship_agent.leads.schemas import Lead, LeadStatus
+from internship_agent.links import page_url
 from internship_agent.notify import Push
 from internship_agent.tracking import Stage, classify_text
 
@@ -280,8 +281,14 @@ def push_for(new: list[InboxEvent], click: str | None) -> Push | None:
     ]
     if not lines:
         return None
+    keys = {e.lead_key for e in new if e.stage in _NOTABLE}
+    only = next(iter(keys)) if len(keys) == 1 else None  # one company opens it, else the board
     return Push(
-        title="Job pipeline", message="\n".join(lines), click=click, priority=4, tags=["briefcase"]
+        title="Job pipeline",
+        message="\n".join(lines),
+        click=page_url(click, "jobs", only),
+        priority=4,
+        tags=["briefcase"],
     )
 
 
