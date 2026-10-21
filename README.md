@@ -109,6 +109,44 @@ flowchart LR
 | Dashboard | `dashboard/app.py`, `dashboard/index.html`, `dashboard/dashboard.css` | Every view below; local or Tailscale only |
 | Calendar | `agenda.py` | Deadlines, event dates and follow-ups from both agents, and the `.ics` export |
 
+### System architecture
+
+Where each piece runs, and what talks to what. Everything on the server is reachable only over
+Tailscale; the agent reads your inboxes but sends mail only when you click Send.
+
+```mermaid
+flowchart TB
+  YOU([You<br/>browser or phone])
+  subgraph TS[Tailscale network]
+    subgraph SERVER[Home server · Docker Compose]
+      DASH[dashboard container<br/>FastAPI :8765 + CLI<br/>internship-agent]
+      PG[(Postgres<br/>projects db<br/>intern_agent_* tables)]
+      N8N[n8n<br/>reply alerts · follow-ups]
+      SYSD[systemd timers<br/>7:30 scrape · 8:00 apply<br/>30 min inbox check]
+      BROWSER[Playwright<br/>saved browser profile]
+    end
+  end
+  SYSD -->|docker compose exec| DASH
+  N8N -->|HTTP| DASH
+  DASH <--> PG
+  DASH --> BROWSER
+  YOU -->|dashboard, Send, Calendar .ics| DASH
+  subgraph EXT[External services]
+    SRC[Job boards · Simplify · SEC Form D<br/>Devpost · MLH · Luma]
+    OPENAI[OpenAI + web search]
+    XAI[xAI Grok x_search]
+    GMAIL[Gmail ×2<br/>main + outreach<br/>IMAP read · SMTP send]
+    OUTLOOK[Outlook / M365<br/>read-only MCP]
+    NTFY[ntfy push]
+    SITES[Employer application forms<br/>event registration pages]
+  end
+  DASH --> SRC & OPENAI & XAI & OUTLOOK
+  DASH <--> GMAIL
+  DASH --> NTFY --> YOU
+  BROWSER --> SITES
+  GH[GitHub main] -->|push deploys<br/>within a minute| SERVER
+```
+
 ### Every day on the server
 
 The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
@@ -182,6 +220,11 @@ breaks it; company-wide boilerplate doesn't count. "Re-check to-do leads" re-sco
   [SimplifyJobs off-season list](https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README-Off-Season.md).
   "Mark applied" tops the open list back up to `TARGET_OPEN_POSTINGS` (15); postings you
   applied to or skipped are never re-added.
+- **Deadlines:** when scoring a posting reads its description and it states a dated deadline
+  ("Apply by November 30, 2026"), that date is saved and shows on the [calendar](#calendar) as
+  "Apply: company". Each scrape skips open postings already past their deadline, with an
+  "Expired" note, so they leave the open list and calendar but aren't found and added again.
+  Postings you applied to or emailed are left alone.
 - **SEC Form D** (`leads form-d`): the SEC's free daily index of Form D filings, keeping US tech
   companies incorporated in the last five years that raised $250K–$50M. The signing officer is
   the contact. The website is found without AI by trying likely domains, and counts only if it

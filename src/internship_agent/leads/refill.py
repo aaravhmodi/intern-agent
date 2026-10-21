@@ -1,6 +1,8 @@
 """Keep a target number of open postings: once you apply, new ones take their place."""
 
-from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
+from datetime import UTC, date, datetime
+
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note
 from internship_agent.leads.store import merge
 
 DONE = {LeadStatus.APPLIED, LeadStatus.CONTACTED, LeadStatus.SKIPPED}
@@ -40,3 +42,19 @@ def refill(
         if count:
             added.append(merged[-1])
     return [*leads, *added], added
+
+
+def expire_postings(leads: list[Lead], today: date) -> list[Lead]:
+    """Skip open postings past their deadline, with a note. Skipped, not deleted, so the next
+    scrape does not find and add them again."""
+    expired = [
+        lead
+        for lead in open_postings(leads)
+        if lead.deadline is not None and lead.deadline < today and lead.sent_at is None
+    ]
+    for lead in expired:
+        lead.status = LeadStatus.SKIPPED
+        lead.notes.append(
+            Note(at=datetime.now(UTC), text=f"Expired: the deadline was {lead.deadline:%b %d, %Y}.")
+        )
+    return expired
