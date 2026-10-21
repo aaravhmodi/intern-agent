@@ -212,3 +212,17 @@ def test_confirmation_screenshot_is_served_as_proof(
     response = client.get(url, params={"key": lead.key})
     assert response.status_code == 200 and response.headers["content-type"] == "image/png"
     assert client.get("/api/leads").json()["leads"][0]["has_proof"] is True
+
+
+def test_favicon_is_served_for_every_path_browsers_ask_for(client: TestClient) -> None:
+    for path, kind in (
+        ("/favicon.svg", "image/svg+xml"),
+        ("/favicon.ico", "image/png"),
+        ("/apple-touch-icon.png", "image/png"),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200 and response.headers["content-type"] == kind
+        assert response.content
+    assert client.get("/favicon.svg").text.startswith("<svg")
+    page = client.get("/").text
+    assert 'rel="icon"' in page and 'rel="apple-touch-icon"' in page
