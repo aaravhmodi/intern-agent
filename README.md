@@ -396,8 +396,9 @@ from top to bottom:
 - day by day for three weeks: what you sent, and what came back (confirmations, bounces,
   replies, rejections);
 - replied / no reply / bounced by address type, by inbox and by company stage;
-- every company at the stage of its latest email (Offer, Interview, Assessment, Replied,
-  Rejected, Waiting, Bounced), filterable by stage, with what needs you first.
+- a board of every company, one column per stage of its latest email (Waiting, Replied,
+  Assessment, Interview, Offer, Rejected, Bounced), newest first; long columns show 20 until
+  "Show all".
 
 Every 30 minutes (`PIPELINE_SYNC_MINUTES`) the dashboard reads both Gmail
 inboxes read-only: `GMAIL_ADDRESS`, plus `OUTREACH_GMAIL_ADDRESS` if set. It looks back

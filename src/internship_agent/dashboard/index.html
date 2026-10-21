@@ -360,23 +360,29 @@ function vizNotes(notes, median) {
   const all = median !== null && median !== undefined ? [...notes, { tone: "info", text: `Replies arrive ${lag} the first email.` }] : notes;
   return `<div class="viz-card wide"><h3>What this says</h3><ul class="takeaways">${all.map(n => `<li class="${esc(n.tone)}"><span aria-hidden="true">${mark[n.tone] || "•"}</span>${esc(n.text)}</li>`).join("") || `<li class="info"><span>•</span>Not enough mail yet to say much.</li>`}</ul></div>`;
 }
-function companyRows(cards) {
-  const counts = Object.fromEntries(STAGE_ORDER.map(s => [s, cards.filter(c => c.column === s).length]));
-  const picked = state.pipeStages || new Set();
-  const shown = cards.filter(c => !picked.size || picked.has(c.column))
-    .sort((a, b) => STAGE_ORDER.indexOf(a.column) - STAGE_ORDER.indexOf(b.column) || (b.last || "").localeCompare(a.last || ""));
-  return `<div class="viz-card wide"><h3>Companies</h3>
-    <div class="viz-tabs">${STAGE_ORDER.filter(s => counts[s]).map(s => `<button class="btn ${picked.has(s) ? "on" : ""}" data-stage="${s}" aria-pressed="${picked.has(s)}">${STAGE_LABEL[s]} <small>${counts[s]}</small></button>`).join("")}
-      ${picked.size ? `<button class="btn" data-stage="">All</button>` : ""}</div>
-    ${shown.slice(0, 200).map(c => {
-      const last = c.emails[0];
-      return `<div class="co-row ${c.key ? "link" : ""} ${state.selected === c.key ? "on" : ""}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
-        <span class="stage-chip ${esc(c.column)}">${NEEDS_YOU.has(c.column) ? "● " : ""}${esc(STAGE_LABEL[c.column])}</span>
-        <span><span class="co">${esc(c.company)}</span>${c.title ? `<span class="sub"> · ${esc(c.title)}</span>` : ""}
-          <div class="sub">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div></span>
-        <span class="sub">${last ? esc(last.received_at.slice(0, 10)) : ""}</span></div>`;
-    }).join("")}
-    ${shown.length > 200 ? `<div class="hint">Showing 200 of ${shown.length}; filter by stage or search to narrow.</div>` : ""}</div>`;
+// Companies as a board: one column per stage in pipeline order, most recent first.
+const BOARD_COLUMNS = ["waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced"];
+const BOARD_CAP = 20;  // cards per column before "Show all"
+function boardCard(c) {
+  const last = c.emails[0];
+  return `<div class="pipe-card ${c.key ? "link" : ""} ${state.selected && state.selected === c.key ? "on" : ""}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
+    <div class="co">${esc(c.company)}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
+    <div class="pipe-subject">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div>
+    ${last ? `<div class="sub">${esc(last.received_at.slice(0, 10))}</div>` : ""}
+    ${!c.key && c.emails.length > 1 ? `<details><summary class="hint">${c.emails.length} emails</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
+  </div>`;
+}
+function companyBoard(cards) {
+  const open = state.pipeOpen || new Set();
+  return `<div class="viz-card wide"><h3>Companies</h3><div class="pipe-board">${BOARD_COLUMNS.map(id => {
+    const col = cards.filter(c => c.column === id).sort((a, b) => (b.last || "").localeCompare(a.last || ""));
+    const shown = open.has(id) ? col : col.slice(0, BOARD_CAP);
+    return `<div class="pipe-col ${NEEDS_YOU.has(id) && col.length ? "needs" : ""}">
+      <div class="pipe-head"><span>${esc(STAGE_LABEL[id])}</span><span>${col.length}</span></div>
+      ${shown.map(boardCard).join("") || `<div class="hint">None</div>`}
+      ${col.length > BOARD_CAP ? `<button class="btn more" data-more="${id}">${open.has(id) ? "Show fewer" : `Show all ${col.length}`}</button>` : ""}
+    </div>`;
+  }).join("")}</div></div>`;
 }
 function renderPipeline() {
   const p = state.pipe, q = state.q, ins = p.insights;
@@ -391,7 +397,7 @@ function renderPipeline() {
       ${vizNotes(ins.notes, ins.median_reply_days)}
       ${vizDaily(ins.daily)}
       ${vizBreakdown(ins)}` : ""}
-    ${companyRows(cards)}
+    ${companyBoard(cards)}
   </div>`;
 }
 // One tooltip for every chart mark that carries data-tip.
@@ -405,6 +411,8 @@ function renderPipeline() {
     tip.style.left = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8) + "px";
     tip.style.top = (e.clientY + 14) + "px";
   });
+  // A scroll moves the mark out from under the pointer: don't leave its tooltip behind.
+  document.addEventListener("scroll", () => { tip.style.display = "none"; }, true);
 })();
 // The emails about one lead, newest first, on its detail page.
 function inboxSection(l) {
@@ -632,10 +640,10 @@ $("rows").addEventListener("click", async e => {
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
   const brk = e.target.closest("[data-break]");
   if (brk) { state.pipeBreak = brk.dataset.break; return renderRows(); }
-  const stage = e.target.closest("[data-stage]");
-  if (stage) {
-    const s = stage.dataset.stage, picked = state.pipeStages || (state.pipeStages = new Set());
-    if (!s) picked.clear(); else if (!picked.delete(s)) picked.add(s);
+  const more = e.target.closest("[data-more]");
+  if (more) {
+    const id = more.dataset.more, open = state.pipeOpen || (state.pipeOpen = new Set());
+    if (!open.delete(id)) open.add(id);
     return renderRows();
   }
   const card = e.target.closest("[data-pipe-key]");
