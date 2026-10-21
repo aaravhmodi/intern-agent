@@ -28,6 +28,7 @@ from internship_agent.resume import load_resume_text
 from internship_agent.workflows import (
     CHANNELS,
     add_team_contacts,
+    busy,
     daily,
     find_form_d_startups,
     find_more_postings,
@@ -255,7 +256,8 @@ def guess_send_cmd(
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
 ) -> None:
     """Email founders at the address format most likely to work; retry bounced ones."""
-    picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
+    with busy(get_settings()):  # a deploy waits until this ends
+        picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
 
@@ -265,14 +267,16 @@ def inbox_send_cmd(
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
 ) -> None:
     """Email the shared inboxes startups publish (careers@ first), once each."""
-    picked = inbox_send(get_settings(), limit, send=send, log=console.print)
+    with busy(get_settings()):  # a deploy waits until this ends
+        picked = inbox_send(get_settings(), limit, send=send, log=console.print)
     console.print(f"{len(picked)} inbox(es) {'emailed' if send else 'would be emailed'}.")
 
 
 @leads_app.command("site-emails")
 def site_emails_cmd() -> None:
     """Find addresses each startup publishes on its own site: people's, or careers@ and such."""
-    people, companies = find_site_emails(get_settings(), log=console.print)
+    with busy(get_settings()):  # a deploy waits until this ends
+        people, companies = find_site_emails(get_settings(), log=console.print)
     console.print(f"{people} people got a published address; {companies} companies a shared inbox.")
 
 
@@ -284,7 +288,8 @@ def team_contacts_cmd(
     limit: Annotated[int | None, typer.Option(help="Most companies to search.")] = None,
 ) -> None:
     """Find a recruiter and a senior engineer at each big startup, to email besides the CEO."""
-    added = add_team_contacts(get_settings(), min_usd, limit, log=console.print)
+    with busy(get_settings()):  # a deploy waits until this ends
+        added = add_team_contacts(get_settings(), min_usd, limit, log=console.print)
     console.print(f"Added {len(added)} people.")
 
 

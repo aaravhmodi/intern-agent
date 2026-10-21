@@ -33,6 +33,7 @@ from internship_agent.workflows import (
     find_people,
     find_startups,
     handle_note,
+    is_busy,
     lead_store,
     preference_store,
     prepare_application,
@@ -173,6 +174,12 @@ def _get(key: str) -> Lead:
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return files("internship_agent.dashboard").joinpath("index.html").read_text(encoding="utf-8")
+
+
+@app.get("/health")
+def health() -> dict[str, bool]:
+    """For the auto-deploy, which waits while a long job (like sending email) is running."""
+    return {"busy": is_busy(get_settings())}
 
 
 @app.get("/dashboard.css")

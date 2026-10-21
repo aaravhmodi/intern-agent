@@ -1,11 +1,13 @@
 """Orchestration that combines deterministic steps with OpenAI calls and email."""
 
+import os
 import random
 import re
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -58,6 +60,26 @@ from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
 from internship_agent.sources.startup_jobs import find_intern_roles
 from internship_agent.x_search import post_confirms, search_x_raises
+
+BUSY_FOR = timedelta(hours=3)  # a marker older than this is from a job that died
+
+
+@contextmanager
+def busy(settings: Settings) -> Iterator[None]:
+    """Mark a long job (sending email, a search) as running: a deploy waits until it ends."""
+    marker = settings.data_dir / "busy" / str(os.getpid())
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    try:
+        yield
+    finally:
+        marker.unlink(missing_ok=True)
+
+
+def is_busy(settings: Settings) -> bool:
+    folder = settings.data_dir / "busy"
+    cutoff = datetime.now(UTC).timestamp() - BUSY_FOR.total_seconds()
+    return folder.exists() and any(m.stat().st_mtime > cutoff for m in folder.iterdir())
 
 
 def lead_store(settings: Settings) -> LeadStore | PostgresLeadStore:

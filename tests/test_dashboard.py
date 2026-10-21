@@ -36,6 +36,16 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(dashboard.app)
 
 
+def test_health_says_busy_while_a_long_job_runs(client: TestClient, tmp_path: Path) -> None:
+    from internship_agent.config import get_settings
+    from internship_agent.workflows import busy
+
+    assert client.get("/health").json() == {"busy": False}
+    with busy(get_settings()):
+        assert client.get("/health").json() == {"busy": True}
+    assert client.get("/health").json() == {"busy": False}
+
+
 def test_index_serves_html(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
