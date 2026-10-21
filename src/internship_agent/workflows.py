@@ -35,8 +35,15 @@ from internship_agent.leads.answers import (
     prefill,
     validate,
 )
+from internship_agent.leads.deadlines import find_deadline
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
-from internship_agent.leads.refill import DONE, is_workday, open_postings, refill
+from internship_agent.leads.refill import (
+    DONE,
+    expire_postings,
+    is_workday,
+    open_postings,
+    refill,
+)
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     EmailStatus,
@@ -142,6 +149,7 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     for lead in leads:
         if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
             lead.posting_text = fetch_posting_text(lead.posting_url)
+        lead.deadline = lead.deadline or find_deadline(lead.posting_text)
         result = assess_fit(
             client,
             settings.openai_model,
@@ -1081,6 +1089,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     """Save every matching posting from the configured startup boards and Simplify feed."""
     store = lead_store(settings)
     leads = store.load()
+    log(f"{len(expire_postings(leads, date.today()))} posting(s) expired")
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
     candidates: list[Lead] = []
     for founder in founders:
@@ -1131,6 +1140,10 @@ def daily(
         ]
     log(f"Scoring {len(unscored)} new eligible posting(s)")
     skipped = score(settings, unscored)
+    expired = expire_postings(stored := store.load(), date.today())
+    if expired:
+        store.save(stored)
+        log(f"{len(expired)} newly scored posting(s) already past their deadline")
     skipped_keys = {lead.key for lead in skipped}
     eligible = [
         lead
