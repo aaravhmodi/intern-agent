@@ -597,15 +597,16 @@ def guess_and_send(
     limit: int,
     *,
     send: bool = False,
+    retries: bool = False,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[tuple[Lead, str]]:
-    """Email people at startups at the address format most likely to work; retry bounces.
+    """Email people never emailed, at the address format most likely to work.
 
-    Bounces are found by the morning follow-up run, so someone whose guess bounced is picked
-    again the next day with the next most likely format. A company gets one guess a day until
-    one reaches someone there; then its format is known and its recruiter and engineer, who
-    wait until then, are emailed with it. Dry run unless `send`.
+    With `retries`, someone whose guess bounced (found by the inbox check) is also picked,
+    with the next most likely format, up to three guesses each. A company gets one guess a
+    day until one reaches someone there; then its format is known and its recruiter and
+    engineer, who wait until then, are emailed with it. Dry run unless `send`.
     """
     store = lead_store(settings)
     leads = store.load()
@@ -615,7 +616,7 @@ def guess_and_send(
     log("Delivered/bounced so far: " + ", ".join(f"{f} {d}/{b}" for f, (d, b) in counts.items()))
     rng = random.Random(date.today().toordinal())  # same picks for a dry run and its send
     wanted = sorted(
-        (lead for lead in leads if patterns.wants_email(lead)),
+        (lead for lead in leads if patterns.wants_email(lead, retries)),
         key=lambda lead: lead.fit.score if lead.fit else 0,
         reverse=True,
     )

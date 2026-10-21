@@ -254,10 +254,15 @@ def form_d_cmd(
 def guess_send_cmd(
     limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 40,
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
+    retries: Annotated[
+        bool, typer.Option(help="Also retry people whose guess bounced (up to 3 guesses).")
+    ] = False,
 ) -> None:
-    """Email founders at the address format most likely to work; retry bounced ones."""
+    """Email people never emailed, at the address format most likely to work."""
     with busy(get_settings()):  # a deploy waits until this ends
-        picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
+        picked = guess_and_send(
+            get_settings(), limit, send=send, retries=retries, log=console.print
+        )
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
 

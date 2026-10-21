@@ -32,6 +32,8 @@ PRIOR = {
     "firstl": 0.2,
 }
 PRIOR_SENDS = 10
+# Guesses per person before giving up on them (their company's inbox may still be tried).
+MAX_GUESSES = 3
 # Hosts that are not the company's own mail domain.
 NOT_COMPANY = {
     "gmail.com",
@@ -129,13 +131,14 @@ def proven(at_domain: dict[str, bool] | None) -> bool:
     return any((at_domain or {}).values())
 
 
-def wants_email(lead: Lead) -> bool:
-    """A founder never emailed, or whose last guess bounced and who has not replied."""
+def wants_email(lead: Lead, retries: bool = False) -> bool:
+    """Someone never emailed; with `retries`, also one whose last guess bounced."""
     if lead.kind is not LeadKind.FOUNDER or lead.status is LeadStatus.SKIPPED:
         return False
     if not lead.contact_name or lead.replied_at is not None:
         return False
-    return lead.sent_at is None or lead.followups_stopped == "bounced"
+    bounced = lead.followups_stopped == "bounced" and len(bounced_addresses(lead)) < MAX_GUESSES
+    return lead.sent_at is None or (retries and bounced)
 
 
 def domain_of(lead: Lead) -> str | None:
@@ -177,7 +180,7 @@ def next_guess(
     shared = lead.company_email if lead.company_email not in bounced else None
     if shared and (len(bounced) >= 2 or not options):
         return shared
-    if not options:
+    if not options or len(bounced) >= MAX_GUESSES:
         return None
 
     def draw(fmt: str) -> float:

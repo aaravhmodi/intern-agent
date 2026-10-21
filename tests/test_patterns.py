@@ -68,7 +68,7 @@ def test_the_usual_format_is_tried_most_until_it_bounces() -> None:
 
 def test_pointing_at_a_new_guess_keeps_the_bounce_and_restarts_follow_ups() -> None:
     lead = founder("jane@acme.ai", followups_stopped="bounced", followups=[NOW])
-    assert patterns.wants_email(lead)
+    assert patterns.wants_email(lead, retries=True) and not patterns.wants_email(lead)
     patterns.point_at(lead, "jane.doe@acme.ai")
     assert lead.bounced_emails == ["jane@acme.ai"]
     assert (lead.sent_at, lead.sent_to, lead.followups, lead.followups_stopped) == (
@@ -145,3 +145,13 @@ def test_the_sent_note_says_when_and_from_where_in_toronto_time() -> None:
         workflows.sent_note(settings, "a@b.co", None, at).text
         == "Emailed a@b.co on Oct 20 at 8:03 PM."
     )
+
+
+def test_three_guesses_and_then_only_the_company_inbox() -> None:
+    lead = founder("jdoe@acme.ai", followups_stopped="bounced")
+    lead.bounced_emails = ["jane@acme.ai", "jane.doe@acme.ai"]
+    assert not patterns.wants_email(lead, retries=True)  # three misses: no more guessing
+    counts = {fmt: [0, 0] for fmt in patterns.PRIOR}
+    assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) is None
+    lead.company_email = "careers@acme.ai"
+    assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) == "careers@acme.ai"
