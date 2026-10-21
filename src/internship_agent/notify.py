@@ -131,4 +131,3 @@ def send(server: str, topic: str, push: Push) -> None:
     )
     with urllib.request.urlopen(request, timeout=15):
         pass
-

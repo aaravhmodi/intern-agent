@@ -41,6 +41,9 @@ Write a JSON list to `data/leads-inbox.json` with objects of this shape (see
   "email": "jane@acme.ai",
   "email_status": "pattern",
   "email_source": "",
+  "people": [
+    {"name": "Sam Lee", "role": "Founding Engineer", "linkedin_url": "https://www.linkedin.com/in/samlee", "source_url": "https://acme.ai/team"}
+  ],
   "company_url": "https://acme.ai",
   "round": "seed",
   "amount_usd": 4000000,
@@ -59,6 +62,13 @@ you actually saw on a public page. Otherwise, if the company's address format is
 evident (another published address at the same domain), build a guess with
 `internship_agent.leads.emails.guess_email` and set `email_status: "pattern"`. Leave `email`
 empty if neither applies. Never present a guess as verified.
+
+`people`: at least three other people at the company to connect with on LinkedIn, each with
+the page that shows they work there in `source_url`. At a pre-seed or seed startup, the other
+founders and first engineers. At Series A and later a co-founder is the wrong person to ask
+about an internship: list an engineering manager or head of engineering, a recruiter, and
+engineers on the team (University of Waterloo alumni first). Never invent a person or a profile
+URL; list fewer than three if that is all you can source.
 
 LinkedIn: light and read-only. Open at most a few profiles per company, only to confirm a
 name and title, and stop immediately on any warning, login wall or captcha.

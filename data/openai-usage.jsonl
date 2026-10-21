@@ -1,0 +1,2 @@
+{"at": "2026-10-18T03:16:33.363501+00:00", "operation": "answers", "model": "gpt-6-luna", "input_tokens": 6122, "cached_input_tokens": 0, "output_tokens": 636, "estimated_usd": 0.0009302}
+{"at": "2026-10-18T03:16:37.170006+00:00", "operation": "cover_letter", "model": "gpt-6-luna", "input_tokens": 5131, "cached_input_tokens": 0, "output_tokens": 295, "estimated_usd": 0.0006606}

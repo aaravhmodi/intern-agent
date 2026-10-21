@@ -51,6 +51,9 @@ Append a JSON list to `data/leads-inbox.json` (create it if missing) with object
   "email": "jane.doe@acme.ai",
   "email_status": "pattern",
   "email_source": "",
+  "people": [
+    {"name": "Sam Lee", "role": "University Recruiter", "linkedin_url": "https://www.linkedin.com/in/samlee", "source_url": "https://acme.ai/team"}
+  ],
   "segment": "big"
 }
 ```
@@ -58,6 +61,13 @@ Append a JSON list to `data/leads-inbox.json` (create it if missing) with object
 `segment` is `early` (pre-seed/seed startup), `mid` (Series A-D or growth-stage private
 startup) or `big` (public company, bank, large enterprise, or established private company).
 The dashboard shows startups and big companies separately.
+
+`people`: at least three other people at the company to connect with on LinkedIn besides
+`contact_name`, each with the page that shows they work there in `source_url`: a university or
+campus recruiter, the team's engineering manager, and engineers on the team (University of
+Waterloo alumni first), not founders or executives unless the company is a seed-stage startup.
+The same evidence rule applies as for the hiring manager; list fewer than three if that is all
+you can source.
 
 Email rules are the same as `/find-founders`: `published` only when seen on a public page
 (record it in `email_source`), `pattern` for a guess built with
