@@ -188,6 +188,26 @@ def dashboard_css() -> Response:
     return Response(stylesheet.read_text(encoding="utf-8"), media_type="text/css")
 
 
+_ICONS = {  # path -> (file in this package, media type)
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/favicon.ico": ("favicon-48.png", "image/png"),  # browsers ask for this path unprompted
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+}
+
+
+def _icon(path: str) -> Response:
+    name, media_type = _ICONS[path]
+    return Response(
+        files("internship_agent.dashboard").joinpath(name).read_bytes(),
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+for _path in _ICONS:
+    app.add_api_route(_path, lambda _p=_path: _icon(_p), methods=["GET"], include_in_schema=False)
+
+
 @app.get("/api/leads")
 def leads() -> dict[str, Any]:
     settings = get_settings()
