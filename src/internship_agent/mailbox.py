@@ -169,3 +169,37 @@ class GmailMailbox:
             subject=" ".join(subject.split()),
             references=" ".join(str(headers.get("References", "")).split()),
         )
+
+    def inbox_headers(self, since: datetime) -> list[tuple[bytes, email.message.Message]]:
+        """(id, From/Subject/Date/Message-ID headers) of every inbox message since `since`.
+
+        Opens the inbox read-only and fetches headers only; `message` fetches one in full.
+        """
+        try:
+            status, _ = self.connection.select("INBOX", readonly=True)
+            if status != "OK":
+                raise MailboxError("Gmail would not open the inbox")
+            status, data = self.connection.search(None, "SINCE", _imap_date(since))
+        except (imaplib.IMAP4.error, OSError) as exc:
+            raise MailboxError(f"Searching Gmail failed: {type(exc).__name__}") from exc
+        ids = data[0].split() if status == "OK" and data and data[0] else []
+        found: list[tuple[bytes, email.message.Message]] = []
+        for start in range(0, len(ids), 200):
+            chunk = b",".join(ids[start : start + 200]).decode()
+            status, parts = self.connection.fetch(
+                chunk, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)])"
+            )
+            if status != "OK":
+                raise MailboxError("Gmail would not give message headers")
+            for part in parts:
+                if isinstance(part, tuple) and (number := re.match(rb"(\d+) ", part[0])):
+                    found.append((number.group(1), email.message_from_bytes(part[1])))
+        return found
+
+    def message(self, number: bytes) -> email.message.Message | None:
+        """One inbox message in full, after `inbox_headers` (read-only: never marked read)."""
+        status, data = self.connection.fetch(number.decode(), "(BODY.PEEK[])")
+        if status != "OK":
+            return None
+        raw = next((part[1] for part in data if isinstance(part, tuple)), None)
+        return email.message_from_bytes(raw) if raw else None

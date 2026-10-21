@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Events the daily refresh checks with AI (location, travel paid, effort, fit), one web
     # search each; others are checked from the dashboard.
     daily_opportunity_checks: int = 10
+    # Job pipeline: the dashboard reads both Gmail inboxes (read-only) this often for replies,
+    # assessments, interviews, offers and rejections, looking back this many days. 0 = off.
+    pipeline_sync_minutes: int = 30
+    pipeline_days: int = 45
     # After the checks, mark hackathons Interested for you (so the morning run applies) when
     # they're realistic (eligible, not heavy, fit >= this) and sponsored with recognition
     # (sponsors or prizes, and judging/awards/showcase): online from anywhere, in person if

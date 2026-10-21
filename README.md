@@ -379,6 +379,21 @@ uv run internship-agent opportunities apply                 # everything marked 
 uv run internship-agent opportunities apply <url> --dry-run # say what it would do, send nothing
 ```
 
+**Job pipeline.** The dashboard's **Job pipeline** board shows every company you applied to
+or emailed, in the column of its latest email: Waiting, Replied, Assessment, Interview, Offer,
+Rejected or Bounced. Every 30 minutes (`PIPELINE_SYNC_MINUTES`) the dashboard reads both Gmail
+inboxes read-only: `GMAIL_ADDRESS`, plus `OUTREACH_GMAIL_ADDRESS` if set. It looks back
+`PIPELINE_DAYS` (45) and downloads only new mail from recruiting systems (Greenhouse, Lever,
+Ashby, Workday, CodeSignal and others), from people at companies you emailed, bounce notices,
+and mail whose subject is about an application or interview. Each email is classified with the
+same patterns as the Outlook tracker. It's matched to its lead by the address you emailed,
+then the company's domain, then the company's name, and stored as one event (sender, subject,
+stage, a 240-character snippet; never the full email) in the `pipeline` table. An
+application-received confirmation doesn't move a card; a person's reply does. Click a card to
+see the lead with its **Inbox** timeline. "Check inboxes now" scans on demand. A phone push
+goes out for new replies, assessments, interviews and offers; the very first scan backfills
+quietly.
+
 **Ask.** The **Ask ✦** button opens a chat that knows you and the agent:
 
 - your profile: `candidate_context.md`, the resume, your website's pages (`WEBSITE_URL`,
