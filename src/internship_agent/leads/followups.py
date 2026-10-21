@@ -68,8 +68,11 @@ def is_due(lead: Lead, now: datetime, wait_days: int) -> bool:
 
 
 def first_name(lead: Lead) -> str:
-    name = lead.contact_name.split()
-    return name[0] if name else "there"
+    """Who a follow-up greets: their first name, or the team at a shared inbox."""
+    name = (lead.contact_name or "").split()
+    if not name or (lead.sent_to and lead.sent_to == lead.company_email):
+        return f"{lead.company} team"
+    return name[0]
 
 
 def followup_body(lead: Lead) -> str:

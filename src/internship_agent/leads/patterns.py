@@ -77,6 +77,10 @@ def results(leads: list[Lead], now: datetime) -> Iterator[tuple[str, str, bool, 
         for address in lead.bounced_emails:
             if fmt := format_of(address, lead.contact_name):
                 yield address.rsplit("@", 1)[-1], fmt, False, True
+        # An address printed on their own site shows the company's format, as if delivered.
+        if lead.email_status is EmailStatus.PUBLISHED and lead.email and lead.email != lead.sent_to:
+            if fmt := format_of(lead.email, lead.contact_name):
+                yield lead.email.rsplit("@", 1)[-1], fmt, True, True
         if not lead.sent_to or not lead.sent_at:
             continue
         settled = now - lead.sent_at >= SETTLED

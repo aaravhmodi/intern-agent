@@ -259,6 +259,9 @@ contact, about and team pages for addresses at its domain. A published address w
 person's name replaces their guess; the best shared inbox (careers@, jobs@, talent@ ...
 hello@, contact@) becomes the fallback that `guess-send` uses after two of a person's
 guesses bounce, greeting "{company} team" and writing to each shared inbox only once.
+A published personal address also proves its company's format for everyone there.
+`leads inbox-send --limit 20` emails those shared inboxes directly (hiring ones first), each
+as a lead of its own ("company/team"), skipping companies where someone already replied.
 
 ## Opportunity agent
 
