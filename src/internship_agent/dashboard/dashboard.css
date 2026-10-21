@@ -394,3 +394,19 @@ textarea.short { min-height: 80px; }
   .ask { right: 0; bottom: 0; width: 100vw; height: 100dvh; border-radius: 0; }
   .ask-open { right: 12px; bottom: 12px; }
 }
+
+/* Job pipeline: a column per stage. */
+.pipe { padding: 16px 20px 28px; }
+.pipe-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 1fr); gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 6px; }
+.pipe-col { min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--rail); }
+.pipe-head { display: flex; justify-content: space-between; margin: 0 2px 8px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.pipe-head span:last-child { color: var(--faint); }
+.pipe-card { margin-bottom: 6px; padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-raised); }
+.pipe-card[data-pipe-key] { cursor: pointer; }
+.pipe-card[data-pipe-key]:hover, .pipe-card.on { border-color: var(--blue); }
+.pipe-card .co { font-size: 13px; }
+.pipe-subject { margin-top: 4px; overflow: hidden; color: var(--ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .pipe { padding: 12px 8px; }
+  .pipe-board { grid-auto-columns: 78vw; }
+}

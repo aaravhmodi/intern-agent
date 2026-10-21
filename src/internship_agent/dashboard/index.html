@@ -51,6 +51,7 @@
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
   calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
+  jobs:     { title: "Job pipeline", group: "Track", label: "Job pipeline", pipe: true, test: () => false, find: "inbox" },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
   early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
   mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
@@ -70,8 +71,8 @@ const VIEWS = {
 };
 const PLANNED = new Set(["interested", "registered", "submitted"]);
 const TRAVEL = new Set(["covered", "partial"]);
-const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events" };
-let state = { leads: [], opps: [], cal: [], calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events", inbox: "Check inboxes now" };
+let state = { leads: [], opps: [], cal: [], pipe: { cards: [], inboxes: [] }, calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
 
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -85,8 +86,8 @@ async function api(path, body) {
   return res.json();
 }
 async function load() {
-  const [data, opps, cal] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] }))]);
-  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items;
+  const [data, opps, cal, pipe] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] })), api("/api/pipeline").catch(() => ({ cards: [], inboxes: [] }))]);
+  state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items; state.pipe = pipe;
   renderNav(); renderRows(); renderDetail();
 }
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
@@ -102,7 +103,7 @@ function renderNav() {
     const s = v.cal ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
     if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
     if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+    const n = id === "rules" ? state.prefs.length : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
     html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
   }
   html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
@@ -127,6 +128,7 @@ function renderRows() {
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
     calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
+    jobs: "Everything you applied to or emailed, moved along by what comes back to your Gmail inboxes.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
     early: "Small teams where your work can have immediate reach.",
     mid: "Growing companies with room to build and learn.",
@@ -144,16 +146,17 @@ function renderRows() {
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal);
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = v.opp || v.cal ? "none" : "";
+  $("region").style.display = v.opp || v.cal || v.pipe ? "none" : "";
   if (state.view === "rules") return renderRules();
   if (v.cal) return renderCalendar();
+  if (v.pipe) return renderPipeline();
   const items = visible();
   $("view-count").textContent = items.length;
   if (v.opp) return renderOpps(items);
@@ -295,6 +298,41 @@ function renderOpp(o) {
     ${worthSection(o)}
     ${o.kind === "research" || o.kind === "conference" ? strategySection(o) : ""}
   </div>`;
+}
+
+// Job pipeline: a column per stage, moved along by what arrives in your Gmail inboxes.
+const PIPE_COLUMNS = [["waiting", "Waiting"], ["reply", "Replied"], ["assessment", "Assessment"], ["interview", "Interview"], ["offer", "Offer"], ["rejected", "Rejected"], ["bounced", "Bounced"]];
+const STAGE_LABEL = { applied: "Application received", reply: "Reply", assessment: "Assessment", interview: "Interview", offer: "Offer", rejected: "Rejected", bounced: "Bounced" };
+function pipeCard(c) {
+  const last = c.emails[0];
+  const shown = c.key ? `data-pipe-key="${esc(c.key)}"` : "";
+  return `<div class="pipe-card ${state.selected && state.selected === c.key ? "on" : ""}" ${shown}>
+    <div class="co">${esc(c.company)}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
+    ${last ? `<div class="sub">${esc(STAGE_LABEL[last.stage])} · ${esc(last.received_at.slice(0, 10))}</div><div class="pipe-subject">${esc(last.subject)}</div>`
+      : `<div class="sub">${esc(c.status === "contacted" ? "Emailed" : "Applied")}, no reply yet</div>`}
+    ${!c.key && c.emails.length ? `<details><summary class="hint">${c.emails.length} email${c.emails.length > 1 ? "s" : ""}</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))} · ${esc(e.sender)}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
+  </div>`;
+}
+function renderPipeline() {
+  const p = state.pipe, q = state.q;
+  const cards = p.cards.filter(c => !q || `${c.company} ${c.title} ${c.emails.map(e => e.subject).join(" ")}`.toLowerCase().includes(q));
+  $("view-count").textContent = cards.filter(c => c.column !== "waiting").length;
+  const scanned = p.last_scan ? `Last checked ${when(p.last_scan)}` : "Not checked since the dashboard started";
+  $("rows").innerHTML = `<div class="pipe">
+    <div class="hint">${p.inboxes.length ? `Reading ${p.inboxes.map(esc).join(" and ")} every 30 minutes (read-only). ${esc(scanned)}.` : "Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD (and OUTREACH_GMAIL_*) to .env to track replies."}
+      ${p.error ? ` <span class="tag">Last check failed: ${esc(p.error)}</span>` : ""}</div>
+    <div class="pipe-board">${PIPE_COLUMNS.map(([id, label]) => {
+      const col = cards.filter(c => c.column === id);
+      return `<div class="pipe-col"><div class="pipe-head"><span>${label}</span><span>${col.length}</span></div>${col.map(pipeCard).join("") || `<div class="hint">None</div>`}</div>`;
+    }).join("")}</div>
+  </div>`;
+}
+// The emails about one lead, newest first, on its detail page.
+function inboxSection(l) {
+  const card = state.pipe.cards.find(c => c.key === l.key);
+  if (!card || !card.emails.length) return "";
+  return `<section><h4>Inbox</h4>${card.emails.map(e => `<div class="qa"><div class="qa-label"><span>${esc(e.subject)}</span><span class="tag ${["interview", "offer", "reply", "assessment"].includes(e.stage) ? "ok" : ""}">${esc(STAGE_LABEL[e.stage])}</span></div>
+    <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
 }
 
 // Calendar: one month grid and the next 30 days, for both agents.
@@ -490,6 +528,7 @@ function renderDetail() {
       <div class="score-line"><span class="big fit ${fit.verdict}">${fit.score}</span><span class="sub">${esc(fit.verdict)} fit</span></div>
       ${list("Why", fit.reasons)}${list("Concerns", fit.concerns)}${list("Talking points", fit.talking_points)}
     </section>` : ""}
+    ${inboxSection(l)}
     ${notes.length ? `<section><h4>Your notes</h4><ul class="note-list">${notes.map(n => `<li><time>${esc(n.at.slice(0, 10))}</time>${esc(n.text)}</li>`).join("")}</ul></section>` : ""}
     ${peopleSection(l)}
     ${l.kind === "posting" ? applicationSection(l) : ""}
@@ -512,6 +551,8 @@ $("rows").addEventListener("change", e => {
 $("rows").addEventListener("click", async e => {
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
+  const card = e.target.closest("[data-pipe-key]");
+  if (card) { state.selected = card.dataset.pipeKey; state.armed = null; renderRows(); return renderDetail(); }
   const item = e.target.closest("[data-cal-key]");
   if (item) { state.selected = item.dataset.calKey; state.armed = null; return renderDetail(); }
   const kind = e.target.closest("[data-cal-kind]");
@@ -534,7 +575,11 @@ $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
   b.disabled = true; b.textContent = kind === "postings" ? "Searching…" : "Searching news, X and LinkedIn… (a few minutes)";
   try {
-    if (kind === "check") {
+    if (kind === "inbox") {
+      b.textContent = "Reading your inboxes…";
+      const r = await api("/api/pipeline/scan", {});
+      toast(r.added ? `${r.added} new email${r.added > 1 ? "s" : ""} in your pipeline.` : "Nothing new.");
+    } else if (kind === "check") {
       b.textContent = "Reading 5 events' pages… (a minute or two)";
       const r = await api("/api/opportunities/check", { limit: 5 });
       const paid = r.checked.filter(o => TRAVEL.has(o.assessment.travel));

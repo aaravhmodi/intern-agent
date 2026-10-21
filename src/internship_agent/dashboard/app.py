@@ -1,3 +1,5 @@
+import threading
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
 from datetime import UTC, date, datetime
@@ -10,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
-from internship_agent import agenda, chat
+from internship_agent import agenda, chat, pipeline
 from internship_agent.ai import draft_outreach
 from internship_agent.applications.browser import screenshot_path
 from internship_agent.config import get_settings
@@ -480,6 +482,64 @@ def _calendar_items() -> list[agenda.Item]:
         settings.followup_days,
         date.today(),
     )
+
+
+# Job pipeline: both Gmail inboxes, read in the background and on demand.
+_pipeline_lock = threading.Lock()
+_pipeline_state: dict[str, Any] = {"at": None, "error": None}
+
+
+def _scan_inboxes() -> int:
+    """One scan at a time; remembers when it last ran and how it went (never the mail)."""
+    with _pipeline_lock:
+        try:
+            added = pipeline.scan(get_settings())
+        except Exception as exc:  # IMAP or network trouble: report the kind, not the words
+            _pipeline_state.update(error=type(exc).__name__)
+            raise
+        _pipeline_state.update(at=datetime.now(UTC).isoformat(), error=None)
+        return len(added)
+
+
+def _scan_forever(minutes: int) -> None:
+    while True:
+        try:
+            _scan_inboxes()
+        except Exception:
+            pass  # recorded in _pipeline_state; try again next round
+        time.sleep(minutes * 60)
+
+
+@app.on_event("startup")
+def _start_inbox_scans() -> None:
+    settings = get_settings()
+    if settings.pipeline_sync_minutes > 0 and pipeline.inboxes(settings):
+        threading.Thread(
+            target=_scan_forever, args=(settings.pipeline_sync_minutes,), daemon=True
+        ).start()
+
+
+@app.get("/api/pipeline")
+def job_pipeline() -> dict[str, Any]:
+    """Every company you applied to or emailed, in the column of its latest email."""
+    settings = get_settings()
+    return {
+        "cards": pipeline.board(lead_store(settings).load(), pipeline.events(settings)),
+        "inboxes": [address for address, _ in pipeline.inboxes(settings)],
+        "last_scan": _pipeline_state["at"],
+        "error": _pipeline_state["error"],
+    }
+
+
+@app.post("/api/pipeline/scan")
+def scan_inboxes() -> dict[str, Any]:
+    """Read both inboxes now (read-only)."""
+    if not pipeline.inboxes(get_settings()):
+        raise HTTPException(400, "Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD to read your inbox")
+    try:
+        return {"added": _scan_inboxes()}
+    except Exception as exc:
+        raise HTTPException(503, f"Couldn't read Gmail ({type(exc).__name__})") from exc
 
 
 @app.get("/api/calendar")
