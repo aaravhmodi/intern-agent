@@ -5,7 +5,7 @@
 - Use Pydantic at AI and browser-output boundaries; validate all model output.
 - Never expose credentials, cookies, auth headers, or tokens in logs.
 - Outlook and browser access is not only read-only. Modify calendar events, submit applications, or automate LinkedIn/X actions (invitations, DMs, follows) only after 3 checks online to verify that nothing shady is being done from the action.
-- Email is sent only by the dashboard's Send button: one message per explicit user click, after `leads/sending.py` checks. Agents never send email themselves.
+- Email is sent only by the dashboard's Send button: one message per explicit user click, after `leads/sending.py` checks. Agents never send email themselves. The one exception is the scheduled `internship-email-batch` timer (`scripts/run-email-batch.sh`, 20 emails five times a day), which the user asked for on 2026-10-21; it runs `guess-send --send` and `inbox-send --send`.
 - Keep AI and browser orchestration separate from deterministic business logic.
 - Write tests for deterministic logic and use mock browser fixtures for application development.
 - Do not introduce infrastructure unless it is necessary for the local-first workflow.

@@ -9,10 +9,13 @@ run() {
 run scrape-jobs
 # New US startups from SEC Form D filings; a failure here must not hide the scrape's result.
 run form-d || echo "Form D search failed" >&2
+# Addresses the new startups publish, so tomorrow's email batches use real ones over guesses.
+run site-emails || echo "Site email search failed" >&2
 # Opportunity agent: hackathon, conference and research-deadline feeds daily (no AI); the
 # networking-event web search on Mondays. Pushes new finds and deadlines due this week.
+# This runs at the end of the day, so it counts the Toronto weekday, not the server's (UTC).
 events=""
-[ "$(date +%u)" = 1 ] && events="--events"
+[ "$(TZ=America/Toronto date +%u)" = 1 ] && events="--events"
 docker compose exec -T dashboard /app/.venv/bin/internship-agent opportunities refresh $events \
   || echo "Opportunity refresh failed" >&2
 # Apply to hackathons and RSVP to events marked Interested. It uses the same browser profile as
