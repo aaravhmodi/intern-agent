@@ -35,6 +35,7 @@ def test_each_run_of_sends_is_a_batch_with_its_bounces_and_replies() -> None:
         },
     ]
     newest, first = batches(leads, log)
+    assert batches(leads, log, "me@gmail.com")[1]["from"] == "me@gmail.com"  # older entries
     assert first == {
         "started": "2026-10-20T20:00:00+00:00",
         "from": None,

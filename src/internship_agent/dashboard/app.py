@@ -536,7 +536,9 @@ def job_pipeline() -> dict[str, Any]:
         "cards": pipeline.board(leads, found),
         "insights": pipeline.insights(leads, found, settings.outreach_gmail_address, date.today()),
         "inboxes": [address for address, _ in pipeline.inboxes(settings)],
-        "batches": batches.batches(leads, db.read_log(settings, "sent-log")),
+        "batches": batches.batches(
+            leads, db.read_log(settings, "sent-log"), settings.gmail_address
+        ),
         "last_scan": _pipeline_state["at"],
         "error": _pipeline_state["error"],
     }

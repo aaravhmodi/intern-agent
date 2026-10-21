@@ -12,8 +12,14 @@ from internship_agent.leads.schemas import Lead
 GAP = timedelta(minutes=15)
 
 
-def batches(leads: list[Lead], sent_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Newest first: when it started, the sender, and sent / bounced / replied / waiting."""
+def batches(
+    leads: list[Lead], sent_log: list[dict[str, Any]], main: str | None = None
+) -> list[dict[str, Any]]:
+    """Newest first: when it started, the sender, and sent / bounced / replied / waiting.
+
+    Older log entries don't name the sender; a lead still on that address does (its
+    sent_from, or `main` when that's empty).
+    """
     by_key = {lead.key: lead for lead in leads}
     records = sorted(
         (r for r in sent_log if r.get("at") and r.get("to") and not r.get("followup")),
@@ -29,11 +35,14 @@ def batches(leads: list[Lead], sent_log: list[dict[str, Any]]) -> list[dict[str,
     found = []
     for run in runs:
         bounced = replied = 0
+        sender = run[0].get("from")
         for record in run:
             lead, to = by_key.get(record.get("key", "")), record["to"].lower()
             if lead is None:
                 continue
             current = lead.sent_to == to
+            if current and not sender:
+                sender = lead.sent_from or main
             if to in lead.bounced_emails or (current and lead.followups_stopped == "bounced"):
                 bounced += 1
             elif current and lead.replied_at is not None:
@@ -41,7 +50,7 @@ def batches(leads: list[Lead], sent_log: list[dict[str, Any]]) -> list[dict[str,
         found.append(
             {
                 "started": run[0]["at"],
-                "from": run[0].get("from"),
+                "from": sender,
                 "sent": len(run),
                 "bounced": bounced,
                 "replied": replied,
