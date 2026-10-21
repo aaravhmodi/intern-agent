@@ -636,6 +636,83 @@ def guess_and_send(
     return picked
 
 
+def inbox_send(
+    settings: Settings,
+    limit: int,
+    *,
+    send: bool = False,
+    log: Callable[[str], None] = lambda _: None,
+    pause_seconds: float = 20,
+) -> list[Lead]:
+    """Email the shared inbox each startup publishes, hiring ones (careers@) first.
+
+    Each inbox becomes a lead of its own (the company's "team"), so its send, follow-ups
+    and bounce are tracked without touching the CEO's own email. An inbox is written to
+    once, and never at a company where someone already replied. Dry run unless `send`.
+    """
+    store = lead_store(settings)
+    leads = store.load()
+    emailed = {lead.sent_to for lead in leads if lead.sent_to}
+    done = {lead.company for lead in leads if lead.replied_at or lead.status is LeadStatus.SKIPPED}
+    best: dict[str, Lead] = {}
+    for lead in leads:
+        address = lead.company_email
+        if lead.kind is not LeadKind.FOUNDER or not address or address in emailed:
+            continue
+        if lead.company not in done:
+            best.setdefault(lead.company, lead)
+    ranked = sorted(
+        best.values(),
+        key=lambda lead: (
+            site_emails.GENERIC.index((lead.company_email or "").split("@")[0]),
+            -(lead.fit.score if lead.fit else 0),
+        ),
+    )
+    picked: list[Lead] = []
+    for source in ranked[:limit]:
+        inbox = Lead(
+            kind=LeadKind.FOUNDER,
+            company=source.company,
+            company_url=source.company_url,
+            what_they_build=source.what_they_build,
+            location=source.location,
+            source_url=source.source_url,
+            contact_role="Company inbox",
+            email=source.company_email,
+            email_status=EmailStatus.PUBLISHED,
+            email_source="Published on the company's own site",
+            company_email=source.company_email,
+            amount_usd=source.amount_usd,
+            announced_on=source.announced_on,
+            segment=source.segment,
+            region=source.region,
+            hiring_signals=source.hiring_signals,
+            fit=source.fit,
+            status=LeadStatus.SCORED if source.fit else LeadStatus.NEW,
+        )
+        assert inbox.email
+        log(f"{inbox.company}: {inbox.email}")
+        picked.append(inbox)
+        if not send:
+            continue
+        store.upsert(inbox)
+        try:
+            send_email(
+                settings,
+                inbox.key,
+                inbox.email,
+                OUTREACH_SUBJECT,
+                OUTREACH_BODY.format(first=f"{inbox.company} team", company=inbox.company),
+                attach_resume=True,
+                confirm_unverified=False,  # published on their site, not a guess
+            )
+        except Exception as error:  # one refused send must not stop the batch
+            log(f"{inbox.company}: not sent ({type(error).__name__}: {error})")
+            continue
+        time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
+    return picked
+
+
 def answer_bank(settings: Settings) -> AnswerBank:
     return AnswerBank(settings.data_dir / "answer-bank.json", db.table(settings, "answer_bank"))
 

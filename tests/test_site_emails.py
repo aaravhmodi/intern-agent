@@ -1,10 +1,17 @@
 import random
+from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
-from internship_agent.leads import patterns
+from internship_agent import workflows
+from internship_agent.config import Settings
+from internship_agent.leads import followups, patterns
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadKind, LeadStatus
+from internship_agent.leads.store import LeadStore
 from internship_agent.sources import site_emails
+
+NOW_UTC = datetime(2026, 10, 20, tzinfo=UTC)
 
 PAGES = {
     "https://acme.ai/": '<a href="mailto:hello@acme.ai">Say hi</a> press@acme.ai',
@@ -36,6 +43,28 @@ def lead(**more: object) -> Lead:
         "company_email": "careers@acme.ai",
     }
     return Lead.model_validate({**data, **more})
+
+
+def test_a_published_address_proves_the_company_format() -> None:
+    known = patterns.by_domain(
+        [lead(email="willem@acme.ai", email_status=EmailStatus.PUBLISHED, contact_name="Willem J")],
+        datetime.now(UTC),
+    )
+    assert known == {"acme.ai": {"first": True}}
+
+
+def test_inbox_send_writes_each_shared_inbox_once_hiring_ones_first(tmp_path: Path) -> None:
+    LeadStore(tmp_path / "leads.json").save(
+        [
+            lead(company="Info Co", company_url="https://info.co", company_email="info@info.co"),
+            lead(),  # Acme, careers@acme.ai
+            lead(company="Replied", company_email="jobs@replied.io", replied_at=NOW_UTC),
+            lead(company="Done", company_email="hello@done.ai", sent_to="hello@done.ai"),
+        ]
+    )
+    picked = workflows.inbox_send(Settings(_env_file=None, data_dir=tmp_path), 10)
+    assert [inbox.email for inbox in picked] == ["careers@acme.ai", "info@info.co"]
+    assert picked[0].key == "acme/team" and followups.first_name(picked[0]) == "Acme team"
 
 
 def test_the_company_inbox_takes_over_after_two_bounces() -> None:

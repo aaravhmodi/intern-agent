@@ -202,8 +202,12 @@ never prompt content, are logged to `openai_usage`.
   a published address with the person's name replaces a guess. `leads guess-send --limit 40`
   lists the format most likely to reach each founder (`first@`, `first.last@`, …), learned
   from past deliveries and bounces, and emails only with `--send`. People at the same company
-  are emailed only once the CEO's guess has proven the format. A format that bounced there is
-  never tried again, and a shared careers inbox is the fallback after two bounces.
+  are emailed only once the CEO's guess, or any published personal address there, has proven
+  the format. A format that bounced there is never tried again, and a shared careers inbox is
+  the fallback after two bounces.
+- **Company inboxes.** `leads inbox-send --limit 20` emails startups' published shared inboxes
+  (careers@, jobs@, … hiring ones first), each as its own lead greeting "{company} team",
+  skipping companies where someone already replied. It also only lists without `--send`.
 - **Two inboxes.** New outreach goes from `OUTREACH_GMAIL_ADDRESS` when set, so bounces stay off
   the main Gmail.
 - **Follow-ups** go out after 5 days without a reply, at most twice, as a reply in the same
@@ -379,7 +383,7 @@ interview-like events. `.mcp.json` registers the same server for Claude Code ses
 ## Safety and privacy
 
 - **Email** goes out only when you send it: the dashboard's Send after a second confirming
-  click, or `guess-send --send`. Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
+  click, or `guess-send --send` / `inbox-send --send`. Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
   most twice, never after a reply or bounce.
 - **Inboxes are read-only.** Gmail is read over IMAP with folders opened read-only, so nothing
   is marked read, moved or deleted. Outlook goes through a read-only MCP server.
@@ -423,6 +427,7 @@ internship-agent leads find-startups --stage early --stage mid --count 8
 internship-agent leads scrape-jobs | form-d | team-contacts | site-emails
 internship-agent leads import data/leads-inbox.json && leads score && leads draft-all
 internship-agent leads guess-send --limit 40 [--send]
+internship-agent leads inbox-send --limit 20 [--send]
 internship-agent leads application-campaign --target 20 --lowest-first
 internship-agent leads apply <key> --dry-run
 internship-agent leads followups [--send | --check-only]
