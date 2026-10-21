@@ -36,6 +36,7 @@ from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import DONE, is_workday, open_postings, refill
 from internship_agent.leads.schemas import (
     ApplicationPrep,
+    EmailStatus,
     Lead,
     LeadKind,
     LeadStatus,
@@ -51,7 +52,7 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
-from internship_agent.sources import form_d, simplify, startups
+from internship_agent.sources import form_d, simplify, site_emails, startups
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
@@ -512,6 +513,52 @@ def add_team_contacts(
     return added
 
 
+def find_site_emails(
+    settings: Settings, log: Callable[[str], None] = lambda _: None
+) -> tuple[int, int]:
+    """Look for addresses each startup publishes on its own site; no guessing, no AI.
+
+    A person's own address replaces their guess. The company's best shared inbox
+    (careers@, jobs@, hello@...) is kept as the fallback once guesses bounce.
+    Returns (people given a published address, companies with a shared inbox).
+    """
+    store = lead_store(settings)
+    by_domain: dict[str, list[Lead]] = {}
+    for lead in store.load():
+        if lead.kind is LeadKind.FOUNDER and lead.status is not LeadStatus.SKIPPED:
+            if lead.company_url and (domain := patterns.domain_of(lead)):
+                by_domain.setdefault(domain, []).append(lead)
+
+    def scan(domain: str) -> dict[str, str]:
+        return site_emails.published(by_domain[domain][0].company_url or "", domain)
+
+    people = companies = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for domain, found in zip(by_domain, pool.map(scan, by_domain), strict=True):
+            shared = site_emails.generic(found)
+            companies += shared is not None
+            for stale in by_domain[domain]:
+                lead = store.get(stale.key)  # fresh: the inbox check may have changed it
+                mine = site_emails.personal(found, lead.contact_name or "")
+                own = mine and lead.email_status is not EmailStatus.PUBLISHED
+                if own and mine and mine[0] not in patterns.bounced_addresses(lead):
+                    lead.email, lead.email_status, lead.email_source = (
+                        mine[0],
+                        EmailStatus.PUBLISHED,
+                        mine[1],
+                    )
+                    people += 1
+                elif not (shared and lead.company_email != shared[0]):
+                    continue
+                if shared:
+                    lead.company_email = shared[0]
+                    text = f"{shared[0]} is published on {shared[1]}."
+                    lead.notes.append(Note(at=datetime.now(UTC), text=text))
+                store.upsert(lead)
+            log(f"{by_domain[domain][0].company}: {', '.join(found) or 'none published'}")
+    return people, companies
+
+
 def guess_and_send(
     settings: Settings,
     limit: int,
@@ -541,6 +588,8 @@ def guess_and_send(
     )
     picked: list[tuple[Lead, str]] = []
     domains: set[str] = set()
+    # A shared inbox (careers@...) is written to once, however many people point at it.
+    emailed = {lead.sent_to for lead in leads if lead.sent_to}
     for lead in wanted:
         if len(picked) == limit:
             break
@@ -553,8 +602,10 @@ def guess_and_send(
             continue  # waits until the CEO's email shows the company's format
         if domain in domains and not proven:
             continue  # one unproven guess per company a day
-        if address := patterns.next_guess(lead, domain, counts, rng, at_domain):
+        address = patterns.next_guess(lead, domain, counts, rng, at_domain)
+        if address and address not in emailed:
             domains.add(domain)
+            emailed.add(address)
             picked.append((lead, address))
     for lead, address in picked:
         role = patterns.role_of(lead)
@@ -565,7 +616,8 @@ def guess_and_send(
             continue
         patterns.point_at(lead, address)
         store.upsert(lead)
-        first = (lead.contact_name or "there").split()[0]
+        shared = address == lead.company_email
+        first = f"{lead.company} team" if shared else (lead.contact_name or "there").split()[0]
         try:
             send_email(
                 settings,

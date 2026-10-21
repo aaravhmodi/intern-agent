@@ -254,6 +254,12 @@ Every 30 minutes the server runs `leads followups --check-only` (systemd timer
 learns from a bounce within half an hour, and pushes new replies to the outreach Gmail to
 ntfy (n8n already pushes the main inbox's). It never sends.
 
+`uv run internship-agent leads site-emails` reads each startup's own home, careers, jobs,
+contact, about and team pages for addresses at its domain. A published address with the
+person's name replaces their guess; the best shared inbox (careers@, jobs@, talent@ ...
+hello@, contact@) becomes the fallback that `guess-send` uses after two of a person's
+guesses bounce, greeting "{company} team" and writing to each shared inbox only once.
+
 ## Opportunity agent
 
 The dashboard's second section, beside the internship agent: things to go to and submit to.

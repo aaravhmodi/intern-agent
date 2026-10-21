@@ -31,6 +31,7 @@ from internship_agent.workflows import (
     daily,
     find_form_d_startups,
     find_more_postings,
+    find_site_emails,
     find_startups,
     guess_and_send,
     prepare_application,
@@ -255,6 +256,13 @@ def guess_send_cmd(
     """Email founders at the address format most likely to work; retry bounced ones."""
     picked = guess_and_send(get_settings(), limit, send=send, log=console.print)
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
+
+
+@leads_app.command("site-emails")
+def site_emails_cmd() -> None:
+    """Find addresses each startup publishes on its own site: people's, or careers@ and such."""
+    people, companies = find_site_emails(get_settings(), log=console.print)
+    console.print(f"{people} people got a published address; {companies} companies a shared inbox.")
 
 
 @leads_app.command("team-contacts")

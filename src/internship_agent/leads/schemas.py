@@ -217,6 +217,8 @@ class Lead(BaseModel):
     followups_stopped: str = ""
     # Guessed addresses that bounced, so the next guess never repeats one.
     bounced_emails: list[str] = Field(default_factory=list)
+    # A shared inbox the company publishes (careers@, hello@...), used once guesses bounce.
+    company_email: str | None = None
     notes: list[Note] = Field(default_factory=list)
     application: ApplicationPrep | None = None
     # Posting description fetched for scoring (truncated); empty for founder leads.

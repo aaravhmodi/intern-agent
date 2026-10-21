@@ -169,6 +169,10 @@ def next_guess(
     at_domain = at_domain or {}
     options = [f for f in PATTERNS if f not in tried and at_domain.get(f) is not False]
     options = [f for f in options if at_domain.get(f)] or options
+    # Two misses (or nothing left to guess) and the company's own published inbox is next.
+    shared = lead.company_email if lead.company_email not in bounced else None
+    if shared and (len(bounced) >= 2 or not options):
+        return shared
     if not options:
         return None
 
@@ -190,7 +194,10 @@ def point_at(lead: Lead, address: str) -> None:
         lead.sent_at = lead.sent_to = lead.sent_from = None
         lead.followups = []
         lead.followups_stopped = ""
-    if address != lead.email or lead.email_status is not EmailStatus.PUBLISHED:
+    if address == lead.company_email:
+        lead.email, lead.email_status = address, EmailStatus.PUBLISHED
+        lead.email_source = "The company's own inbox, published on its site"
+    elif address != lead.email or lead.email_status is not EmailStatus.PUBLISHED:
         fmt = format_of(address, lead.contact_name or "") or "unknown"
         lead.email = address
         lead.email_status = EmailStatus.PATTERN
