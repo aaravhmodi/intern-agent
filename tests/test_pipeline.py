@@ -270,3 +270,108 @@ def test_dashboard_shows_the_board(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     LeadStore(tmp_path / "leads.json").save([ACME])
     data = TestClient(dashboard.app).get("/api/pipeline").json()
     assert [(c["company"], c["column"]) for c in data["cards"]] == [("Acme Robotics", "waiting")]
+    assert [t["label"] for t in data["insights"]["tiles"]][:3] == [
+        "Emailed",
+        "Delivered",
+        "Replies",
+    ]
+
+
+def _event(stage: str, lead: Lead, days_ago: int = 1) -> pipeline.InboxEvent:
+    return pipeline.InboxEvent(
+        message_id=f"{stage}-{lead.key}",
+        inbox="me@gmail.com",
+        received_at=NOW - timedelta(days=days_ago),
+        sender="x@y.com",
+        sender_name="",
+        subject=stage,
+        stage=stage,
+        company=lead.company,
+        lead_key=lead.key,
+        snippet="",
+    )
+
+
+def test_insights_count_funnels_and_say_what_they_mean() -> None:
+    sent = NOW - timedelta(days=4)
+
+    def emailed(name: str, status: str = "pattern") -> Lead:
+        return lead(
+            name,
+            status="contacted",
+            sent_to=f"a@{name.lower()}.com",
+            sent_at=sent,
+            email=f"a@{name.lower()}.com",
+            email_status=status,
+            segment="early",
+        )
+
+    guessed = [emailed(f"Co{i}") for i in range(10)]
+    applied = lead(
+        "Acme Robotics",
+        status="applied",
+        application={
+            "prepared_at": NOW.isoformat(),
+            "source": "form",
+            "answers": [],
+            "submission_status": "uncertain",
+        },
+    )
+    found = [_event("bounced", g) for g in guessed[:4]] + [
+        _event("reply", guessed[4]),
+        _event("interview", guessed[5]),
+        _event("applied", applied),
+    ]
+    ins = pipeline.insights([*guessed, applied], found, None, NOW.date())
+
+    tiles = {t["label"]: t for t in ins["tiles"]}
+    assert tiles["Emailed"]["value"] == 10 and tiles["Emailed"]["sub"] == "4 bounced"
+    assert tiles["Delivered"]["value"] == "60%" and tiles["Replies"]["value"] == 2
+    assert ins["funnels"]["outreach"] == [
+        ["Emailed", 10],
+        ["Delivered", 6],
+        ["Replied", 2],
+        ["Interview", 1],
+    ]
+    assert ins["funnels"]["applications"][:2] == [["Applied", 1], ["Confirmed by email", 1]]
+    assert ins["sources"] == [{"label": "Guessed address", "sent": 10, "bounced": 4, "heard": 2}]
+    assert (
+        sum(d["bounced"] for d in ins["daily"]) == 4 and sum(d["sent"] for d in ins["daily"]) == 10
+    )
+    notes = " | ".join(n["text"] for n in ins["notes"])
+    assert "40% of emails to guessed addresses bounced (4 of 10)" in notes
+    assert "2 of 6 delivered emails got a reply from a person (33%)" in notes
+    assert "did reach the employer, who emailed back: Acme Robotics" in notes
+    assert "Needs you: Co5." in notes  # a company name, never an internal key
+    assert ins["median_reply_days"] == 3
+
+
+def test_replies_are_not_pushed_twice() -> None:
+    reply = _event("reply", NOVA)
+    assert pipeline.push_for([reply], None) is None  # n8n and followups already push replies
+
+
+@pytest.mark.parametrize(
+    ("subject", "company"),
+    [
+        ("Thank you for applying to Astranis", "Astranis"),
+        ("Thank you for applying to Vercel!", "Vercel"),
+        ("Thank you for applying to Legend Biotech US", "Legend Biotech US"),
+        ("Your application to Kodiak Robotics for Software Intern", "Kodiak Robotics"),
+        ("Weekly digest", "us.greenhouse-mail.io"),  # nothing to go on: keep what was stored
+    ],
+)
+def test_unmatched_mail_is_named_by_its_subject(subject: str, company: str) -> None:
+    event = pipeline.InboxEvent(
+        message_id="m",
+        inbox="me@gmail.com",
+        received_at=NOW,
+        sender="no-reply@us.greenhouse-mail.io",
+        sender_name="",
+        subject=subject,
+        stage="applied",
+        company="us.greenhouse-mail.io",
+        lead_key=None,
+        snippet="",
+    )
+    assert pipeline.display_company(event) == company

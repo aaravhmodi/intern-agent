@@ -521,10 +521,13 @@ def _start_inbox_scans() -> None:
 
 @app.get("/api/pipeline")
 def job_pipeline() -> dict[str, Any]:
-    """Every company you applied to or emailed, in the column of its latest email."""
+    """Every company you applied to or emailed, at the stage of its latest email, plus the
+    funnels, breakdowns and takeaways behind them."""
     settings = get_settings()
+    leads, found = lead_store(settings).load(), pipeline.events(settings)
     return {
-        "cards": pipeline.board(lead_store(settings).load(), pipeline.events(settings)),
+        "cards": pipeline.board(leads, found),
+        "insights": pipeline.insights(leads, found, settings.outreach_gmail_address, date.today()),
         "inboxes": [address for address, _ in pipeline.inboxes(settings)],
         "last_scan": _pipeline_state["at"],
         "error": _pipeline_state["error"],

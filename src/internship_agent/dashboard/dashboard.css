@@ -395,18 +395,62 @@ textarea.short { min-height: 80px; }
   .ask-open { right: 12px; bottom: 12px; }
 }
 
-/* Job pipeline: a column per stage. */
+/* Job pipeline: tiles, funnels, daily columns, breakdown and the company list.
+   Series colors are the reference categorical slots for dark surfaces, validated against
+   --surface and --surface-raised (validate_palette.js: all checks pass). */
+.viz { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; }
 .pipe { padding: 16px 20px 28px; }
-.pipe-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 1fr); gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 6px; }
-.pipe-col { min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--rail); }
-.pipe-head { display: flex; justify-content: space-between; margin: 0 2px 8px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
-.pipe-head span:last-child { color: var(--faint); }
-.pipe-card { margin-bottom: 6px; padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-raised); }
-.pipe-card[data-pipe-key] { cursor: pointer; }
-.pipe-card[data-pipe-key]:hover, .pipe-card.on { border-color: var(--blue); }
-.pipe-card .co { font-size: 13px; }
-.pipe-subject { margin-top: 4px; overflow: hidden; color: var(--ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin: 12px 0; }
+.tile { padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.tile-label { color: var(--faint); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.tile-value { margin-top: 4px; color: var(--ink); font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tile-sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+.viz-card { margin-bottom: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.viz-card h3 { margin: 0 0 10px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.viz-sub { margin: 10px 0 6px; color: var(--muted); font-size: 11px; }
+.viz-sub b { color: var(--ink); font-weight: 600; }
+.funnel-row, .brk-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 150px; gap: 10px; align-items: center; padding: 5px 0; }
+.funnel-label { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.funnel-track { height: 14px; border-radius: 0 4px 4px 0; background: var(--line-soft); }
+.funnel-bar { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--s1); }
+.funnel-num { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.funnel-num small { margin-left: 6px; color: var(--faint); }
+.brk-bar { display: flex; gap: 2px; height: 14px; }
+.brk-bar .seg { min-width: 3px; }
+.brk-bar .seg:last-child { border-radius: 0 4px 4px 0; }
+.viz-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 8px; color: var(--muted); font-size: 11px; }
+.viz-legend .sw { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; }
+.seg.s1, .sw.s1 { background: var(--s1); } .seg.s2, .sw.s2 { background: var(--s2); }
+.seg.s3, .sw.s3 { background: var(--s3); } .seg.s4, .sw.s4 { background: var(--s4); }
+.seg.sent { background: var(--muted); }
+.cols { display: flex; gap: 3px; align-items: stretch; height: 110px; border-bottom: 1px solid var(--line); }
+.cols.short { height: 56px; }
+.col { display: flex; flex: 1; flex-direction: column-reverse; gap: 2px; min-width: 0; }
+.col .seg { display: block; width: 100%; }
+.col .seg:last-child { border-radius: 4px 4px 0 0; }
+.cols-axis { display: flex; gap: 3px; margin-top: 4px; color: var(--faint); font-size: 10px; }
+.cols-axis span { flex: 1; min-width: 0; overflow: visible; white-space: nowrap; }
+.viz-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.viz-tabs .btn.on { border-color: var(--blue); background: var(--blue-wash); color: var(--blue-strong); }
+.viz-tabs .btn small { margin-left: 4px; color: var(--faint); }
+.takeaways { margin: 0; padding: 0; list-style: none; }
+.takeaways li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); color: var(--ink); font-size: 12px; line-height: 1.5; }
+.takeaways li:last-child { border-bottom: 0; }
+.takeaways li span { font-weight: 700; }
+.takeaways li.warn span { color: var(--amber); } .takeaways li.ok span { color: var(--green); } .takeaways li.info span { color: var(--faint); }
+.co-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 84px; gap: 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line-soft); }
+.co-row.link { cursor: pointer; }
+.co-row.link:hover, .co-row.on { background: var(--surface-hover); }
+.co-row .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-chip { justify-self: start; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11px; }
+.stage-chip.offer, .stage-chip.interview, .stage-chip.assessment, .stage-chip.reply { border-color: #1c5e4a; color: var(--green); }
+.stage-chip.rejected { color: var(--faint); }
+.stage-chip.bounced { border-color: #5c3a22; color: var(--amber); }
+#viz-tip { position: fixed; z-index: 30; display: none; max-width: 320px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-raised); color: var(--ink); font-size: 11px; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }
 @media (max-width: 700px) {
   .pipe { padding: 12px 8px; }
-  .pipe-board { grid-auto-columns: 78vw; }
+  .funnel-row, .brk-row { grid-template-columns: 92px minmax(0, 1fr) 96px; }
+  .co-row { grid-template-columns: 96px minmax(0, 1fr); }
+  .co-row > span:last-child { display: none; }
 }
