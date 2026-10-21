@@ -1,0 +1,7 @@
+[Unit]
+Description=Send one batch of 20 outreach emails
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-email-batch.sh

@@ -122,7 +122,7 @@ flowchart TB
       DASH[dashboard container<br/>FastAPI :8765 + CLI<br/>internship-agent]
       PG[(Postgres<br/>projects db<br/>intern_agent_* tables)]
       N8N[n8n<br/>reply alerts · follow-ups]
-      SYSD[systemd timers<br/>7:30 scrape · 8:00 apply<br/>30 min inbox check]
+      SYSD[systemd timers<br/>5× 20 emails · 8:00 apply<br/>9:30 PM scrape · 30 min inbox check]
       BROWSER[Playwright<br/>saved browser profile]
     end
   end
@@ -154,8 +154,9 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 
 | When (Toronto) | What | How |
 |---|---|---|
-| 7:30 AM | Scrape postings → Form D founders → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
+| 9:00 AM · 11:30 AM · 2:00 PM · 4:30 PM · 7:00 PM | Email up to 20 people never emailed, from the outreach Gmail (best-guess address format); if fewer than 20 founders are left, top up from startups' published shared inboxes. 100 a day at most | `scripts/run-email-batch.sh` (systemd `internship-email-batch`) |
 | 8:00 AM | Submit 20 job applications, lowest fit first | `scripts/run-daily-applications.sh` (systemd) |
+| 9:30 PM | End of day: skip expired postings → scrape postings → Form D founders → find published emails → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
 | Every 30 min | Record replies and bounces in both inboxes; push new outreach replies | `leads followups --check-only` (systemd `internship-inbox-check`) |
 | Every 30 min | Scan both inboxes into the Job pipeline; push assessments, interviews, offers | Inside the dashboard |
 | Each new email | Push replies to the main inbox | n8n ([`n8n/README.md`](n8n/README.md)) |
@@ -443,7 +444,9 @@ interview-like events. `.mcp.json` registers the same server for Claude Code ses
 ## Safety and privacy
 
 - **Email** goes out only when you send it: the dashboard's Send after a second confirming
-  click, or `guess-send --send` / `inbox-send --send`. Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
+  click, or `guess-send --send` / `inbox-send --send`, which the five daily email batches run
+  (20 each, at the times above; stop them with `systemctl --user disable --now
+  internship-email-batch.timer`). Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
   most twice, never after a reply or bounce.
 - **Inboxes are read-only.** Gmail is read over IMAP with folders opened read-only, so nothing
   is marked read, moved or deleted. Outlook goes through a read-only MCP server.

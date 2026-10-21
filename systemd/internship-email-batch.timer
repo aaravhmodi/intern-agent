@@ -1,0 +1,14 @@
+[Unit]
+Description=Send 20 outreach emails five times a day, Toronto time
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 America/Toronto
+OnCalendar=*-*-* 11:30:00 America/Toronto
+OnCalendar=*-*-* 14:00:00 America/Toronto
+OnCalendar=*-*-* 16:30:00 America/Toronto
+OnCalendar=*-*-* 19:00:00 America/Toronto
+AccuracySec=1min
+Unit=internship-email-batch.service
+
+[Install]
+WantedBy=timers.target
