@@ -6,6 +6,8 @@ works without a script-rendered page or a login.
 """
 
 import json
+import re
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from typing import Any
@@ -45,6 +47,31 @@ def _get(url: str) -> Any:
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read())
+
+
+_CLOSED = re.compile(
+    r"no longer available|no longer accepting|position (?:has been|is) filled|"
+    r"posting is closed|job not found|no current openings",
+    re.I,
+)
+
+
+def posting_is_gone(url: str) -> bool:
+    """True when the posting page is a 404/410 or says the role is closed.
+
+    Greenhouse sends a closed job to its board with ?error=true. Any other failure (timeout,
+    5xx, script-rendered page) counts as still open, so a hiccup never hides a live role.
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if "error=true" in response.geturl():
+                return True
+            return bool(_CLOSED.search(response.read(300_000).decode("utf-8", "ignore")))
+    except urllib.error.HTTPError as error:
+        return error.code in (404, 410)
+    except Exception:
+        return False
 
 
 def amazon_roles(pages: list[dict[str, Any]]) -> list[OpenRole]:
