@@ -91,6 +91,8 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
     monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
+    monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
+    monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
     monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
     monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
     monkeypatch.setattr(workflows, "prepare_application", prepare)
@@ -158,6 +160,8 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: candidates)
+    monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
+    monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
     monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)
 
     new = workflows.scrape_jobs(Settings(_env_file=None))

@@ -63,10 +63,11 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
-from internship_agent.sources import form_d, simplify, site_emails, startups
+from internship_agent.sources import big_companies, form_d, gallery, simplify, site_emails, startups
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
+from internship_agent.sources.regions import regions_of
 from internship_agent.sources.startup_jobs import find_intern_roles
 from internship_agent.x_search import post_confirms, search_x_raises
 
@@ -1114,6 +1115,19 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     regions = {Region(r) for r in settings.search_regions}
     simplify_postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
     candidates.extend(simplify.to_lead(p) for p in simplify_postings)
+    # Roles posted on company career sites and startups.gallery, which Simplify may not have yet.
+    # A source that is down is logged and skipped, never fatal.
+    for name, find in (
+        ("career sites", lambda: big_companies.postings(regions, log)),
+        (
+            "startups.gallery",
+            lambda: [lead for lead in gallery.postings(log) if regions_of(lead.location) & regions],
+        ),
+    ):
+        try:
+            candidates.extend(find())
+        except Exception as error:
+            log(f"{name}: {error}")
 
     candidates = [lead for lead in candidates if not is_workday(lead)]
     # Store every eligible job surfaced today; the daily preparation pass covers the whole
