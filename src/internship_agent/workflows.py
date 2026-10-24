@@ -40,6 +40,7 @@ from internship_agent.leads.deadlines import find_deadline
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import (
     DONE,
+    drop_unavailable,
     expire_closed,
     expire_postings,
     is_workday,
@@ -1001,7 +1002,24 @@ def submit_application(
     """Submit one prepared application through a persistent, user-authenticated browser.
 
     accept_posting_term skips the January-April check; only a job you picked by hand sets it.
+    A real attempt that comes back skipped or blocked moves the posting to Skipped for good.
     """
+    lead = _submit(
+        settings, key, dry_run=dry_run, headless=headless, accept_posting_term=accept_posting_term
+    )
+    if not dry_run and drop_unavailable([lead]):
+        lead_store(settings).upsert(lead)
+    return lead
+
+
+def _submit(
+    settings: Settings,
+    key: str,
+    *,
+    dry_run: bool,
+    headless: bool,
+    accept_posting_term: bool,
+) -> Lead:
     from internship_agent.applications.browser import apply_to_posting
 
     if not settings.auto_submit_applications and not dry_run:
@@ -1114,6 +1132,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     leads = store.load()
     log(f"{len(expire_postings(leads, date.today()))} posting(s) expired")
     log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} posting(s) no longer live")
+    log(f"{len(drop_unavailable(leads))} posting(s) removed: application closed or blocked")
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
     candidates: list[Lead] = []
     for founder in founders:
