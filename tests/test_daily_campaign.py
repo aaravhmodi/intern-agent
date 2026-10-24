@@ -47,7 +47,9 @@ def test_post_submit_state_is_persisted_for_tracker(
     saved = workflows.submit_application(settings, lead.key)
     tracker = _view(workflows.lead_store(settings).get(lead.key))
     assert tracker["application"]["submission_status"] == result_status
-    assert tracker["status"] == ("applied" if result_status == "submitted" else "scored")
+    # Closed or blocked applications leave the open lists for good.
+    expected = {"submitted": "applied", "blocked": "skipped", "skipped": "skipped"}
+    assert tracker["status"] == expected.get(result_status, "scored")
     assert bool(saved.application.submitted_at) == (result_status == "submitted")
 
 

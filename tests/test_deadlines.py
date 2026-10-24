@@ -51,3 +51,29 @@ def test_expire_closed_skips_open_postings_that_are_gone() -> None:
     gone.posting_url, live.posting_url = "https://x.test/gone", "https://x.test/live"
     assert expire_closed([gone, live], lambda url: url.endswith("gone")) == [gone]
     assert gone.status is LeadStatus.SKIPPED and live.status is LeadStatus.NEW
+
+
+def test_closed_or_blocked_applications_are_removed_but_a_missing_resume_is_not() -> None:
+    from datetime import UTC, datetime
+
+    from internship_agent.leads.refill import drop_unavailable
+    from internship_agent.leads.schemas import ApplicationPrep
+
+    def tried(name: str, status: str, detail: str) -> Lead:
+        lead = posting(name, None)
+        lead.application = ApplicationPrep(
+            prepared_at=datetime.now(UTC),
+            source="form",
+            answers=[],
+            submission_status=status,
+            submission_detail=detail,
+        )
+        return lead
+
+    closed = tried("closed", "skipped", "Posting is closed or no longer available")
+    captcha = tried("captcha", "blocked", "CAPTCHA detected; manual completion required")
+    resume = tried("resume", "blocked", "Configured resume PDF was not found")
+    ready = tried("ready", "pending", "")
+    assert drop_unavailable([closed, captcha, resume, ready]) == [closed, captcha]
+    assert "Removed: CAPTCHA" in captcha.notes[-1].text
+    assert resume.status is LeadStatus.NEW and ready.status is LeadStatus.NEW

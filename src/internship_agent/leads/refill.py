@@ -62,6 +62,26 @@ def expire_postings(leads: list[Lead], today: date) -> list[Lead]:
     return expired
 
 
+def drop_unavailable(leads: list[Lead]) -> list[Lead]:
+    """Skip open postings whose application came back skipped (closed, wrong term) or blocked
+    (CAPTCHA, form errors), with the reason as a note. A missing resume is a setup problem, not
+    the posting's, so it stays."""
+    dropped = [
+        lead
+        for lead in open_postings(leads)
+        if lead.application
+        and lead.application.submission_status in ("skipped", "blocked")
+        and "resume" not in lead.application.submission_detail.lower()
+    ]
+    for lead in dropped:
+        assert lead.application
+        lead.status = LeadStatus.SKIPPED
+        lead.notes.append(
+            Note(at=datetime.now(UTC), text=f"Removed: {lead.application.submission_detail}")
+        )
+    return dropped
+
+
 def expire_closed(leads: list[Lead], is_gone: Callable[[str], bool]) -> list[Lead]:
     """Skip every open posting whose page says the role is gone, with a note. Skipped, not
     deleted, so the next scrape does not add it again."""
