@@ -376,3 +376,52 @@ def test_unmatched_mail_is_named_by_its_subject(subject: str, company: str) -> N
         snippet="",
     )
     assert pipeline.display_company(event) == company
+
+
+def test_confirmation_closes_the_open_posting_it_names() -> None:
+    apps = lead("Solink", status="applied", posting_title="Software Engineer Co-op - Apps")
+    agents = lead(
+        "Solink",
+        status="scored",
+        posting_title="Software Engineer Co-op - Agents",
+        posting_url="https://jobs.ashbyhq.com/solink/agents",
+    )
+    winter = lead("Vercel", posting_title="Software Engineering Intern - Winter '27")
+    summer = lead(
+        "Vercel",
+        posting_title="Software Engineering Intern - Summer '27",
+        posting_url="https://boards.greenhouse.io/vercel/jobs/2",
+    )
+    unsure = lead(
+        "Atoms",
+        status="scored",
+        application={
+            "prepared_at": NOW,
+            "source": "form",
+            "answers": [],
+            "submission_status": "uncertain",
+        },
+    )
+    leads = [apps, agents, winter, summer, unsure]
+
+    def confirms(sender: str, subject: str, body: str) -> list[str]:
+        event = pipeline.to_event("me@gmail.com", mail(sender, subject, body), leads)
+        assert event is not None
+        return event.confirms
+
+    body = "Thank you for your interest in Solink for the Software Engineer Co-Op- Agents position!"
+    assert confirms("Solink <no-reply@ashbyhq.com>", "Solink Application Confirmation", body) == [
+        agents.key
+    ]
+    body = "We received your application for the Software Engineering Intern - Winter '27 role."
+    assert confirms(
+        "Vercel <no-reply@greenhouse.io>", "Thank you for applying to Vercel!", body
+    ) == [winter.key]
+    body = "Your application is in the queue."
+    assert confirms("Atoms <no-reply@greenhouse.io>", "Thank you for applying to Atoms!", body) == [
+        unsure.key
+    ]
+    # Naming only a company with no unconfirmed submit closes nothing.
+    assert (
+        confirms("Vercel <no-reply@greenhouse.io>", "Thank you for applying to Vercel!", "Hi") == []
+    )

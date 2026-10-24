@@ -22,7 +22,8 @@ from internship_agent import db, notify
 from internship_agent.applications.verification_mail import _message_text
 from internship_agent.config import Settings
 from internship_agent.leads.followups import company_domain
-from internship_agent.leads.schemas import Lead, LeadStatus
+from internship_agent.leads.refill import DONE
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
 from internship_agent.links import page_url
 from internship_agent.notify import Push
 from internship_agent.tracking import Stage, classify_text
@@ -77,6 +78,8 @@ class InboxEvent(BaseModel):
     company: str
     lead_key: str | None
     snippet: str
+    # Open postings this email shows you applied to; scan() marks them applied.
+    confirms: list[str] = []
 
 
 def _header(message: Message, name: str) -> str:
@@ -142,6 +145,37 @@ def classify(sender: str, subject: str, body: str, lead: Lead | None) -> EventSt
     return None
 
 
+_SHOWS_APPLIED = {"applied", "rejected", "assessment", "interview", "offer"}
+
+
+def confirmed_postings(sender_name: str, subject: str, body: str, leads: list[Lead]) -> list[Lead]:
+    """Open postings an application email is about: it names the company and the role.
+    Naming only the company counts for that company's one posting whose automatic submit
+    wasn't confirmed, since this email is the missing confirmation."""
+    text = _words(f"{sender_name} {subject} {body[:8000]}")
+    at_company = [
+        lead
+        for lead in leads
+        if lead.kind is LeadKind.POSTING
+        and lead.status not in DONE
+        and len(name := _words(lead.company).strip()) >= 4
+        and f" {name} " in text
+    ]
+    titled = [
+        lead for lead in at_company if lead.posting_title and _words(lead.posting_title) in text
+    ]
+    if titled:
+        # "SWE Intern" is inside "SWE Intern Backend": keep only the most specific titles.
+        longest = max(len(_words(lead.posting_title)) for lead in titled)
+        return [lead for lead in titled if len(_words(lead.posting_title)) == longest]
+    unsure = [
+        lead
+        for lead in at_company
+        if lead.application is not None and lead.application.submission_status == "uncertain"
+    ]
+    return unsure if len(unsure) == 1 else []
+
+
 def _bounced_lead(body: str, leads: list[Lead]) -> Lead | None:
     """A bounce notice quotes the address that failed."""
     text = body.lower()
@@ -198,6 +232,9 @@ def to_event(inbox: str, message: Message, leads: list[Lead]) -> InboxEvent | No
         company=lead.company if lead else (sender_name or sender.rpartition("@")[2]),
         lead_key=lead.key if lead else None,
         snippet=body[:240],
+        confirms=[found.key for found in confirmed_postings(sender_name, subject, body, leads)]
+        if stage in _SHOWS_APPLIED
+        else [],
     )
 
 
@@ -298,8 +335,14 @@ def scan(settings: Settings, push: bool = True) -> list[InboxEvent]:
     from internship_agent.leads.store import open_lead_store
 
     first = not events(settings)
-    leads = open_lead_store(settings.data_dir, settings.database_url).load()
+    store = open_lead_store(settings.data_dir, settings.database_url)
+    leads = store.load()
     added = sync(settings, leads, settings.pipeline_days)
+    confirmed = {key for event in added for key in event.confirms}
+    for lead in leads:
+        if lead.key in confirmed and lead.status not in DONE:
+            lead.status = LeadStatus.APPLIED  # out of open postings and the daily run's queue
+            store.upsert(lead)
     if (
         push
         and not first
