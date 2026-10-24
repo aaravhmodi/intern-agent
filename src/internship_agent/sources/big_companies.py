@@ -50,7 +50,7 @@ def _get(url: str) -> Any:
 
 
 _CLOSED = re.compile(
-    # Not "position is filled": Jobvite's fine print on live jobs says "... if the position is filled".
+    # Not "position is filled": that's in Jobvite's fine print on every live job.
     r"no longer available|no longer accepting|position has been filled|"
     r"posting is closed|job not found|no current openings",
     re.I,
