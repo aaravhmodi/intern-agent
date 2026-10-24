@@ -11,7 +11,7 @@
   <nav id="nav" aria-label="Workspace views"></nav>
   <div class="list">
     <div class="list-head">
-      <div class="header-top"><span class="eyebrow">The search / Winter 2027</span><span class="edition eyebrow">Opportunity desk</span></div>
+      <div class="header-top"><span class="eyebrow">The search / Winter 2027</span><span class="header-actions"><span class="edition eyebrow">Opportunity desk</span><button class="btn" id="refresh" title="Reload leads, events, calendar and pipeline">↻ Refresh</button></span></div>
       <div class="view-heading"><h1 id="view-title">Startups</h1><span class="count" id="view-count"></span></div>
       <p class="view-description" id="view-description">A focused view of your opportunities.</p>
       <div class="toolbar">
@@ -706,6 +706,14 @@ $("find").addEventListener("click", async e => {
     await load();
   } catch (err) { toast(err.message); }
   finally { b.disabled = false; b.textContent = label; }
+});
+// Pick up what the daily run, inbox scans or another tab changed, without a page reload.
+$("refresh").addEventListener("click", async e => {
+  const b = e.currentTarget;
+  b.disabled = true; b.textContent = "Refreshing…";
+  try { await load(); toast("Up to date."); }
+  catch (err) { toast(err.message); }
+  finally { b.disabled = false; b.textContent = "↻ Refresh"; }
 });
 $("detail").addEventListener("click", async e => {
   const o = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
