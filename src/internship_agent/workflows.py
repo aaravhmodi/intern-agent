@@ -14,6 +14,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
+from pydantic import ValidationError
 
 from internship_agent import db, mailer, notify
 from internship_agent.ai import (
@@ -162,16 +163,19 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
         if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
             lead.posting_text = fetch_posting_text(lead.posting_url)
         lead.deadline = lead.deadline or find_deadline(lead.posting_text)
-        result = assess_fit(
-            client,
-            settings.openai_model,
-            resume,
-            lead,
-            prefs,
-            usage_callback=lambda usage: _record_openai_usage(
-                settings, "score", settings.openai_model, usage
-            ),
-        )
+        try:
+            result = assess_fit(
+                client,
+                settings.openai_model,
+                resume,
+                lead,
+                prefs,
+                usage_callback=lambda usage: _record_openai_usage(
+                    settings, "score", settings.openai_model, usage
+                ),
+            )
+        except ValidationError:  # a malformed model reply: stays unscored, retried next run
+            continue
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
