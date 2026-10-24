@@ -141,6 +141,8 @@ nav {
 .list-head { padding: 30px 30px 0; border-bottom: 1px solid var(--line); }
 .header-top { display: flex; justify-content: space-between; gap: 12px; }
 .header-top .edition { color: var(--faint); }
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.header-actions .btn { min-height: 26px; padding: 3px 9px; }
 .view-heading { display: flex; align-items: baseline; gap: 13px; margin-top: 23px; min-width: 0; }
 .view-heading h1 {
   margin: 0;
