@@ -1,5 +1,6 @@
 """Keep a target number of open postings: once you apply, new ones take their place."""
 
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note
@@ -58,3 +59,16 @@ def expire_postings(leads: list[Lead], today: date) -> list[Lead]:
             Note(at=datetime.now(UTC), text=f"Expired: the deadline was {lead.deadline:%b %d, %Y}.")
         )
     return expired
+
+
+def expire_closed(leads: list[Lead], is_gone: Callable[[str], bool]) -> list[Lead]:
+    """Skip open big-company postings whose page says the role is gone, with a note."""
+    closed = [
+        lead
+        for lead in open_postings(leads)
+        if lead.segment not in ("early", "mid") and lead.posting_url and is_gone(lead.posting_url)
+    ]
+    for lead in closed:
+        lead.status = LeadStatus.SKIPPED
+        lead.notes.append(Note(at=datetime.now(UTC), text="Closed: the posting is no longer live."))
+    return closed

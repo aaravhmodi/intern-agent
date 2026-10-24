@@ -42,3 +42,12 @@ def test_expire_postings_skips_only_open_postings_past_deadline() -> None:
         LeadStatus.NEW,
         LeadStatus.APPLIED,
     ]
+
+
+def test_expire_closed_skips_only_open_big_company_postings_that_are_gone() -> None:
+    from internship_agent.leads.refill import expire_closed
+
+    gone, live = posting("gone", None), posting("live", None)
+    gone.posting_url, live.posting_url = "https://x.test/gone", "https://x.test/live"
+    assert expire_closed([gone, live], lambda url: url.endswith("gone")) == [gone]
+    assert gone.status is LeadStatus.SKIPPED and live.status is LeadStatus.NEW

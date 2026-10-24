@@ -31,6 +31,10 @@
             <option value="">All regions</option><option value="canada">Canada</option>
             <option value="usa">USA</option><option value="europe">Europe</option>
           </select>
+          <select class="search" id="due" aria-label="Deadline">
+            <option value="">Any deadline</option><option value="7">Due in 7 days</option>
+            <option value="30">Due in 30 days</option><option value="any">Has a deadline</option>
+          </select>
           <input class="search" id="q" type="search" placeholder="Search opportunities" aria-label="Search opportunities">
         </div>
         <button class="btn primary" id="find"></button>
@@ -66,6 +70,7 @@ const VIEWS = {
   today:    { title: "Today", group: "Now", label: "Today", today: true, test: () => false },
   calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   jobs:     { title: "Job pipeline", group: "Track", label: "Job pipeline", pipe: true, test: () => false, find: "inbox" },
+  all:      { title: "All applications", group: "All applications", label: "Big companies + startups", test: l => !DONE.has(l.status), find: "postings" },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
   early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
   mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
@@ -86,8 +91,14 @@ const VIEWS = {
 const PLANNED = new Set(["interested", "registered", "submitted"]);
 const TRAVEL = new Set(["covered", "partial"]);
 const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events", inbox: "Check inboxes now" };
-let state = { leads: [], opps: [], cal: [], pipe: { cards: [], inboxes: [] }, calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+let state = { leads: [], opps: [], cal: [], pipe: { cards: [], inboxes: [] }, calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "", due: "" };
 
+function dueOk(l) {
+  if (!state.due) return true;
+  if (!l.deadline) return false;
+  const days = (Date.parse(l.deadline) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5;
+  return state.due === "any" || (days >= 0 && days <= +state.due);
+}
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const when = iso => new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
@@ -172,7 +183,7 @@ function applyShell() {
 function visible() {
   const v = VIEWS[state.view];
   if (v.opp) return state.opps.filter(o => v.test(o) && (!state.q || `${o.title} ${o.location} ${o.topics.join(" ")} ${o.details}`.toLowerCase().includes(state.q)));
-  return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
+  return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && dueOk(l) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
 }
 function renderRules() {
   $("view-count").textContent = state.prefs.length;
@@ -192,6 +203,7 @@ function renderRows() {
     today: "What needs you now: replies and interviews, events that stopped at a check, and what closes this week.",
     calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     jobs: "Everything you applied to or emailed, moved along by what comes back to your Gmail inboxes.",
+    all: "Every open application, big companies and startups together.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
     early: "Small teams where your work can have immediate reach.",
     mid: "Growing companies with room to build and learn.",
@@ -789,6 +801,7 @@ $("nav").addEventListener("click", e => {
   go(b.dataset.view);
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
+$("due").addEventListener("change", e => { state.due = e.target.value; renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
 $("rows").addEventListener("change", e => {
   if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }

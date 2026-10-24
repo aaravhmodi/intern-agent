@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     xai_model: str = "grok-4.20-0309-non-reasoning"
     xai_max_calls_per_run: int = 3
 
+    # The server's signed-in Discord browser (compose.yaml sets it); unset = no Discord scrape.
+    discord_cdp_url: str | None = None
+
     # Where to look for startups and postings: canada, usa, europe.
     search_regions: list[str] = ["canada", "usa", "europe"]
 
