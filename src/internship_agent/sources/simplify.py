@@ -136,10 +136,10 @@ def is_software_role(role: str) -> bool:
     )
 
 
-def cap_per_company(postings: list["Posting"], per_company: int) -> list["Posting"]:
+def cap_per_company[T: ("Posting", Lead)](postings: list[T], per_company: int) -> list[T]:
     """Keep at most `per_company` postings per company, preserving order."""
     seen: dict[str, int] = {}
-    kept: list[Posting] = []
+    kept: list[T] = []
     for p in postings:
         if seen.get(p.company, 0) < per_company:
             seen[p.company] = seen.get(p.company, 0) + 1

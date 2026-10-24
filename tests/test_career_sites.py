@@ -72,6 +72,30 @@ def test_an_ashby_job_is_gone_once_its_board_stops_listing_it(monkeypatch) -> No
     assert big_companies.posting_is_gone(base + "00000000-0000-0000-0000-000000000000")
 
 
+def test_github_lists_read_both_table_styles() -> None:
+    from internship_agent.sources import github_lists
+
+    badge = "[![Apply](https://img.shields.io/badge/-Apply-blue)]"
+    canadian = (
+        "| Company | Role | Location | Apply | Date Posted |\n|---|---|---|:-:|---|\n"
+        f"| HeyGen | SWE Intern (W27) | Toronto, ON | {badge}(https://gh.test/1) | Oct 1 |\n"
+        f"| ↳ | ML Intern | Toronto, ON | {badge}(https://gh.test/2) | Oct 1 |\n"
+        "| RBC | Analyst Intern | Toronto, ON | Closed🔒 | Oct 1 |\n"
+    )
+    speedy = (
+        "| Company | Position | Location | Salary | Posting | Age |\n|---|---|---|---|---|---|\n"
+        '| <a href="https://twitch.tv"><strong>Twitch</strong></a> | SWE Intern | SF, CA | $61/hr '
+        '| <a href="https://gh.test/3"><img src="https://i.imgur.com/x.png"/></a> | 0d |\n'
+    )
+    leads = github_lists.parse(canadian, "https://raw.githubusercontent.com/a/b/main/README.md")
+    leads += github_lists.parse(speedy, "https://raw.githubusercontent.com/a/b/main/README.md")
+    assert [(lead.company, lead.posting_url) for lead in leads] == [
+        ("HeyGen", "https://gh.test/1"),
+        ("HeyGen", "https://gh.test/2"),
+        ("Twitch", "https://gh.test/3"),
+    ]
+
+
 def test_discord_source_is_off_without_a_browser() -> None:
     from internship_agent.sources import discord
 

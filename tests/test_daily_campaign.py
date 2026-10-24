@@ -164,6 +164,7 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: candidates)
     monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
     monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
+    monkeypatch.setattr(workflows.github_lists, "postings", lambda *_: [])
     monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)
 
     new = workflows.scrape_jobs(Settings(_env_file=None))

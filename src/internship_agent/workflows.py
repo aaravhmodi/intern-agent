@@ -71,6 +71,7 @@ from internship_agent.sources import (
     discord,
     form_d,
     gallery,
+    github_lists,
     simplify,
     site_emails,
     startups,
@@ -1155,6 +1156,18 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
         (
             "startups.gallery",
             lambda: [lead for lead in gallery.postings(log) if regions_of(lead.location) & regions],
+        ),
+        (
+            "GitHub lists",
+            # Thousands of rows: keep your regions and term, at most 3 per company like Simplify.
+            lambda: simplify.cap_per_company(
+                [
+                    lead
+                    for lead in github_lists.postings(log)
+                    if regions_of(lead.location) & regions and not _incompatible_term(lead)
+                ],
+                per_company=3,
+            ),
         ),
     ):
         try:
