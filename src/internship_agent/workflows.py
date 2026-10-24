@@ -1180,9 +1180,27 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     # open database rather than stopping at the old small "top N" cap.
     target = len(open_postings(leads)) + len(candidates)
     leads, new = refill(leads, candidates, target)
+    leads, new = _only_live(leads, new, log)
     store.save(leads)
     log(f"{len(new)} new posting(s)")
     return new
+
+
+def _only_live(
+    leads: list[Lead], new: list[Lead], log: Callable[[str], None]
+) -> tuple[list[Lead], list[Lead]]:
+    """Drop new postings whose page is already gone (lists lag behind), so only open jobs are
+    stored. Not stored, not skipped: a dead row is checked again on the next scrape."""
+    with ThreadPoolExecutor(8) as pool:
+        gone = list(
+            pool.map(lambda lead: big_companies.posting_is_gone(lead.posting_url or ""), new)
+        )
+    dead = {id(lead) for lead, is_gone in zip(new, gone, strict=True) if is_gone}
+    if dead:
+        log(f"{len(dead)} new posting(s) already closed, not stored")
+    return [lead for lead in leads if id(lead) not in dead], [
+        lead for lead in new if id(lead) not in dead
+    ]
 
 
 def scrape_discord(
@@ -1201,6 +1219,7 @@ def scrape_discord(
         if not is_workday(lead)
     ]
     leads, new = refill(leads, candidates, len(open_postings(leads)) + len(candidates))
+    leads, new = _only_live(leads, new, log)
     store.save(leads)
     log(f"{len(new)} new posting(s) from Discord")
     return new
