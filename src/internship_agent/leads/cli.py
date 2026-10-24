@@ -39,6 +39,7 @@ from internship_agent.workflows import (
     inbox_send,
     prepare_application,
     score,
+    scrape_discord,
     scrape_jobs,
     submit_application,
 )
@@ -239,6 +240,15 @@ def scrape_jobs_cmd() -> None:
     settings = get_settings()
     new = scrape_jobs(settings, log=console.print)
     console.print(f"Scraped {len(new)} new posting(s).")
+
+
+@leads_app.command("scrape-discord")
+def scrape_discord_cmd(
+    days: Annotated[int, typer.Option(help="How many past days of posts to read.")] = 6,
+) -> None:
+    """Store the SWE intern roles posted in the Discord job channels (scrolls back `days`)."""
+    new = scrape_discord(get_settings(), log=console.print, days=days)
+    console.print(f"Scraped {len(new)} new posting(s) from Discord.")
 
 
 @leads_app.command("form-d")
