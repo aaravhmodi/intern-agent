@@ -1113,7 +1113,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     store = lead_store(settings)
     leads = store.load()
     log(f"{len(expire_postings(leads, date.today()))} posting(s) expired")
-    log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} big-company posting(s) closed")
+    log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} posting(s) no longer live")
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
     candidates: list[Lead] = []
     for founder in founders:

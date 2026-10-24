@@ -64,6 +64,14 @@ def test_gallery_boards_are_found_once_each() -> None:
     assert gallery.boards(html) == [("ashby", "elevenlabs"), ("greenhouse", "grafanalabs")]
 
 
+def test_an_ashby_job_is_gone_once_its_board_stops_listing_it(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    live = "84dfad5c-d790-4c4a-9411-40b676b1abbb"
+    monkeypatch.setattr(big_companies, "_get", lambda url: {"jobs": [{"id": live}]})
+    base = "https://jobs.ashbyhq.com/veeda-ai/"
+    assert not big_companies.posting_is_gone(base + live)
+    assert big_companies.posting_is_gone(base + "00000000-0000-0000-0000-000000000000")
+
+
 def test_discord_source_is_off_without_a_browser() -> None:
     from internship_agent.sources import discord
 

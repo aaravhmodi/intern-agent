@@ -50,24 +50,36 @@ def _get(url: str) -> Any:
 
 
 _CLOSED = re.compile(
-    r"no longer available|no longer accepting|position (?:has been|is) filled|"
+    # Not "position is filled": Jobvite's fine print on live jobs says "... if the position is filled".
+    r"no longer available|no longer accepting|position has been filled|"
     r"posting is closed|job not found|no current openings",
     re.I,
 )
+_ASHBY_JOB = re.compile(r"https://jobs\.ashbyhq\.com/(?P<slug>[^/?#]+)/(?P<id>[0-9a-f-]{36})", re.I)
+# A page cut off at the read limit can end inside a script, hence the "or the end".
+_SCRIPT = re.compile(r"<script\b.*?(?:</script>|\Z)", re.I | re.S)
+ASHBY_BOARD = "https://api.ashbyhq.com/posting-api/job-board/{slug}"
 
 
 def posting_is_gone(url: str) -> bool:
     """True when the posting page is a 404/410 or says the role is closed.
 
-    Greenhouse sends a closed job to its board with ?error=true. Any other failure (timeout,
-    5xx, script-rendered page) counts as still open, so a hiccup never hides a live role.
+    Greenhouse sends a closed job to its board with ?error=true. Ashby serves the same page for
+    any job id, so an Ashby job is gone when its board's public feed no longer lists it. Any
+    other failure (timeout, 5xx, script-rendered page) counts as still open, so a hiccup never
+    hides a live role.
     """
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     try:
+        if ashby := _ASHBY_JOB.match(url):
+            board = _get(ASHBY_BOARD.format(slug=ashby["slug"]))
+            return all(job.get("id") != ashby["id"] for job in board.get("jobs", []))
         with urllib.request.urlopen(request, timeout=20) as response:
             if "error=true" in response.geturl():
                 return True
-            return bool(_CLOSED.search(response.read(300_000).decode("utf-8", "ignore")))
+            page = response.read(300_000).decode("utf-8", "ignore")
+            # Sites like Keysight ship their "no longer available" message in every page's script.
+            return bool(_CLOSED.search(_SCRIPT.sub("", page)))
     except urllib.error.HTTPError as error:
         return error.code in (404, 410)
     except Exception:

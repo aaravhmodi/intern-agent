@@ -44,7 +44,7 @@ def test_expire_postings_skips_only_open_postings_past_deadline() -> None:
     ]
 
 
-def test_expire_closed_skips_only_open_big_company_postings_that_are_gone() -> None:
+def test_expire_closed_skips_open_postings_that_are_gone() -> None:
     from internship_agent.leads.refill import expire_closed
 
     gone, live = posting("gone", None), posting("live", None)

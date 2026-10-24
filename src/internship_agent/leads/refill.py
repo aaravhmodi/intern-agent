@@ -1,6 +1,7 @@
 """Keep a target number of open postings: once you apply, new ones take their place."""
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note
@@ -62,12 +63,12 @@ def expire_postings(leads: list[Lead], today: date) -> list[Lead]:
 
 
 def expire_closed(leads: list[Lead], is_gone: Callable[[str], bool]) -> list[Lead]:
-    """Skip open big-company postings whose page says the role is gone, with a note."""
-    closed = [
-        lead
-        for lead in open_postings(leads)
-        if lead.segment not in ("early", "mid") and lead.posting_url and is_gone(lead.posting_url)
-    ]
+    """Skip every open posting whose page says the role is gone, with a note. Skipped, not
+    deleted, so the next scrape does not add it again."""
+    checked = [lead for lead in open_postings(leads) if lead.posting_url]
+    with ThreadPoolExecutor(8) as pool:  # one page fetch each; a few hundred a night
+        gone = list(pool.map(lambda lead: is_gone(lead.posting_url or ""), checked))
+    closed = [lead for lead, is_closed in zip(checked, gone, strict=True) if is_closed]
     for lead in closed:
         lead.status = LeadStatus.SKIPPED
         lead.notes.append(Note(at=datetime.now(UTC), text="Closed: the posting is no longer live."))
