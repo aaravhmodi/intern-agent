@@ -68,3 +68,21 @@ def test_discord_source_is_off_without_a_browser() -> None:
     from internship_agent.sources import discord
 
     assert discord.postings(None) == []
+
+
+def test_discord_job_cards_are_parsed_and_chat_is_ignored() -> None:
+    from internship_agent.sources import discord
+
+    link = "https://job.northern.dev/veeda-ai-internship-software-engineering-2bb85092"
+    card = {
+        "text": "Nordique\nVERIFIED APP\nVeeda AI\n,\nInternship - Software Engineering\nLevel\n"
+        "Internship\nLocation\nToronto, ON\nSponsorship\nUnknown",
+        "links": [[link, "Internship - Software Engineering"], [link, ""]],
+    }
+    assert discord.parse(card) == {
+        "company": "Veeda AI",
+        "title": "Internship - Software Engineering",
+        "location": "Toronto, ON",
+        "url": link,
+    }
+    assert discord.parse({"text": "anyone hear back from google?", "links": []}) is None
