@@ -62,3 +62,9 @@ def test_gallery_boards_are_found_once_each() -> None:
         '<a href="https://example.com/not-a-board">n</a>'
     )
     assert gallery.boards(html) == [("ashby", "elevenlabs"), ("greenhouse", "grafanalabs")]
+
+
+def test_discord_source_is_off_without_a_browser() -> None:
+    from internship_agent.sources import discord
+
+    assert discord.postings(None) == []

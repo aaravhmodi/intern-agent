@@ -64,7 +64,15 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
-from internship_agent.sources import big_companies, form_d, gallery, simplify, site_emails, startups
+from internship_agent.sources import (
+    big_companies,
+    discord,
+    form_d,
+    gallery,
+    simplify,
+    site_emails,
+    startups,
+)
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
@@ -1121,6 +1129,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     # A source that is down is logged and skipped, never fatal.
     for name, find in (
         ("career sites", lambda: big_companies.postings(regions, log)),
+        ("discord", lambda: discord.postings(settings.discord_cdp_url, log)),
         (
             "startups.gallery",
             lambda: [lead for lead in gallery.postings(log) if regions_of(lead.location) & regions],
