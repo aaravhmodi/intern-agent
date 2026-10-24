@@ -165,10 +165,14 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
     monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
     monkeypatch.setattr(workflows.github_lists, "postings", lambda *_: [])
+    # The first company's page is gone: it must not be stored.
+    monkeypatch.setattr(workflows.big_companies, "posting_is_gone", lambda url: "company0" in url)
     monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)
 
     new = workflows.scrape_jobs(Settings(_env_file=None))
-    assert len(new) == len(store.items) == 3
+    # 4 found: Workday is excluded and company0's posting is already closed.
+    assert len(new) == len(store.items) == 2
+    assert "Company 0" not in {lead.company for lead in store.items}
 
 
 def test_pre_submit_block_can_be_retried_but_uncertain_cannot() -> None:
