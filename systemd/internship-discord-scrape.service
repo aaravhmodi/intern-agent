@@ -1,0 +1,7 @@
+[Unit]
+Description=Scrape SWE intern roles from the northern.dev Discord job channels
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-discord-scrape.sh

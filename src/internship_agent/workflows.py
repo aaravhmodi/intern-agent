@@ -1113,7 +1113,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     store = lead_store(settings)
     leads = store.load()
     log(f"{len(expire_postings(leads, date.today()))} posting(s) expired")
-    log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} big-company posting(s) closed")
+    log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} posting(s) no longer live")
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
     candidates: list[Lead] = []
     for founder in founders:
@@ -1129,7 +1129,6 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     # A source that is down is logged and skipped, never fatal.
     for name, find in (
         ("career sites", lambda: big_companies.postings(regions, log)),
-        ("discord", lambda: discord.postings(settings.discord_cdp_url, log)),
         (
             "startups.gallery",
             lambda: [lead for lead in gallery.postings(log) if regions_of(lead.location) & regions],
@@ -1147,6 +1146,27 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     leads, new = refill(leads, candidates, target)
     store.save(leads)
     log(f"{len(new)} new posting(s)")
+    return new
+
+
+def scrape_discord(
+    settings: Settings, log: Callable[[str], None] = lambda _: None, days: int = 6
+) -> list[Lead]:
+    """Store the SWE intern roles posted in the Discord job channels over the last `days` days.
+
+    Its own run (every 5 days, at night), not part of the daily scrape: it scrolls back through
+    each channel's history, which takes minutes.
+    """
+    store = lead_store(settings)
+    leads = store.load()
+    candidates = [
+        lead
+        for lead in discord.postings(settings.discord_cdp_url, log, days=days)
+        if not is_workday(lead)
+    ]
+    leads, new = refill(leads, candidates, len(open_postings(leads)) + len(candidates))
+    store.save(leads)
+    log(f"{len(new)} new posting(s) from Discord")
     return new
 
 
