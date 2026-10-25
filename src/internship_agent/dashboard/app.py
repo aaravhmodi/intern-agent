@@ -225,10 +225,11 @@ def set_status(update: StatusUpdate) -> dict[str, Any]:
     """Record a status. Marking a posting applied tops the open list back up."""
     settings = get_settings()
     lead = _get(update.key)
+    already = lead.status is update.status
     lead.status = update.status
     lead_store(settings).upsert(lead)
     added: list[Lead] = []
-    if update.status is LeadStatus.APPLIED and lead.kind is LeadKind.POSTING:
+    if update.status is LeadStatus.APPLIED and lead.kind is LeadKind.POSTING and not already:
         added = find_more_postings(settings, settings.target_open_postings)
     return {"lead": _view(lead), "added": [_view(x) for x in added]}
 
