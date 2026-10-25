@@ -1,8 +1,8 @@
 [Unit]
-Description=Apply to eligible internships daily at 8 AM Toronto, starting October 17
+Description=Apply to every eligible internship daily at 2 AM Toronto
 
 [Timer]
-OnCalendar=*-*-* 08:00:00 America/Toronto
+OnCalendar=*-*-* 02:00:00 America/Toronto
 AccuracySec=1min
 Persistent=true
 Unit=internship-daily-applications.service

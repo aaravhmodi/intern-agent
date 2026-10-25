@@ -122,7 +122,7 @@ flowchart TB
       DASH[dashboard container<br/>FastAPI :8765 + CLI<br/>internship-agent]
       PG[(Postgres<br/>projects db<br/>intern_agent_* tables)]
       N8N[n8n<br/>reply alerts · follow-ups]
-      SYSD[systemd timers<br/>5 email batches · 8:00 apply<br/>9:30 PM scrape · 30 min inbox check]
+      SYSD[systemd timers<br/>2:00 apply · 5 email batches<br/>9:30 PM scrape · 30 min inbox check]
       BROWSER[Playwright<br/>saved browser profile]
     end
   end
@@ -154,8 +154,8 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 
 | When (Toronto) | What | How |
 |---|---|---|
+| 2:00 AM | Attempt every eligible open posting, lowest fit first (Greenhouse, Ashby, Lever; CAPTCHA and incomplete forms are skipped) | `scripts/run-daily-applications.sh` (systemd) |
 | 3:30 AM · 9:00 AM · 10:30 AM · 1:00 PM · 3:30 PM | Five email batches from the outreach Gmail (best-guess address format; if a batch has fewer founders than its size, it tops up from startups' published shared inboxes): **Europe** 20, **Toronto** 20, **New York** 20, **San Francisco** 20 (10 AM there), then **others** 40, split evenly across Europe, Canada and the USA outside those hubs. 120 a day at most. A lead goes in a hub batch by its location text; Europe is by its region | `scripts/run-email-batch.sh <area>` (systemd `internship-email-batch@<area>`) |
-| 8:00 AM | Submit 20 job applications, lowest fit first | `scripts/run-daily-applications.sh` (systemd) |
 | 9:30 PM | End of day: skip expired postings → scrape postings → Form D founders → find published emails → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
 | Every 30 min | Record replies and bounces in both inboxes; push new outreach replies | `leads followups --check-only` (systemd `internship-inbox-check`) |
 | Every 30 min | Scan both inboxes into the Job pipeline; push assessments, interviews, offers | Inside the dashboard |
