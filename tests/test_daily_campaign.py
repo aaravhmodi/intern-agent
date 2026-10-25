@@ -289,6 +289,61 @@ def test_refresh_uses_saved_answer_without_regenerating_cover_letter(monkeypatch
     assert refreshed.application.submission_status == "pending"
 
 
+def test_campaign_moves_on_when_the_scrape_or_one_application_fails(monkeypatch) -> None:
+    leads = [
+        Lead(
+            kind="posting",
+            company=f"Company {i}",
+            posting_title="Software Intern",
+            posting_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            source_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            fit=FitAssessment(
+                score=50 + i, verdict="possible", reasons=[], concerns=[], talking_points=[]
+            ),
+        )
+        for i in range(3)
+    ]
+
+    class Store:
+        def load(self) -> list[Lead]:
+            return leads
+
+        def save(self, _: list[Lead]) -> None:
+            pass
+
+    order: list[str] = []
+
+    def prepare(_: Settings, key: str) -> Lead:
+        lead = next(item for item in leads if item.key == key)
+        lead.application = ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[])
+        return lead
+
+    def submit(_: Settings, key: str) -> Lead:
+        order.append(key)
+        if key == leads[0].key:
+            raise RuntimeError("browser crashed")
+        lead = next(item for item in leads if item.key == key)
+        lead.application.submission_status = "submitted"
+        return lead
+
+    def scrape(*_):
+        raise RuntimeError("Simplify is down")
+
+    monkeypatch.setattr(workflows, "scrape_jobs", scrape)
+    monkeypatch.setattr(workflows, "lead_store", lambda _: Store())
+    monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
+    monkeypatch.setattr(workflows, "prepare_application", prepare)
+    monkeypatch.setattr(workflows, "submit_application", submit)
+
+    report = workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=True),
+        target_submissions=1000,
+        lowest_first=True,
+    )
+    assert order == [lead.key for lead in leads]  # one at a time, lowest fit first
+    assert report.submitted == 2 and report.application_blocked == 1
+
+
 def test_daily_scores_only_new_leads_and_prepares_every_eligible_posting(monkeypatch) -> None:
     leads = [
         Lead(

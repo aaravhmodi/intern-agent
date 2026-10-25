@@ -14,7 +14,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
-from pydantic import ValidationError
 
 from internship_agent import db, mailer, notify
 from internship_agent.ai import (
@@ -161,10 +160,10 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     prefs = preference_store(settings).load()
     skipped: list[Lead] = []
     for lead in leads:
-        if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
-            lead.posting_text = fetch_posting_text(lead.posting_url)
-        lead.deadline = lead.deadline or find_deadline(lead.posting_text)
         try:
+            if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
+                lead.posting_text = fetch_posting_text(lead.posting_url)
+            lead.deadline = lead.deadline or find_deadline(lead.posting_text)
             result = assess_fit(
                 client,
                 settings.openai_model,
@@ -175,7 +174,7 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
                     settings, "score", settings.openai_model, usage
                 ),
             )
-        except ValidationError:  # a malformed model reply: stays unscored, retried next run
+        except Exception:  # a bad reply, API or page error: stays unscored, retried next run
             continue
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
@@ -1237,7 +1236,11 @@ def daily(
     if target_submissions is not None and target_submissions < 1:
         raise ValueError("target_submissions must be positive")
     started = datetime.now(UTC)
-    new = scrape_jobs(settings, log)
+    try:
+        new = scrape_jobs(settings, log)
+    except Exception as error:  # a down source must not cost the night's applications
+        log(f"Scrape failed ({type(error).__name__}); applying to saved postings")
+        new = []
     store = lead_store(settings)
     leads = store.load()
     unscored = [

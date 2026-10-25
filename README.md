@@ -154,7 +154,7 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 
 | When (Toronto) | What | How |
 |---|---|---|
-| 2:00 AM | Attempt every eligible open posting, lowest fit first (Greenhouse, Ashby, Lever; CAPTCHA and incomplete forms are skipped) | `scripts/run-daily-applications.sh` (systemd) |
+| 2:00 AM | Attempt every eligible open posting one at a time, lowest fit first; one that fails is logged and skipped (Greenhouse, Ashby, Lever; CAPTCHA and incomplete forms are skipped) | `scripts/run-daily-applications.sh` (systemd) |
 | 3:30 AM · 9:00 AM · 10:30 AM · 1:00 PM · 3:30 PM | Five email batches from the outreach Gmail (best-guess address format; if a batch has fewer founders than its size, it tops up from startups' published shared inboxes): **Europe** 20, **Toronto** 20, **New York** 20, **San Francisco** 20 (10 AM there), then **others** 40, split evenly across Europe, Canada and the USA outside those hubs. 120 a day at most. A lead goes in a hub batch by its location text; Europe is by its region | `scripts/run-email-batch.sh <area>` (systemd `internship-email-batch@<area>`) |
 | 9:30 PM | End of day: skip expired postings → scrape postings → Form D founders → find published emails → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
 | Every 30 min | Record replies and bounces in both inboxes; push new outreach replies | `leads followups --check-only` (systemd `internship-inbox-check`) |
@@ -163,7 +163,8 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 | Weekdays 9:30 AM | Follow-ups to people with no reply after 5 days, at most twice (only with `FOLLOWUPS_ENABLED=true`) | n8n |
 | When any job above fails | Push "Failed: <job>" with its last log lines to your phone | `OnFailure=` → `scripts/notify-failure.sh` (systemd `internship-failure@`) |
 
-Long jobs share one lock, so two never use the saved browser at once. Every ntfy push is kept
+Long jobs share one lock and queue behind each other (waiting up to 6 hours), so two never use
+the saved browser at once. Every ntfy push is kept
 and shown by the messages service in the
 [home-dashboard](https://github.com/aaravhmodi/home-dashboard) repo.
 

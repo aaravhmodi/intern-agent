@@ -11,7 +11,7 @@ batch=20
 [ "$area" = others ] && batch=40
 cd /home/aaravmodi/projects/intern-agent
 run() {
-  flock -w 3600 /tmp/intern-agent-workflows.lock \
+  flock -w 21600 /tmp/intern-agent-workflows.lock \
     docker compose exec -T dashboard /app/.venv/bin/internship-agent leads "$@"
 }
 
