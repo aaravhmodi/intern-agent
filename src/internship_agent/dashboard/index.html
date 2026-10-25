@@ -104,6 +104,15 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const when = iso => new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
 const appLine = a => a.submitted_at ? `Applied ${when(a.submitted_at)}` : `Application: ${a.submission_status}`;
 const $ = id => document.getElementById(id);
+// navigator.clipboard only exists on https or localhost; the server dashboard is plain http.
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const t = document.createElement("textarea");
+  t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+  document.body.appendChild(t); t.select();
+  const ok = document.execCommand("copy"); t.remove();
+  if (!ok) throw new Error("copy failed");
+}
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 4000); }
 async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {});
@@ -917,7 +926,7 @@ $("detail").addEventListener("click", async e => {
       b.disabled = true; b.textContent = "Writing…";
       await api("/api/draft", { key: l.key }); toast("Drafts ready."); await load();
     } else if (b.dataset.copy) {
-      await navigator.clipboard.writeText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
+      await copyText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
     } else if (b.id === "prep") {
       b.disabled = true; b.textContent = "Reading the application...";
       await api("/api/application/prepare", { key: l.key }); toast("Answers ready. Review the ones marked Needs you."); await load();
@@ -940,9 +949,9 @@ $("detail").addEventListener("click", async e => {
       toast(`Application ${app.submission_status}: ${app.submission_detail}`); await load();
     } else if (b.dataset.copyA !== undefined) {
       const t = document.querySelector(`[data-ans="${b.dataset.copyA}"]`);
-      await navigator.clipboard.writeText(t ? t.value : ""); toast("Copied.");
+      await copyText(t ? t.value : ""); toast("Copied.");
     } else if (b.dataset.copyLetter !== undefined) {
-      await navigator.clipboard.writeText($("cover-letter").value); toast("Cover letter copied.");
+      await copyText($("cover-letter").value); toast("Cover letter copied.");
     } else if (b.id === "people") {
       b.disabled = true; b.textContent = "Searching… (up to a minute)";
       const n = (await api("/api/people", { key: l.key })).lead.people.length;
@@ -950,12 +959,12 @@ $("detail").addEventListener("click", async e => {
     } else if (b.dataset.person !== undefined) {
       const p = l.people[Number(b.dataset.person)], li = $("f-li");
       // The drafted note greets the main contact; greet this person instead.
-      if (li) await navigator.clipboard.writeText(li.value.replace("Hi " + (l.contact_name.split(" ")[0] || "there"), "Hi " + p.name.split(" ")[0]));
+      if (li) await copyText(li.value.replace("Hi " + (l.contact_name.split(" ")[0] || "there"), "Hi " + p.name.split(" ")[0]));
       window.open(linkedinUrl(l, p), "_blank", "noopener"); toast(li ? "Note copied. Paste it into the invitation." : "Write a draft to get a note to paste.");
     } else if (b.id === "li-go") {
-      await navigator.clipboard.writeText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
+      await copyText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
     } else if (b.id === "dm-go") {
-      await navigator.clipboard.writeText($("f-dm").value); if (l.x_url) window.open(l.x_url, "_blank", "noopener"); toast("Message copied.");
+      await copyText($("f-dm").value); if (l.x_url) window.open(l.x_url, "_blank", "noopener"); toast("Message copied.");
     } else if (b.id === "send") {
       if (state.armed !== l.key) {
         state.armed = l.key; b.textContent = "Click again to send"; b.classList.replace("primary", "danger");
