@@ -95,6 +95,16 @@ def test_unknown_lead_404(client: TestClient) -> None:
     assert client.post("/api/status", json={"key": "nope", "status": "applied"}).status_code == 404
 
 
+def test_marking_applied_twice_refills_once(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(dashboard, "find_more_postings", lambda *a: calls.append(1) or [])
+    for _ in range(2):
+        client.post("/api/status", json={"key": "acme/jane-doe", "status": "applied"})
+    assert calls == [1]
+
+
 def test_finding_people_needs_an_openai_key(client: TestClient) -> None:
     response = client.post("/api/people", json={"key": "acme/jane-doe"})
     assert response.status_code == 400 and "OPENAI_API_KEY" in response.json()["detail"]

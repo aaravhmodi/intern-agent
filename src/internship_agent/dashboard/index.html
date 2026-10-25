@@ -917,8 +917,10 @@ $("detail").addEventListener("click", async e => {
   try {
     if (b.id === "close") go(state.view);
     else if (b.dataset.status) {
-      b.disabled = true;
-      if (b.dataset.status === "applied") b.textContent = "Saving, finding more…";
+      // Show the new status now: finding more postings can take a minute, and until then the
+      // row would still be in its list with a live "Mark applied" button to click again.
+      l.status = b.dataset.status; renderNav(); renderRows(); renderDetail();
+      if (b.dataset.status === "applied") toast("Marked applied. Finding more postings…");
       const r = await api("/api/status", { key: l.key, status: b.dataset.status });
       toast(r.added.length ? `Marked ${b.dataset.status}. Added ${r.added.length} new posting(s).` : `Marked ${b.dataset.status}.`);
       await load();
