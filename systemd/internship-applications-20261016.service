@@ -1,4 +1,5 @@
 [Unit]
+OnFailure=internship-failure@%n.service
 Description=Submit up to 20 winter internship applications and report through ntfy
 
 [Service]

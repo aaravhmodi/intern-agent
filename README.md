@@ -161,6 +161,7 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 | Every 30 min | Scan both inboxes into the Job pipeline; push assessments, interviews, offers | Inside the dashboard |
 | Each new email | Push replies to the main inbox | n8n ([`n8n/README.md`](n8n/README.md)) |
 | Weekdays 9:30 AM | Follow-ups to people with no reply after 5 days, at most twice (only with `FOLLOWUPS_ENABLED=true`) | n8n |
+| When any job above fails | Push "Failed: <job>" with its last log lines to your phone | `OnFailure=` → `scripts/notify-failure.sh` (systemd `internship-failure@`) |
 
 Long jobs share one lock, so two never use the saved browser at once. Every ntfy push is kept
 and shown by the messages service in the

@@ -1,4 +1,5 @@
 [Unit]
+OnFailure=internship-failure@%n.service
 Description=Send one outreach email batch (%i)
 
 [Service]
