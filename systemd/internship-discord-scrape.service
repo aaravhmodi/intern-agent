@@ -1,4 +1,5 @@
 [Unit]
+OnFailure=internship-failure@%n.service
 Description=Scrape SWE intern roles from the northern.dev Discord job channels
 
 [Service]
