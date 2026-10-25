@@ -331,7 +331,7 @@ textarea.short { min-height: 80px; }
   .view-heading h1 { font-size: 32px; }
   .view-description { margin-bottom: 20px; }
   .toolbar { flex-wrap: wrap; }
-  .toolbar-filters { flex-basis: 100%; }
+  .toolbar-filters { flex-basis: 100%; flex-wrap: wrap; }
   .toolbar .btn { width: 100%; }
   .table-head, .row { grid-template-columns: 35px minmax(0, 1fr) 62px; gap: 10px; padding-left: 20px; padding-right: 20px; }
   .table-head span:nth-child(3), .row .who { display: none; }

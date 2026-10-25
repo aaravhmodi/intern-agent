@@ -9,7 +9,7 @@ from collections.abc import Callable
 
 from internship_agent.leads.schemas import Lead, LeadKind
 from internship_agent.sources.regions import region_from_text
-from internship_agent.sources.simplify import is_software_role
+from internship_agent.sources.simplify import is_software_role, posted_on
 
 LISTS = (
     ("negarprh/Canadian-Tech-Internships-2027", "README.md"),
@@ -61,6 +61,7 @@ def parse(markdown: str, source: str) -> list[Lead]:
                 source_url=source,
                 location=location,
                 region=region_from_text(location),
+                posted_on=posted_on(_cell(row.get("age") or row.get("date posted") or "")),
                 hiring_signals=[f"Listed on {source.split('/')[3]}'s GitHub internship list"],
             )
         )

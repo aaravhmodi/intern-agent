@@ -125,6 +125,7 @@ def to_lead(company: str, role: OpenRole) -> Lead:
         source_url=role.url,
         location=role.location,
         region=region_from_text(role.location),
+        posted_on=role.posted_on,
         hiring_signals=[f"Open role on {company}'s own {role.board} site"],
     )
 

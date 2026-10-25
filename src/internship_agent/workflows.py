@@ -261,6 +261,7 @@ def startup_postings(founder: Lead) -> list[Lead]:
                 what_they_build=founder.what_they_build,
                 segment=founder.segment,
                 region=founder.region,
+                posted_on=role.posted_on,
                 contact_name=founder.contact_name,
                 contact_role=founder.contact_role,
                 x_handle=founder.x_handle,

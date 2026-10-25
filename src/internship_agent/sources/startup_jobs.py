@@ -3,6 +3,7 @@
 import json
 import re
 import urllib.request
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -21,6 +22,15 @@ class OpenRole(BaseModel):
     url: str
     location: str
     board: str
+    posted_on: date | None = None
+
+
+def _day(stamp: str | None) -> date | None:
+    """The date of a board's ISO timestamp; None when missing or unreadable."""
+    try:
+        return datetime.fromisoformat(stamp).date() if stamp else None
+    except ValueError:
+        return None
 
 
 def _json(url: str) -> Any:
@@ -47,7 +57,13 @@ def board_slugs(company: str, company_url: str | None) -> list[str]:
 def _ashby(slug: str) -> list[OpenRole]:
     data = _json(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
     return [
-        OpenRole(title=j["title"], url=j["jobUrl"], location=j.get("location", ""), board="ashby")
+        OpenRole(
+            title=j["title"],
+            url=j["jobUrl"],
+            location=j.get("location", ""),
+            board="ashby",
+            posted_on=_day(j.get("publishedAt")),
+        )
         for j in data.get("jobs", [])
         if j.get("isListed", True)
     ]
@@ -61,6 +77,7 @@ def _greenhouse(slug: str) -> list[OpenRole]:
             url=j["absolute_url"],
             location=(j.get("location") or {}).get("name", ""),
             board="greenhouse",
+            posted_on=_day(j.get("first_published")),
         )
         for j in data.get("jobs", [])
     ]
@@ -74,6 +91,7 @@ def _lever(slug: str) -> list[OpenRole]:
             url=j["hostedUrl"],
             location=(j.get("categories") or {}).get("location", ""),
             board="lever",
+            posted_on=date.fromtimestamp(j["createdAt"] / 1000) if j.get("createdAt") else None,
         )
         for j in data
     ]
