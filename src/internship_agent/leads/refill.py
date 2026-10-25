@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus, Note
-from internship_agent.leads.store import merge
+from internship_agent.leads.store import merge, normalize_url
 
 DONE = {LeadStatus.APPLIED, LeadStatus.CONTACTED, LeadStatus.SKIPPED}
 
@@ -33,6 +33,15 @@ def refill(
     skipped, are never re-added. Returns (all leads, newly added leads).
     """
     candidates = [candidate for candidate in candidates if not is_workday(candidate)]
+    # A posting saved before its source's date was read gets it when a source lists it again.
+    posted = {
+        normalize_url(c.posting_url): c.posted_on
+        for c in candidates
+        if c.posting_url and c.posted_on
+    }
+    for lead in leads:
+        if lead.posting_url and not lead.posted_on:
+            lead.posted_on = posted.get(normalize_url(lead.posting_url))
     needed = target_open - len(open_postings(leads))
     if needed <= 0:
         return leads, []
@@ -43,6 +52,8 @@ def refill(
         merged, count = merge([*leads, *added], [candidate])
         if count:
             added.append(merged[-1])
+    for lead in added:  # no date from the source: the day it was found is the closest known
+        lead.posted_on = lead.posted_on or date.today()
     return [*leads, *added], added
 
 

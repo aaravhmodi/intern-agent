@@ -54,6 +54,7 @@ def to_lead(slug: str, role: OpenRole) -> Lead:
         source_url=URL,
         location=role.location,
         region=region_from_text(role.location),
+        posted_on=role.posted_on,
         hiring_signals=["Listed on startups.gallery"],
     )
 
