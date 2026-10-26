@@ -34,7 +34,12 @@ _STAGE_PATTERNS: list[tuple[Stage, re.Pattern[str]]] = [
     ),
     (
         Stage.INTERVIEW,
-        re.compile(r"\b(interview|phone screen|schedule (a|your) (call|chat)|next round)\b"),
+        # An invitation, not "if selected, we'll contact you to interview" from a receipt.
+        re.compile(
+            r"\b(invite you to|invitation to interview|interview (invitation|request|availability"
+            r"|slot|confirmation)|schedule (a|an|your) (call|chat|interview|time)|your (upcoming )?"
+            r"interview|like to (schedule|set up|speak|chat)|phone screen|next round|book a time)\b"
+        ),
     ),
     (
         Stage.ASSESSMENT,
@@ -80,10 +85,14 @@ class ApplicationUpdate(BaseModel):
 
 
 def classify_text(text: str) -> Stage:
+    """`text` is the subject, a newline, then the body."""
     lowered = text.lower()
+    subject = lowered.partition("\n")[0]
     for stage, pattern in _STAGE_PATTERNS:
         if pattern.search(lowered):
             return stage
+        if stage is Stage.INTERVIEW and re.search(r"\binterview", subject):
+            return stage  # a subject naming the interview is about one
     return Stage.OTHER
 
 

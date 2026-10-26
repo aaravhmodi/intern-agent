@@ -31,6 +31,18 @@ def test_classify_text_stages() -> None:
     assert classify_text("Weekly newsletter") is Stage.OTHER
 
 
+def test_a_receipt_that_mentions_interviews_is_not_one() -> None:
+    receipt = (
+        "Thank you for your application!\nHi Aarav, thank you for submitting your application. "
+        "If your background matches, a recruiter will reach out to arrange an interview."
+    )
+    assert classify_text(receipt) is Stage.APPLIED
+    assert classify_text("Next steps\nWe'd like to invite you to a technical interview.") is (
+        Stage.INTERVIEW
+    )
+    assert classify_text("Public Safety Canada - Interview\nYou passed.") is Stage.INTERVIEW
+
+
 def test_rejection_beats_interview_wording() -> None:
     text = "Thank you for interviewing. Unfortunately, we have chosen other candidates."
     assert classify_text(text) is Stage.REJECTED
