@@ -405,6 +405,7 @@ def followups_cmd(
     password = settings.gmail_app_password.get_secret_value()
     try:
         with (
+            busy(settings),  # a deploy waits until this ends instead of killing it
             GmailMailbox(settings.gmail_address, password) as mailbox,
             (
                 GmailMailbox(*settings.gmail_account("outreach"))
