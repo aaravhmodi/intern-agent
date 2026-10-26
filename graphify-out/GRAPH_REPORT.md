@@ -1,17 +1,17 @@
-# Graph Report - winter-2027-internship-agent  (2026-10-25)
+# Graph Report - winter-2027-internship-agent  (2026-10-26)
 
 ## Corpus Check
-- 143 files · ~649,988 words
+- 143 files · ~650,131 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 31 file(s) not represented in the graph (top: .timer 10, (none) 7, .service 7)
 
 ## Summary
-- 2051 nodes · 6110 edges · 109 communities (85 shown, 24 thin omitted)
+- 2051 nodes · 6113 edges · 114 communities (90 shown, 24 thin omitted)
 - Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 1015 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `48002fc2`
+- Built from commit: `b75420e7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -20,8 +20,8 @@
 - test_pipeline.py
 - big_companies.py
 - notify.py
-- internship_agent/mailer.py
-- run_followups
+- Lead
+- test_chat.py
 - applications/browser.py
 - test_application_browser.py
 - ApplicationPrep
@@ -30,13 +30,13 @@
 - connect
 - json
 - make_workflows.py
-- internship_agent/ai.py
+- README.md
 - test_opportunities.py
 - get_settings
 - tracking.py
 - BaseModel
 - verification_mail.py
-- simplify.py
+- startups.py
 - QuestionKind
 - EventFinding
 - OutlookClient
@@ -49,73 +49,77 @@
 - command
 - run
 - run-lowest-30-applications.sh
-- test_people.py
-- Segment
-- patterns.py
+- test_ai.py
+- workflows.py
+- EmailStatus
 - run-daily-applications.sh
 - internship-agent
 - run-daily-job-scrape.sh
-- db.py
-- README.md
+- test_outreach.py
+- merge
+- agenda.py
 - Opportunity
-- OpportunityStore
 - mailbox.py
-- test_refill.py
+- test_career_sites.py
 - re
 - Table
 - client.py
-- EmailStatus
-- post_text
+- send_email
+- x_search.py
 - test_verification_mail.py
 - post
 - Mailbox
-- collections_abc
-- people
-- test_the_scheduled_call_only_sends_when_follow_ups_are_switched_on
-- pipeline.py
+- Snapshot
+- send
+- opportunities/ai.py
+- to_event
 - help
 - test_auto_pick.py
-- test_links.py
-- _get
-- Lead
-- Winter 2027 Internship Agent
+- followups_cmd
+- prepare
+- LeadStatus
+- internship_agent/ai.py
 - app.py
 - find-founders.md
 - urllib_parse
-- batches
+- typing
 - workspace.py
-- find_deadline
-- OpportunityStatus
+- StepAction
+- list_cmd
 - FakeToggle
-- insights
-- followups_cmd
+- pipeline.py
+- people.py
 - candidate_context.md
-- inboxes
-- followup_run.py
+- job_pipeline
+- run_followups
 - leads/schemas.py
 - run-inbox-check.sh
 - find-opportunities.md
-- workflows.py
+- Settings
 - export.py
 - dashboard.py
 - Workspace
 - test_tables
+- AGENTS.md
 - outlook
 - opportunity_lite/cli.py
 - Bot Auto application preview
 - _view
-- _scan_inboxes
+- test_people.py
 - ranking.py
 - run-email-batch.sh
 - create_server
 - sources.py
+- test_dashboard_exports_only_your_items_unless_asked
+- _TableParser
 - test_scheduled_jobs.py
 - FormQuestion
+- apply_cmd
 - test_patterns.py
+- mentions
 - ↗ Intern Agent
 - fit_to_limit
 - web.py
-- test_devpost_dates
 - test_lite.py
 - start.sh
 - profile.example.md
@@ -140,12 +144,12 @@
   .claude/commands/find-internships.md → src/internship_agent/leads/schemas.py
 - `Posting lead JSON appended to data/leads-inbox.json` --references--> `Lead`  [INFERRED]
   .claude/commands/find-internships.md → src/internship_agent/leads/schemas.py
-- `Fit score against the resume (0-100, reasons, talking points)` --references--> `assess_fit()`  [INFERRED]
-  README.md → src/internship_agent/ai.py
-- `Search for recently funded startups (last 60 days; Canada, USA, Europe)` --references--> `search_startups()`  [INFERRED]
-  README.md → src/internship_agent/ai.py
-- `Rules learned from notes (skip, downrank, boost)` --references--> `interpret_note()`  [INFERRED]
-  README.md → src/internship_agent/ai.py
+- `dashboard service, reachable only over Tailscale` --references--> `local_only()`  [INFERRED]
+  compose.yaml → src/internship_agent/dashboard/app.py
+- `Output` --references--> `people()`  [INFERRED]
+  .claude/commands/find-founders.md → src/internship_agent/dashboard/app.py
+- `Output` --references--> `people()`  [INFERRED]
+  .claude/commands/find-internships.md → src/internship_agent/dashboard/app.py
 
 ## Import Cycles
 - None detected.
@@ -155,15 +159,15 @@
 - **Nothing is sent without the user's click** — agents_send_only_on_click, readme_send_email_safeguards, src_internship_agent_dashboard_index_email_section, src_internship_agent_dashboard_app_send, src_internship_agent_leads_sending_check_send [INFERRED 0.95]
 - **Finding more people to connect with at a company** — readme_more_people, src_internship_agent_dashboard_index_people_section, src_internship_agent_dashboard_app_people, src_internship_agent_workflows_find_people, src_internship_agent_ai_search_people, src_internship_agent_sources_people_to_people [INFERRED 0.95]
 
-## Communities (109 total, 24 thin omitted)
+## Communities (114 total, 24 thin omitted)
 
 ### Community 0 - "test_sign_in.py"
 Cohesion: 0.17
 Nodes (12): FakePage, mail(), scripted(), step(), test_a_quiet_page_after_signing_in_counts_but_a_code_page_does_not(), test_no_email_link_means_needs_you(), test_reads_a_fresh_code_only_from_the_site(), test_reads_the_sign_in_link_from_html() (+4 more)
 
 ### Community 1 - "test_pipeline.py"
-Cohesion: 0.07
-Nodes (29): fake_get(), FakeResponses, _settings(), test_a_source_that_fails_is_noted_not_fatal(), test_answer_runs_tools_and_grounds_the_system_prompt(), test_chat_endpoint_needs_a_question(), test_profile_has_context_resume_website_and_github(), test_profile_is_cached_for_a_day() (+21 more)
+Cohesion: 0.11
+Nodes (19): _event(), FakeBox, lead(), mail(), _settings(), test_board_columns_follow_the_latest_email(), test_classifies_and_matches_pipeline_mail(), test_confirmation_closes_the_open_posting_it_names() (+11 more)
 
 ### Community 2 - "big_companies.py"
 Cohesion: 0.12
@@ -173,13 +177,13 @@ Nodes (20): amazon_roles(), _get(), microsoft_roles(), posting_is_gone(), postin
 Cohesion: 0.20
 Nodes (15): PreparedAnswer, _clip(), _fit_bytes(), posting_push(), Push, send(), summary_push(), written_answers() (+7 more)
 
-### Community 4 - "internship_agent/mailer.py"
-Cohesion: 0.16
-Nodes (6): deliver(), build_message(), MailError, send(), test_build_message_requires_fields(), test_build_message_with_attachment()
+### Community 4 - "Lead"
+Cohesion: 0.12
+Nodes (19): Big-company postings from the SimplifyJobs off-season list, is_workday(), open_postings(), refill(), Lead, postings(), fetch(), daily() (+11 more)
 
-### Community 5 - "run_followups"
-Cohesion: 0.32
-Nodes (17): run_followups(), emailed(), FakeMailbox, save(), settings(), test_a_bounced_address_gets_nothing(), test_a_check_only_run_records_replies_and_bounces_but_sends_nothing(), test_a_dry_run_shows_what_would_go_and_changes_nothing() (+9 more)
+### Community 5 - "test_chat.py"
+Cohesion: 0.21
+Nodes (10): fake_get(), FakeResponses, _settings(), test_a_source_that_fails_is_noted_not_fatal(), test_answer_runs_tools_and_grounds_the_system_prompt(), test_chat_endpoint_needs_a_question(), test_profile_has_context_resume_website_and_github(), test_profile_is_cached_for_a_day() (+2 more)
 
 ### Community 6 - "applications/browser.py"
 Cohesion: 0.09
@@ -213,13 +217,13 @@ Nodes (12): answer(), build_profile(), ChatMessage, _matches(), profile(), read_
 Cohesion: 0.16
 Nodes (10): install.sh script, _id(), internship_daily_prep(), internship_followups(), internship_replies(), Changing it, Changing a workflow: edit make_workflows.py, regenerate, push, run install.sh, Internship tracker: follow-ups (weekdays 9:30 AM) (+2 more)
 
-### Community 14 - "internship_agent/ai.py"
-Cohesion: 0.11
-Nodes (20): AnswerDraft, AnswerDrafts, assess_fit(), CoverLetterDraft, format_preferences(), interpret_note(), _lead_context(), NoteResult (+12 more)
+### Community 14 - "README.md"
+Cohesion: 0.10
+Nodes (25): Screenshot: prepared application answers, one marked 'Needs you', Demo recording: a startup's fit and draft, a posting's answers, the learned rules, Screenshot: a startup's fit score (91, strong), reasons and talking points, Screenshot: rules learned from notes, two skip and one boost, Screenshot: startups listed by fit score, round, amount, date and founder, Application answers prepared from the resume, Current setup, Development (+17 more)
 
 ### Community 15 - "test_opportunities.py"
-Cohesion: 0.21
-Nodes (21): _assessment(), _fake_ai(), _opp(), _settings(), test_a_finished_check_is_saved_before_the_run_is_killed(), fake(), test_check_events_saves_results_and_survives_one_failure(), fake() (+13 more)
+Cohesion: 0.17
+Nodes (22): _assessment(), _fake_ai(), _opp(), _settings(), test_a_finished_check_is_saved_before_the_run_is_killed(), fake(), test_check_events_saves_results_and_survives_one_failure(), fake() (+14 more)
 
 ### Community 16 - "get_settings"
 Cohesion: 0.16
@@ -234,12 +238,12 @@ Cohesion: 0.14
 Nodes (9): AnswerEdit, browser_sessions(), Cookie, followups(), FollowupsRequest, OpportunityStatusUpdate, SessionsRequest, submit() (+1 more)
 
 ### Community 19 - "verification_mail.py"
-Cohesion: 0.15
+Cohesion: 0.18
 Nodes (9): _extract_code(), extract_sign_in(), _message_text(), _poll(), _raw_text(), VerificationCode, wait_for_greenhouse_code(), wait_for_sign_in() (+1 more)
 
-### Community 20 - "simplify.py"
-Cohesion: 0.07
-Nodes (16): application_url(), cards(), parse(), _cell(), parse(), postings(), region_from_text(), regions_of() (+8 more)
+### Community 20 - "startups.py"
+Cohesion: 0.08
+Nodes (15): application_url(), cards(), parse(), _cell(), parse(), postings(), region_from_text(), regions_of() (+7 more)
 
 ### Community 21 - "QuestionKind"
 Cohesion: 0.20
@@ -258,64 +262,64 @@ Cohesion: 0.20
 Nodes (10): draft_outreach(), _draft(), draft_all(), draft_lead(), mark_lead(), _openai(), prepare_all_cmd(), _resume() (+2 more)
 
 ### Community 26 - "Region"
-Cohesion: 0.16
-Nodes (12): hub(), in_area(), spread(), Region, inbox_send(), founder(), test_hub_cities_and_europe_are_separate_batches(), test_spread_splits_evenly_and_keeps_fit_order() (+4 more)
+Cohesion: 0.24
+Nodes (9): hub(), in_area(), spread(), Region, inbox_send(), founder(), test_hub_cities_and_europe_are_separate_batches(), test_spread_splits_evenly_and_keeps_fit_order() (+1 more)
 
 ### Community 27 - "run.py"
-Cohesion: 0.06
-Nodes (27): assess(), next_step(), search_events(), write_strategy(), describe(), saved_browser(), apply_cmd(), sign_in_cmd() (+19 more)
+Cohesion: 0.07
+Nodes (20): next_step(), describe(), check_cmd(), sign_in_cmd(), apply_events(), step(), _candidate(), check_events() (+12 more)
 
 ### Community 28 - "test_apply_events.py"
-Cohesion: 0.15
-Nodes (16): Snapshot, _event(), FakePage, landing(), _settings(), step(), steps(), test_allowed_sites() (+8 more)
+Cohesion: 0.20
+Nodes (14): _event(), FakePage, landing(), _settings(), step(), steps(), test_apply_events_saves_the_result_and_marks_it_submitted(), fake_browser() (+6 more)
 
 ### Community 29 - "feeds.py"
-Cohesion: 0.19
-Nodes (13): ccfddl(), collect_ccfddl(), collect_confs_tech(), collect_devpost(), collect_mlh(), confs_tech(), _day(), devpost() (+5 more)
+Cohesion: 0.17
+Nodes (15): ccfddl(), collect_ccfddl(), collect_confs_tech(), collect_devpost(), collect_mlh(), confs_tech(), _day(), devpost() (+7 more)
 
 ### Community 30 - "command"
-Cohesion: 0.18
-Nodes (5): browser_login(), daily_cmd(), find_more(), prepare_cmd(), scrape_jobs_cmd()
+Cohesion: 0.15
+Nodes (6): browser_login(), daily_cmd(), find_more(), prepare_cmd(), scrape_jobs_cmd(), site_emails_cmd()
 
 ### Community 31 - "run"
-Cohesion: 0.10
-Nodes (12): allowed(), _host(), names_event(), nothing_to_sign_in(), Page, _quote(), _refusal(), resolve() (+4 more)
+Cohesion: 0.12
+Nodes (10): allowed(), _host(), names_event(), nothing_to_sign_in(), _quote(), resolve(), run(), done() (+2 more)
 
-### Community 33 - "test_people.py"
-Cohesion: 0.07
-Nodes (18): Internship agent coding instructions, FitResult, OutreachDraftResult, _on_linkedin(), source_names(), names(), page_names(), source_confirms() (+10 more)
-
-### Community 34 - "Segment"
-Cohesion: 0.09
-Nodes (23): More people to connect with, chosen by company size, search_people(), Person, Round, Segment, Verdict, effective_segment(), parse_round() (+15 more)
-
-### Community 35 - "patterns.py"
-Cohesion: 0.11
-Nodes (13): Output, guess_email(), bounced_addresses(), by_domain(), domain_of(), format_of(), next_guess(), outcomes() (+5 more)
-
-### Community 40 - "db.py"
-Cohesion: 0.17
-Nodes (6): append(), read_log(), _logged_subject(), events(), scan(), _log_xai()
-
-### Community 41 - "README.md"
+### Community 33 - "test_ai.py"
 Cohesion: 0.36
-Nodes (9): Screenshot: prepared application answers, one marked 'Needs you', Demo recording: a startup's fit and draft, a posting's answers, the learned rules, Screenshot: a startup's fit score (91, strong), reasons and talking points, Screenshot: rules learned from notes, two skip and one boost, Screenshot: startups listed by fit score, round, amount, date and founder, Application answers prepared from the resume, Fit score against the resume (0-100, reasons, talking points), Rules learned from notes (skip, downrank, boost) (+1 more)
+Nodes (5): fake_client(), FakeResponses, test_assess_fit_raises_when_model_returns_nothing(), test_assess_fit_sends_resume_and_lead_and_validates(), test_draft_prompt_leads_with_upside_impact()
 
-### Community 42 - "Opportunity"
-Cohesion: 0.15
+### Community 34 - "workflows.py"
+Cohesion: 0.10
+Nodes (23): More people to connect with, chosen by company size, search_people(), LeadKind, Person, Round, Segment, Verdict, effective_segment() (+15 more)
+
+### Community 35 - "EmailStatus"
+Cohesion: 0.10
+Nodes (16): Output, guess_email(), bounced_addresses(), by_domain(), domain_of(), format_of(), next_guess(), outcomes() (+8 more)
+
+### Community 40 - "test_outreach.py"
+Cohesion: 0.17
+Nodes (12): parse_round(), to_leads(), finding(), lead(), test_check_send_blocks_unconfirmed_guess_and_resends(), test_effective_segment(), test_linkedin_note_never_exceeds_200_chars(), test_mentions_requires_company_and_founder_ignoring_accents() (+4 more)
+
+### Community 41 - "merge"
+Cohesion: 0.14
+Nodes (9): merge(), _role(), posting(), test_matching_by_region_includes_us_and_europe(), test_merge_dedupes_same_posting_with_different_key(), test_normalize_url_keeps_meaningful_query(), test_posting_dates_come_from_the_source_or_the_day_found(), test_refill_noop_when_enough_open() (+1 more)
+
+### Community 42 - "agenda.py"
+Cohesion: 0.18
 Nodes (9): _fold(), Item, items(), lead_items(), opportunity_items(), _promising(), _text(), to_ics() (+1 more)
 
-### Community 43 - "OpportunityStore"
-Cohesion: 0.25
-Nodes (7): mark_cmd(), auto_pick(), plan_submission(), OpportunityStore, test_auto_pick_marks_interested_and_says_why(), test_add_new_dedupes_and_never_overwrites_status(), test_opportunities_live_in_a_table_and_keep_your_status()
+### Community 43 - "Opportunity"
+Cohesion: 0.13
+Nodes (12): find_events_cmd(), mark_cmd(), refresh_cmd(), strategy_cmd(), auto_pick(), find_events(), plan_submission(), summary_push() (+4 more)
 
 ### Community 44 - "mailbox.py"
-Cohesion: 0.17
+Cohesion: 0.15
 Nodes (8): bounce_search(), GmailMailbox, _imap_date(), MailboxError, _quoted(), reply_search(), test_a_bounce_notice_from_the_company_is_not_a_reply(), test_bounces_from_gmail_and_from_microsoft_365_both_count()
 
-### Community 45 - "test_refill.py"
-Cohesion: 0.07
-Nodes (10): test_postings_are_filtered_to_the_search_regions(), test_funds_old_companies_and_odd_sizes_are_left_out(), test_the_site_must_name_someone_on_the_filing_or_its_legal_name(), posting(), test_matching_by_region_includes_us_and_europe(), test_merge_dedupes_same_posting_with_different_key(), test_normalize_url_keeps_meaningful_query(), test_posting_dates_come_from_the_source_or_the_day_found() (+2 more)
+### Community 45 - "test_career_sites.py"
+Cohesion: 0.12
+Nodes (3): test_postings_are_filtered_to_the_search_regions(), test_funds_old_companies_and_odd_sizes_are_left_out(), test_the_site_must_name_someone_on_the_filing_or_its_legal_name()
 
 ### Community 46 - "re"
 Cohesion: 0.26
@@ -329,13 +333,13 @@ Nodes (15): Table, _normalize(), PreferenceStore, PreferenceEffect, PostgresLead
 Cohesion: 0.25
 Nodes (8): CalendarEvent, DateTimeTimeZone, EmailAddress, GraphEventPage, GraphMessagePage, _GraphModel, Location, Recipient
 
-### Community 49 - "EmailStatus"
-Cohesion: 0.21
-Nodes (7): Send email safeguards, EmailStatus, check_outreach_text(), check_send(), SendBlocked, send_email(), test_check_send_blocks_unconfirmed_guess_and_resends()
+### Community 49 - "send_email"
+Cohesion: 0.22
+Nodes (5): Send email safeguards, check_outreach_text(), check_send(), SendBlocked, send_email()
 
-### Community 50 - "post_text"
-Cohesion: 0.40
-Nodes (3): post_id(), post_text(), test_only_a_link_to_a_post_has_a_post_id()
+### Community 50 - "x_search.py"
+Cohesion: 0.21
+Nodes (5): StartupFinding, post_id(), search_x_raises(), _tool_usage(), test_only_a_link_to_a_post_has_a_post_id()
 
 ### Community 51 - "test_verification_mail.py"
 Cohesion: 0.17
@@ -345,45 +349,49 @@ Nodes (4): message(), test_extracts_greenhouse_mail_code_after_application_label
 Cohesion: 0.21
 Nodes (10): post(), daily_run(), delete_preference(), find_more(), find_more_startups(), FindMoreRequest, FindStartupsRequest, PreferenceDelete (+2 more)
 
-### Community 54 - "collections_abc"
-Cohesion: 0.13
-Nodes (3): Element, import_sessions(), PlaywrightPage
+### Community 54 - "Snapshot"
+Cohesion: 0.12
+Nodes (5): Element, Snapshot, import_sessions(), PlaywrightPage, saved_browser()
 
-### Community 55 - "people"
+### Community 55 - "send"
 Cohesion: 0.18
-Nodes (11): Screenshot: an email draft and a LinkedIn connection note (175/200) for a founder, LinkedIn connection note is pasted and sent by hand, index(), note(), NoteRequest, people(), Dashboard page (index.html), Email section with two-click send (+3 more)
+Nodes (11): Screenshot: an email draft and a LinkedIn connection note (175/200) for a founder, LinkedIn connection note is pasted and sent by hand, index(), people(), send(), SendRequest, Dashboard page (index.html), Email section with two-click send (+3 more)
 
-### Community 57 - "pipeline.py"
-Cohesion: 0.17
-Nodes (11): _bounced_lead(), classify(), confirmed_postings(), _header(), _host(), _is_ats(), match(), sync() (+3 more)
+### Community 56 - "opportunities/ai.py"
+Cohesion: 0.18
+Nodes (6): assess(), search_events(), write_strategy(), OpportunityAssessment, SubmissionStrategy, SubmissionTrack
+
+### Community 57 - "to_event"
+Cohesion: 0.14
+Nodes (11): company_domain(), _bounced_lead(), classify(), confirmed_postings(), _header(), _host(), _is_ats(), match() (+3 more)
 
 ### Community 58 - "help"
-Cohesion: 0.13
-Nodes (10): application_campaign(), apply_cmd(), find_startups_cmd(), form_d_cmd(), guess_send_cmd(), inbox_send_cmd(), scrape_discord_cmd(), site_emails_cmd() (+2 more)
+Cohesion: 0.15
+Nodes (9): application_campaign(), apply_cmd(), find_startups_cmd(), form_d_cmd(), guess_send_cmd(), inbox_send_cmd(), scrape_discord_cmd(), team_contacts_cmd() (+1 more)
 
 ### Community 59 - "test_auto_pick.py"
-Cohesion: 0.47
-Nodes (7): check(), hack(), reason(), test_checks_saved_before_these_fields_are_never_picked(), test_only_realistic_reachable_sponsored_hackathons(), test_picks_sponsored_online_hackathons_with_recognition(), test_push_names_what_was_picked()
+Cohesion: 0.29
+Nodes (8): check(), hack(), reason(), test_auto_pick_marks_interested_and_says_why(), test_checks_saved_before_these_fields_are_never_picked(), test_only_realistic_reachable_sponsored_hackathons(), test_picks_sponsored_online_hackathons_with_recognition(), test_push_names_what_was_picked()
 
-### Community 60 - "test_links.py"
-Cohesion: 0.24
-Nodes (7): hack(), test_event_application_push_opens_the_event_or_the_plans_list(), tried(), test_every_linked_view_exists_in_the_dashboard(), test_job_pipeline_push_opens_the_company_or_the_board(), test_opportunity_push_opens_what_it_is_mostly_about(), test_page_urls_open_a_view_or_one_item()
+### Community 60 - "followups_cmd"
+Cohesion: 0.15
+Nodes (9): followups_cmd(), page_url(), hack(), test_event_application_push_opens_the_event_or_the_plans_list(), tried(), test_every_linked_view_exists_in_the_dashboard(), test_job_pipeline_push_opens_the_company_or_the_board(), test_opportunity_push_opens_what_it_is_mostly_about() (+1 more)
 
-### Community 61 - "_get"
-Cohesion: 0.14
-Nodes (10): application_proof(), calendar(), calendar_ics(), _calendar_items(), _get(), job_pipeline(), prepare(), save() (+2 more)
+### Community 61 - "prepare"
+Cohesion: 0.40
+Nodes (4): prepare(), save(), SaveAnswersRequest, Application answers section
 
-### Community 62 - "Lead"
-Cohesion: 0.09
-Nodes (23): role_of(), apply_violations(), drop_unavailable(), expire_closed(), expire_postings(), Lead, LeadKind, LeadStatus (+15 more)
+### Community 62 - "LeadStatus"
+Cohesion: 0.11
+Nodes (16): find_deadline(), apply_violations(), drop_unavailable(), expire_closed(), expire_postings(), LeadStatus, Note, posting() (+8 more)
 
-### Community 63 - "Winter 2027 Internship Agent"
-Cohesion: 0.25
-Nodes (8): Current setup, Development, Founder leads (X.com), Other connectors, Outlook integration (MCP), Planned commands, What it does, Winter 2027 Internship Agent
+### Community 63 - "internship_agent/ai.py"
+Cohesion: 0.21
+Nodes (9): AnswerDraft, AnswerDrafts, CoverLetterDraft, NoteResult, PeopleFindings, PreferenceDraft, StartupFindings, FitResult (+1 more)
 
 ### Community 64 - "app.py"
-Cohesion: 0.12
-Nodes (12): Dashboard, ask(), ChatRequest, dashboard_css(), health(), _icon(), leads(), local_only() (+4 more)
+Cohesion: 0.11
+Nodes (15): Dashboard, application_proof(), ask(), calendar(), calendar_ics(), _calendar_items(), ChatRequest, dashboard_css() (+7 more)
 
 ### Community 65 - "find-founders.md"
 Cohesion: 0.12
@@ -393,49 +401,57 @@ Nodes (13): Founder lead JSON written to data/leads-inbox.json, Rules, Where to 
 Cohesion: 0.20
 Nodes (4): _fetch(), generic(), personal(), published()
 
-### Community 67 - "batches"
-Cohesion: 0.40
-Nodes (3): batches(), lead(), test_each_run_of_sends_is_a_batch_with_its_bounces_and_replies()
+### Community 67 - "typing"
+Cohesion: 0.17
+Nodes (6): batches(), lead(), test_each_run_of_sends_is_a_batch_with_its_bounces_and_replies(), finding(), test_a_post_counts_when_it_exists_and_is_about_raising(), test_a_raise_announced_by_the_company_account_is_kept_without_a_founder()
 
 ### Community 68 - "workspace.py"
 Cohesion: 0.19
 Nodes (11): draft_message(), Draft, Listing, filter_items(), load(), merge(), save(), searchable_text() (+3 more)
 
-### Community 69 - "find_deadline"
-Cohesion: 0.29
-Nodes (3): find_deadline(), test_finds_a_stated_deadline(), test_ignores_text_without_a_full_dated_deadline()
+### Community 69 - "StepAction"
+Cohesion: 0.18
+Nodes (3): Page, _refusal(), StepAction
 
-### Community 70 - "OpportunityStatus"
-Cohesion: 0.09
-Nodes (17): find_events_cmd(), import_cmd(), list_cmd(), refresh_cmd(), strategy_cmd(), find_events(), import_inbox(), keep() (+9 more)
+### Community 70 - "list_cmd"
+Cohesion: 0.14
+Nodes (10): import_cmd(), list_cmd(), import_inbox(), keep(), nearby(), next_date(), pick_reason(), to_apply() (+2 more)
 
 ### Community 71 - "FakeToggle"
 Cohesion: 0.10
 Nodes (4): FakeLocator, FakeToggle, test_hidden_recaptcha_support_nodes_do_not_block(), locator()
 
-### Community 72 - "insights"
-Cohesion: 0.16
-Nodes (10): board(), _card(), display_company(), InboxEvent, insights(), got(), split(), _pct() (+2 more)
+### Community 72 - "pipeline.py"
+Cohesion: 0.14
+Nodes (11): board(), _card(), display_company(), InboxEvent, insights(), got(), split(), _pct() (+3 more)
+
+### Community 73 - "people.py"
+Cohesion: 0.27
+Nodes (5): PersonFinding, _on_linkedin(), source_names(), page_names(), source_confirms()
 
 ### Community 74 - "candidate_context.md"
 Cohesion: 0.22
 Nodes (8): Candidate and search preferences, CIBC — IT Project Coordinator Intern (Winter 2025), CIBC — Software Engineering Intern (Aug–Dec 2025 per resume), Enerzen — Founding Software Engineer (Aug 2026–present), Experience, Projects and public work, Upside Robotics — Software Engineering Intern (Jan–Aug 2026 per resume), Writing and answering rules
 
-### Community 76 - "followup_run.py"
-Cohesion: 0.11
-Nodes (14): FollowupReport, FollowupSent, _misaddressed(), _name(), _site(), company_domain(), first_name(), followup_body() (+6 more)
+### Community 75 - "job_pipeline"
+Cohesion: 0.16
+Nodes (5): job_pipeline(), _scan_forever(), _scan_inboxes(), _start_inbox_scans(), inboxes()
+
+### Community 76 - "run_followups"
+Cohesion: 0.06
+Nodes (39): deliver(), FollowupReport, FollowupSent, _misaddressed(), _name(), run_followups(), _site(), first_name() (+31 more)
 
 ### Community 77 - "leads/schemas.py"
-Cohesion: 0.07
-Nodes (17): _identity(), normalize_url(), check_cmd(), SubmissionTrack, _assessment(), _emailed(), _opp(), test_a_posting_deadline_shows_until_you_apply() (+9 more)
+Cohesion: 0.13
+Nodes (10): _identity(), normalize_url(), _emailed(), test_a_posting_deadline_shows_until_you_apply(), test_follow_ups_land_on_their_due_day_or_today_if_overdue(), lead(), test_a_published_address_proves_the_company_format(), test_inbox_send_writes_each_shared_inbox_once_hiring_ones_first() (+2 more)
 
 ### Community 80 - "find-opportunities.md"
 Cohesion: 0.50
 Nodes (3): Output, Rules, Where to look
 
-### Community 81 - "workflows.py"
+### Community 81 - "Settings"
 Cohesion: 0.07
-Nodes (39): compose.yaml: the dashboard on a home server, dashboard service, reachable only over Tailscale, Big-company postings from the SimplifyJobs off-season list, Settings, common_questions(), is_workday(), open_postings(), refill() (+31 more)
+Nodes (21): compose.yaml: the dashboard on a home server, dashboard service, reachable only over Tailscale, Settings, append(), read_log(), _logged_subject(), common_questions(), events() (+13 more)
 
 ### Community 83 - "dashboard.py"
 Cohesion: 0.11
@@ -459,7 +475,11 @@ Nodes (3): Bot Auto application preview, Drafted cover letter, Values filled on 
 
 ### Community 90 - "_view"
 Cohesion: 0.22
-Nodes (7): draft(), send(), SendRequest, set_status(), StatusUpdate, _view(), Lead detail panel: fit, links, contact, actions
+Nodes (7): draft(), note(), NoteRequest, set_status(), StatusUpdate, _view(), Lead detail panel: fit, links, contact, actions
+
+### Community 91 - "test_people.py"
+Cohesion: 0.36
+Nodes (5): person(), test_a_linkedin_source_passes_without_being_fetched(), test_find_people_stores_them_and_keeps_them_when_a_later_search_finds_nobody(), test_search_people_asks_for_roles_that_suit_the_company_size(), test_to_people_keeps_distinct_sourced_people_other_than_the_main_contact()
 
 ### Community 92 - "ranking.py"
 Cohesion: 0.28
@@ -472,6 +492,10 @@ Nodes (8): create_server(), _allowed(), do_GET(), do_POST(), _json(), _send_byte
 ### Community 95 - "sources.py"
 Cohesion: 0.10
 Nodes (25): AshbyJob, AshbyResponse, Conference, Config, Contact, GitHubPosting, GreenhouseJob, GreenhouseLocation (+17 more)
+
+### Community 96 - "test_dashboard_exports_only_your_items_unless_asked"
+Cohesion: 0.29
+Nodes (5): _assessment(), _opp(), test_an_opportunity_gives_apply_deadline_and_event_items(), test_dashboard_exports_only_your_items_unless_asked(), test_mine_means_planned_or_promising()
 
 ### Community 99 - "FormQuestion"
 Cohesion: 0.16
@@ -505,15 +529,15 @@ Nodes (3): DISPLAY, HOME, start.sh script
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Lead` connect `Lead` to `test_pipeline.py`, `big_companies.py`, `notify.py`, `run_followups`, `applications/browser.py`, `test_application_browser.py`, `ApplicationPrep`, `form_d.py`, `pytest`, `internship_agent/ai.py`, `simplify.py`, `QuestionKind`, `leads/cli.py`, `Region`, `Segment`, `patterns.py`, `Opportunity`, `test_refill.py`, `Table`, `EmailStatus`, `pipeline.py`, `_get`, `app.py`, `find-founders.md`, `batches`, `insights`, `followup_run.py`, `leads/schemas.py`, `workflows.py`, `export.py`, `_view`, `ranking.py`, `FormQuestion`, `test_patterns.py`, `fit_to_limit`?**
+- **Why does `Lead` connect `Lead` to `test_pipeline.py`, `big_companies.py`, `notify.py`, `applications/browser.py`, `test_application_browser.py`, `ApplicationPrep`, `form_d.py`, `pytest`, `README.md`, `startups.py`, `QuestionKind`, `leads/cli.py`, `Region`, `workflows.py`, `EmailStatus`, `test_outreach.py`, `merge`, `agenda.py`, `Table`, `send_email`, `to_event`, `LeadStatus`, `internship_agent/ai.py`, `app.py`, `find-founders.md`, `typing`, `pipeline.py`, `run_followups`, `leads/schemas.py`, `Settings`, `export.py`, `_view`, `ranking.py`, `FormQuestion`, `test_patterns.py`, `fit_to_limit`?**
   _High betweenness centrality (0.115) - this node is a cross-community bridge._
 - **Are the 136 inferred relationships involving `Lead` (e.g. with `Posting lead JSON appended to data/leads-inbox.json` and `items()`) actually correct?**
   _`Lead` has 136 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `cmd`, `DISPLAY`, `HOME` to the rest of the system?**
   _6 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `test_pipeline.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.06918238993710692 - nodes in this community are weakly interconnected._
-- **Why does `Settings` connect `workflows.py` to `test_sign_in.py`, `test_pipeline.py`, `run_followups`, `ApplicationPrep`, `pytest`, `connect`, `json`, `test_opportunities.py`, `get_settings`, `QuestionKind`, `leads/cli.py`, `Region`, `run.py`, `test_apply_events.py`, `feeds.py`, `test_people.py`, `Segment`, `patterns.py`, `db.py`, `OpportunityStore`, `Table`, `client.py`, `EmailStatus`, `pipeline.py`, `help`, `Lead`, `app.py`, `OpportunityStatus`, `inboxes`, `followup_run.py`, `leads/schemas.py`, `FormQuestion`, `test_patterns.py`?**
+  _Cohesion score 0.11174242424242424 - nodes in this community are weakly interconnected._
+- **Why does `Settings` connect `Settings` to `test_sign_in.py`, `test_pipeline.py`, `Lead`, `test_chat.py`, `ApplicationPrep`, `pytest`, `connect`, `json`, `test_opportunities.py`, `get_settings`, `QuestionKind`, `leads/cli.py`, `Region`, `run.py`, `test_apply_events.py`, `feeds.py`, `workflows.py`, `EmailStatus`, `Opportunity`, `Table`, `client.py`, `send_email`, `help`, `test_auto_pick.py`, `app.py`, `list_cmd`, `pipeline.py`, `job_pipeline`, `run_followups`, `leads/schemas.py`, `test_people.py`, `test_dashboard_exports_only_your_items_unless_asked`, `FormQuestion`, `test_patterns.py`?**
   _High betweenness centrality (0.071) - this node is a cross-community bridge._
 - **Are the 105 inferred relationships involving `Settings` (e.g. with `dashboard service, reachable only over Tailscale` and `answer()`) actually correct?**
   _`Settings` has 105 INFERRED edges - model-reasoned connections that need verification._
