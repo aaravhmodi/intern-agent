@@ -26,6 +26,7 @@ from internship_agent.mailer import MailError
 from internship_agent.opportunities import run as opportunity_run
 from internship_agent.opportunities.schemas import Opportunity, OpportunityStatus
 from internship_agent.opportunities.store import OpportunityStore
+from internship_agent.sources.regions import regions_of
 from internship_agent.workflows import (
     _incompatible_term,
     _record_openai_usage,
@@ -467,7 +468,9 @@ def _opportunity(key: str) -> Opportunity:
 
 
 def _opportunity_view(item: Opportunity) -> dict[str, Any]:
-    return {**item.model_dump(mode="json"), "key": item.key}
+    place = item.assessment.location if item.assessment else ""
+    regions = sorted(r.value for r in regions_of(place or item.location))
+    return {**item.model_dump(mode="json"), "key": item.key, "regions": regions}
 
 
 class OpportunityStatusUpdate(BaseModel):
