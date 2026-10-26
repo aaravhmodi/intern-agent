@@ -45,7 +45,9 @@ def _message_text(message: email.message.Message) -> str:
     return re.sub(r"\s+", " ", " ".join(chunks))
 
 
-def _extract_code(raw: bytes, since: datetime, recipient: str, company: str = "") -> str | None:
+def _extract_code(
+    raw: bytes, since: datetime, recipient: str, company: str = "", board: str = ""
+) -> str | None:
     message = email.message_from_bytes(raw)
     sender = parseaddr(message.get("From", ""))[1].lower()
     if not (
@@ -71,7 +73,11 @@ def _extract_code(raw: bytes, since: datetime, recipient: str, company: str = ""
     subject = str(make_header(decode_header(message.get("Subject", ""))))
     # Subjects use the board's short name ("Kodiak" for "Kodiak Robotics"), so match the first word.
     first_word = re.sub(r"[^a-z0-9]+", " ", company.lower()).split()[:1]
-    if first_word and first_word[0] not in re.sub(r"[^a-z0-9]+", " ", subject.lower()).split():
+    # Job lists sometimes name the wrong company, so the board in the URL ("figureai") counts too.
+    named = re.sub(r"[^a-z0-9]+", "", subject.lower().rpartition(" to ")[2])
+    on_board = bool(named and board and board.lower().startswith(named))
+    words = re.sub(r"[^a-z0-9]+", " ", subject.lower()).split()
+    if first_word and first_word[0] not in words and not on_board:
         return None
     body = _message_text(message)
     match = _GREENHOUSE_CODE.search(body) or _CODE.search(body) or _CODE.search(subject)
@@ -89,6 +95,7 @@ def wait_for_greenhouse_code(
     since: datetime,
     *,
     company: str = "",
+    board: str = "",
     timeout_seconds: int = 180,
 ) -> str | None:
     """Poll Gmail read-only. Code and message contents never enter logs or persistent storage."""
@@ -97,7 +104,7 @@ def wait_for_greenhouse_code(
         password,
         since,
         timeout_seconds,
-        lambda raw: _extract_code(raw, since - timedelta(minutes=1), address, company),
+        lambda raw: _extract_code(raw, since - timedelta(minutes=1), address, company, board),
     )
 
 

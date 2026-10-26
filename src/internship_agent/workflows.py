@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
@@ -1089,6 +1090,7 @@ def _submit(
                     settings.gmail_app_password.get_secret_value(),
                     started,
                     company=lead.company,
+                    board=urlparse(lead.posting_url or "").path.strip("/").partition("/")[0],
                 )
                 if settings.gmail_ready and settings.gmail_app_password
                 else None

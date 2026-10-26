@@ -71,6 +71,16 @@ def test_extracts_greenhouse_mail_code_after_application_label() -> None:
         "Security code for your application to Kodiak",
     )
     assert _extract_code(short, now, "candidate@gmail.com", "Kodiak Robotics") == "H5bGteWa"
+    # A list called Figure AI's posting "FightCamp"; its Greenhouse board still names Figure.
+    figure = message(
+        "Greenhouse <verify@us.greenhouse-mail.io>",
+        "candidate@gmail.com",
+        now,
+        body,
+        "Security code for your application to Figure",
+    )
+    assert _extract_code(figure, now, "candidate@gmail.com", "FightCamp", "figureai") == "H5bGteWa"
+    assert _extract_code(figure, now, "candidate@gmail.com", "FightCamp", "bose") is None
 
 
 def test_mail_poll_refreshes_inbox_until_new_code_arrives(monkeypatch) -> None:
