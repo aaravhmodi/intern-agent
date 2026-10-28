@@ -90,12 +90,8 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
         return lead
 
     monkeypatch.setattr(workflows, "lead_store", lambda _: Store())
-    monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
-    monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
-    monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
-    monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
-    monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
-    monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
+    # The scrape would check these made-up URLs online and close them as dead.
+    monkeypatch.setattr(workflows, "scrape_jobs", lambda _settings, _log: [])
     monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
     monkeypatch.setattr(workflows, "prepare_application", prepare)
     monkeypatch.setattr(workflows, "submit_application", submit)
