@@ -53,6 +53,7 @@ def test_a_young_tech_company_raise_becomes_a_filing() -> None:
     assert filing.contact_name == "Dmitry Kafidov"
     assert filing.contact_role == "Chief Executive Officer"
     assert filing.people == ["Jane Advisor", "Dmitry Kafidov"]
+    assert filing.officers == ["Dmitry Kafidov"]
 
 
 @pytest.mark.parametrize(
@@ -102,6 +103,9 @@ def test_the_site_must_name_someone_on_the_filing_or_its_legal_name(
     assert (lead.email, lead.email_status) == ("dmitry.k@vernex.ai", EmailStatus.PUBLISHED)
     assert lead.email_source == "https://vernex.ai/team"
     assert lead.segment is Segment.EARLY and lead.source_url == URL
+    other = form_d.to_lead(filing, site, "Ana Ruiz")
+    assert (other.contact_name, other.contact_role) == ("Ana Ruiz", "Executive Officer")
+    assert other.email == "ana@vernex.ai" and other.company == lead.company
 
     # Only the legal name: still theirs, but no published address, so a guess. The site
     # redirects to its web host, on a port; the email stays on the domain they own.

@@ -255,9 +255,13 @@ def scrape_discord_cmd(
 def form_d_cmd(
     days: Annotated[int, typer.Option(help="How many past days of filings to read.")] = 3,
     min_usd: Annotated[int, typer.Option(help="Skip raises smaller than this.")] = 0,
+    officers: Annotated[int, typer.Option(help="Executive officers per startup to add.")] = 1,
 ) -> None:
     """Add US tech startups that just filed an SEC Form D, with their site and an email."""
-    new = find_form_d_startups(get_settings(), days=days, log=console.print, min_usd=min_usd)
+    with busy(get_settings()):  # a deploy waits until this ends
+        new = find_form_d_startups(
+            get_settings(), days=days, log=console.print, min_usd=min_usd, officers=officers
+        )
     console.print(f"Added {len(new)} lead(s) from Form D filings.")
 
 
@@ -271,11 +275,20 @@ def guess_send_cmd(
     area: Annotated[
         str | None, typer.Option(help="Only toronto, europe, new-york, sf or others.")
     ] = None,
+    per_company: Annotated[
+        int, typer.Option(help="People per company to email before its format is proven.")
+    ] = 1,
 ) -> None:
     """Email people never emailed, at the address format most likely to work."""
     with busy(get_settings()):  # a deploy waits until this ends
         picked = guess_and_send(
-            get_settings(), limit, send=send, retries=retries, area=area, log=console.print
+            get_settings(),
+            limit,
+            send=send,
+            retries=retries,
+            area=area,
+            per_company=per_company,
+            log=console.print,
         )
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
