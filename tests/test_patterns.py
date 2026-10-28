@@ -118,11 +118,13 @@ def test_a_recruiter_waits_until_the_ceos_email_shows_the_format(tmp_path: Path)
 def test_per_company_emails_more_founders_before_the_format_is_proven(tmp_path: Path) -> None:
     beta = {"company": "Beta", "company_url": "https://beta.io"}
     LeadStore(tmp_path / "leads.json").save(
-        [founder(contact_name=name, **beta) for name in ("Bo Chen", "Al Ng", "Cy Li", "Ed Ko")]
+        [founder(contact_name=name, **beta) for name in ("Bo Chen", "Al Ng", "Cy Li")]
+        + [founder(contact_name="Ed Ko", contact_role="Technical Recruiter", **beta)]
     )
     settings = Settings(_env_file=None, data_dir=tmp_path)
     assert len(workflows.guess_and_send(settings, 10)) == 1
     assert len(workflows.guess_and_send(settings, 10, per_company=3)) == 3
+    assert len(workflows.guess_and_send(settings, 10, per_company=4)) == 4  # the recruiter too
 
 
 def test_roles_pick_the_email() -> None:
