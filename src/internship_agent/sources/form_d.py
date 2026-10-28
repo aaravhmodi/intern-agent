@@ -44,6 +44,7 @@ class Filing:
     contact_name: str
     contact_role: str
     people: list[str] = field(default_factory=list)
+    officers: list[str] = field(default_factory=list)  # the contact first
 
 
 def index_url(day: date) -> str:
@@ -110,6 +111,7 @@ def parse_filing(xml: str, url: str, filed_on: date) -> Filing | None:
         contact_name=contact,
         contact_role=role or "Executive Officer",
         people=people,
+        officers=[contact, *(o for o in officers if o != contact)],
     )
 
 
@@ -238,9 +240,11 @@ def founder_email(
     return guess, EmailStatus.PATTERN, "Guessed first@ format; check before sending"
 
 
-def to_lead(filing: Filing, site: Site) -> Lead:
+def to_lead(filing: Filing, site: Site, officer: str | None = None) -> Lead:
+    """A lead for the filing's contact, or for another of its executive officers."""
+    name = officer or filing.contact_name
     domain = (urlsplit(site.url).hostname or "").removeprefix("www.")
-    email, status, source = founder_email(filing.contact_name, domain, site.pages)
+    email, status, source = founder_email(name, domain, site.pages)
     return Lead(
         kind=LeadKind.FOUNDER,
         company=filing.company,
@@ -248,8 +252,8 @@ def to_lead(filing: Filing, site: Site) -> Lead:
         what_they_build=site.what_they_build,
         location=filing.location,
         source_url=filing.url,
-        contact_name=filing.contact_name,
-        contact_role=filing.contact_role,
+        contact_name=name,
+        contact_role=filing.contact_role if name == filing.contact_name else "Executive Officer",
         email=email,
         email_status=status,
         email_source=source,

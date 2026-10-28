@@ -388,8 +388,11 @@ def find_form_d_startups(
     log: Callable[[str], None] = lambda _: None,
     *,
     min_usd: int = 0,
+    officers: int = 1,
 ) -> list[Lead]:
     """US tech startups that filed a Form D in the last few days, with a site and an email.
+
+    `officers` is how many of each filing's executive officers become leads, contact first.
 
     Finding the website and email is free (likely domains are tried directly); only the
     usual fit score of each new lead uses OpenAI. min_usd skips smaller raises.
@@ -415,7 +418,7 @@ def find_form_d_startups(
                 log(f"{filing.company}: no website that names them")
                 continue
             try:
-                found.append(form_d.to_lead(filing, site))
+                found += [form_d.to_lead(filing, site, o) for o in filing.officers[:officers]]
             except ValueError as error:  # one odd site must not lose the whole run
                 log(f"{filing.company}: skipped ({error})")
         # Saved day by day, so a long backfill keeps what it found if it stops partway.
@@ -631,6 +634,7 @@ def guess_and_send(
     send: bool = False,
     retries: bool = False,
     area: str | None = None,
+    per_company: int = 1,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[tuple[Lead, str]]:
@@ -641,6 +645,7 @@ def guess_and_send(
     day until one reaches someone there; then its format is known and its recruiter and
     engineer, who wait until then, are emailed with it. With `area`, only that batch's leads
     (see leads/areas.py); "others" is split evenly across Europe, Canada and the USA.
+    `per_company` allows that many unproven guesses per company in one run.
     Dry run unless `send`.
     """
     store = lead_store(settings)
@@ -660,7 +665,7 @@ def guess_and_send(
         if area == "others":
             wanted = spread(wanted)
     picked: list[tuple[Lead, str]] = []
-    domains: set[str] = set()
+    domains: Counter[str] = Counter()
     # A shared inbox (careers@...) is written to once, however many people point at it.
     emailed = {lead.sent_to for lead in leads if lead.sent_to}
     for lead in wanted:
@@ -673,11 +678,11 @@ def guess_and_send(
         proven = patterns.proven(at_domain)
         if patterns.role_of(lead) != "founder" and not proven:
             continue  # waits until the CEO's email shows the company's format
-        if domain in domains and not proven:
-            continue  # one unproven guess per company a day
+        if domains[domain] >= per_company and not proven:
+            continue  # one unproven guess per company a day, unless per_company allows more
         address = patterns.next_guess(lead, domain, counts, rng, at_domain)
         if address and address not in emailed:
-            domains.add(domain)
+            domains[domain] += 1
             emailed.add(address)
             picked.append((lead, address))
     for lead, address in picked:
