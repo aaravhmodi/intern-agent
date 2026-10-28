@@ -534,6 +534,7 @@ def add_team_contacts(
         and patterns.role_of(lead) == "founder"
         and not any(note.text.startswith(TEAM_SEARCHED) for note in lead.notes)
     ]
+    big.sort(key=lambda lead: lead.announced_on or date.min, reverse=True)  # newest raises first
     client = _openai(settings)
     added: list[Lead] = []
     for lead in big[:limit]:
@@ -645,7 +646,8 @@ def guess_and_send(
     day until one reaches someone there; then its format is known and its recruiter and
     engineer, who wait until then, are emailed with it. With `area`, only that batch's leads
     (see leads/areas.py); "others" is split evenly across Europe, Canada and the USA.
-    `per_company` allows that many unproven guesses per company in one run.
+    `per_company` allows that many unproven guesses per company in one run, recruiters and
+    engineers included.
     Dry run unless `send`.
     """
     store = lead_store(settings)
@@ -676,7 +678,7 @@ def guess_and_send(
             continue
         at_domain = known.get(domain)
         proven = patterns.proven(at_domain)
-        if patterns.role_of(lead) != "founder" and not proven:
+        if patterns.role_of(lead) != "founder" and not proven and per_company == 1:
             continue  # waits until the CEO's email shows the company's format
         if domains[domain] >= per_company and not proven:
             continue  # one unproven guess per company a day, unless per_company allows more
