@@ -3,12 +3,11 @@
 # outreach Gmail), topping up from startups' published shared inboxes when there are fewer
 # founders left than the batch size.
 #   run-email-batch.sh toronto|europe|new-york|sf   20 emails from that area
-#   run-email-batch.sh others                        40 emails spread across Europe, Canada, USA
+#   run-email-batch.sh others                        20 emails spread across Europe, Canada, USA
 set -euo pipefail
 
 area=${1:?usage: run-email-batch.sh toronto|europe|new-york|sf|others}
 batch=20
-[ "$area" = others ] && batch=40
 cd /home/aaravmodi/projects/intern-agent
 run() {
   flock -w 21600 /tmp/intern-agent-workflows.lock \

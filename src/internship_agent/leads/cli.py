@@ -267,7 +267,7 @@ def form_d_cmd(
 
 @leads_app.command("guess-send")
 def guess_send_cmd(
-    limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 40,
+    limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 20,
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
     retries: Annotated[
         bool, typer.Option(help="Also retry people whose guess bounced (up to 3 guesses).")

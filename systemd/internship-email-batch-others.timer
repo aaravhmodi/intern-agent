@@ -1,5 +1,5 @@
 [Unit]
-Description=Email batch others (40, spread over Europe, Canada and the USA) at 15:30 Toronto
+Description=Email batch others (20, spread over Europe, Canada and the USA) at 15:30 Toronto
 
 [Timer]
 OnCalendar=*-*-* 15:30:00 America/Toronto
