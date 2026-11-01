@@ -1,0 +1,8 @@
+[Unit]
+OnFailure=internship-failure@%n.service
+Description=Send the follow-ups that are due (up to the per-run limit)
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-followups.sh
