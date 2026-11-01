@@ -17,7 +17,8 @@ run() {
 # Print with >&2, never by tee-ing to stderr's device path: under systemd stderr is the
 # journal's socket, which can't be opened by path, so tee fails and pipefail ends the
 # batch before the top-up below.
-out=$(run guess-send --area "$area" --limit "$batch" --send)
+# --retries and --per-company 3: new founders alone no longer fill a batch of 20.
+out=$(run guess-send --area "$area" --limit "$batch" --retries --per-company 3 --send)
 printf '%s\n' "$out" >&2
 sent=$(grep -oE '^[0-9]+ founder' <<<"$out" | tail -1 | grep -oE '^[0-9]+' || echo 0)
 left=$((batch - sent))
