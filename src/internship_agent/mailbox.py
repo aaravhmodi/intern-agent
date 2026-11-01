@@ -20,6 +20,9 @@ GMAIL_IMAP = "imap.gmail.com"
 # Bounce notices come from the mail system, not the person: Gmail's mailer-daemon, or the
 # company's own postmaster@ (Microsoft 365). Neither, nor a no-reply sender, is a reply.
 _SYSTEM_SENDERS = ("mailer-daemon", "postmaster", "no-reply", "noreply")
+# Gmail can bounce a bad address within the second it's sent, before sent_at is recorded
+# (Remedy Sports' did, and got a follow-up), so a bounce this much earlier still counts.
+BOUNCE_EARLY = timedelta(minutes=5)
 
 
 def reply_search(sender: str, since: datetime) -> list[str]:
@@ -148,8 +151,8 @@ class GmailMailbox:
         return min(arrived) if arrived else None
 
     def bounced(self, address: str, since: datetime) -> bool:
-        ids = self._search("\\All", *bounce_search(address, since))
-        return any(time > since for time in self._received(ids))
+        ids = self._search("\\All", *bounce_search(address, since - BOUNCE_EARLY))
+        return any(time > since - BOUNCE_EARLY for time in self._received(ids))
 
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
         day_before = since - timedelta(days=1)

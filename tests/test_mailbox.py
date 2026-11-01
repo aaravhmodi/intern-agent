@@ -1,6 +1,6 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from internship_agent.mailbox import bounce_search, reply_search
+from internship_agent.mailbox import GmailMailbox, bounce_search, reply_search
 
 SINCE = datetime(2026, 10, 19, 20, tzinfo=UTC)
 
@@ -26,3 +26,15 @@ def test_bounces_from_gmail_and_from_microsoft_365_both_count() -> None:
         "BODY",
         '"jianjie@opsmateai.com"',
     ]
+
+
+def test_a_bounce_that_lands_before_sent_at_is_recorded_still_counts() -> None:
+    # Remedy Sports: the bounce's INTERNALDATE (whole seconds) fell just before the
+    # sent_at recorded once the send returned, so it was missed and a follow-up went out.
+    sent_at = datetime(2026, 10, 19, 20, 18, 45, 600000, tzinfo=UTC)
+    box = GmailMailbox.__new__(GmailMailbox)
+    box._search = lambda *_: [b"1"]  # type: ignore[method-assign]
+    box._received = lambda _: [sent_at.replace(microsecond=0)]  # type: ignore[method-assign]
+    assert box.bounced("john@remedysports.ai", sent_at)
+    box._received = lambda _: [sent_at - timedelta(days=1)]  # type: ignore[method-assign]
+    assert not box.bounced("john@remedysports.ai", sent_at)
