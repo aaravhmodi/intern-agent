@@ -62,7 +62,10 @@ class Mailbox(Protocol):
 
 def _imap_date(moment: datetime) -> str:
     # IMAP's SINCE takes a day, not a time; results are narrowed by time afterwards.
-    return f"{moment.day:02d}-{moment:%b-%Y}"
+    # Gmail counts that day in its own timezone, not UTC, so an evening send's bounces
+    # (dated the day before there) were missed; searching from a day earlier covers it.
+    day = moment - timedelta(days=1)
+    return f"{day.day:02d}-{day:%b-%Y}"
 
 
 def _quoted(text: str) -> str:
@@ -155,9 +158,8 @@ class GmailMailbox:
         return any(time > since - BOUNCE_EARLY for time in self._received(ids))
 
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
-        day_before = since - timedelta(days=1)
         ids = self._search(
-            "\\Sent", "TO", _quoted(address.strip().lower()), "SINCE", _imap_date(day_before)
+            "\\Sent", "TO", _quoted(address.strip().lower()), "SINCE", _imap_date(since)
         )
         if not ids:
             return None
