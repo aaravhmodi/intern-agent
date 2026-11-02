@@ -38,6 +38,7 @@ from internship_agent.leads.answers import (
 )
 from internship_agent.leads.areas import in_area, spread
 from internship_agent.leads.deadlines import find_deadline
+from internship_agent.leads.emails import name_words
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import (
     DONE,
@@ -697,7 +698,11 @@ def guess_and_send(
         patterns.point_at(lead, address)
         store.upsert(lead)
         shared = address == lead.company_email
-        first = f"{lead.company} team" if shared else (lead.contact_name or "there").split()[0]
+        first = (
+            f"{lead.company} team"
+            if shared
+            else (name_words(lead.contact_name or "") or ["there"])[0]
+        )
         try:
             send_email(
                 settings,

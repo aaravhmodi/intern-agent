@@ -167,3 +167,10 @@ def test_three_guesses_and_then_only_the_company_inbox() -> None:
     assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) is None
     lead.company_email = "careers@acme.ai"
     assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) == "careers@acme.ai"
+
+
+def test_titles_are_not_part_of_the_name() -> None:
+    # "Dr. Ali Haddad" at XRlabs was once emailed at dr@xrlabs.ai.
+    assert patterns.guess_email("Dr. Ali Haddad", "xrlabs.ai", "first") == "ali@xrlabs.ai"
+    assert patterns.guess_email("Jane Doe, PhD", "acme.ai", "first.last") == "jane.doe@acme.ai"
+    assert patterns.format_of("ali.haddad@xrlabs.ai", "Dr. Ali Haddad") == "first.last"
