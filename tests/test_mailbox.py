@@ -9,7 +9,7 @@ def test_a_bounce_notice_from_the_company_is_not_a_reply() -> None:
     # Microsoft 365 bounces come from postmaster@ at the company's own domain (OpsMate's
     # was once counted as a reply), so replies leave such senders out.
     search = reply_search("@opsmateai.com", SINCE)
-    assert search[:2] == ["FROM", '"@opsmateai.com"'] and search[-2:] == ["SINCE", "19-Oct-2026"]
+    assert search[:2] == ["FROM", '"@opsmateai.com"'] and search[-2:] == ["SINCE", "18-Oct-2026"]
     for system in ("postmaster", "mailer-daemon", "no-reply", "noreply"):
         assert f'"{system}"' in search and search[search.index(f'"{system}"') - 2] == "NOT"
 
@@ -22,7 +22,7 @@ def test_bounces_from_gmail_and_from_microsoft_365_both_count() -> None:
         "FROM",
         '"postmaster"',
         "SINCE",
-        "19-Oct-2026",
+        "18-Oct-2026",
         "BODY",
         '"jianjie@opsmateai.com"',
     ]
@@ -38,3 +38,10 @@ def test_a_bounce_that_lands_before_sent_at_is_recorded_still_counts() -> None:
     assert box.bounced("john@remedysports.ai", sent_at)
     box._received = lambda _: [sent_at - timedelta(days=1)]  # type: ignore[method-assign]
     assert not box.bounced("john@remedysports.ai", sent_at)
+
+
+def test_an_evening_send_searches_from_gmails_day_not_utcs() -> None:
+    # 8pm Toronto on Nov 1 is Nov 2 in UTC, but Gmail dates its bounces Nov 1: all 134
+    # bounces from that evening's batch were missed when the search began at Nov 2.
+    evening = datetime(2026, 11, 2, 0, 19, tzinfo=UTC)
+    assert bounce_search("a@b.com", evening)[-3] == "01-Nov-2026"
