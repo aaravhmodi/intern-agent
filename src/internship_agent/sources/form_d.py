@@ -115,10 +115,20 @@ def parse_filing(xml: str, url: str, filed_on: date) -> Filing | None:
     )
 
 
-def _get(url: str, contact: str) -> str:
+def _get(url: str, contact: str, tries: int = 4) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": f"internship-agent {contact}"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        body: bytes = response.read()
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                body: bytes = response.read()
+            break
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == tries - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError):  # the network dropped for a moment
+            if attempt == tries - 1:
+                raise
+        time.sleep(2 ** (attempt + 1))  # the SEC answers 503 when busy; wait and ask again
     time.sleep(0.15)  # stays under the SEC's 10 requests a second
     return body.decode("utf-8", "ignore")
 
@@ -127,10 +137,8 @@ def filings(day: date, contact: str) -> list[Filing]:
     """The wanted Form D filings made on one day; none on weekends and holidays."""
     try:
         index = _get(index_url(day), contact)
-    except urllib.error.HTTPError as error:
-        if error.code in (403, 404):  # no index for that day
-            return []
-        raise
+    except (urllib.error.URLError, TimeoutError):  # no index that day (403/404), or still
+        return []  # unreachable after retries: one day must not lose every day already read
     found: list[Filing] = []
     for path in form_d_paths(index):
         url = ARCHIVES + path.removesuffix(".txt").replace("-", "") + "/"
