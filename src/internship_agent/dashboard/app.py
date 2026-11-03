@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from internship_agent import agenda, batches, chat, db, pipeline
 from internship_agent.ai import draft_outreach
@@ -557,7 +557,7 @@ def job_pipeline() -> dict[str, Any]:
     settings = get_settings()
     leads, found = lead_store(settings).load(), pipeline.events(settings)
     return {
-        "cards": pipeline.board(leads, found),
+        "cards": pipeline.board(leads, found, pipeline.moves(settings)),
         "insights": pipeline.insights(leads, found, settings.outreach_gmail_address, date.today()),
         "inboxes": [address for address, _ in pipeline.inboxes(settings)],
         "batches": batches.batches(
@@ -566,6 +566,18 @@ def job_pipeline() -> dict[str, Any]:
         "last_scan": _pipeline_state["at"],
         "error": _pipeline_state["error"],
     }
+
+
+class CardMove(BaseModel):
+    card: str = Field(max_length=300)
+    column: pipeline.Column
+
+
+@app.post("/api/pipeline/move")
+def move_card(request: CardMove) -> dict[str, Any]:
+    """Put a company's card in another column; it stays until a newer email arrives."""
+    pipeline.move(get_settings(), request.card, request.column)
+    return {"ok": True}
 
 
 @app.post("/api/pipeline/scan")

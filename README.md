@@ -180,15 +180,18 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 | Start | **Home** | The landing page: a greeting and headline, key numbers for both agents, a door into each section, the latest from your inboxes, what closes soon |
 | Both agents | **Today** | What needs you now: replies and interviews, events that stopped at a check or sign-in, what closes within 7 days, picks queued for tomorrow, follow-ups due |
 | | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
-| Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by its latest email ([more](#job-pipeline)) |
+| Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by how far it got; drag a card to another column ([more](#job-pipeline)) |
 | | **Startups** · Early · Mid | Recently funded startups by fit |
 | | **Big companies** | Open postings from the SimplifyJobs list |
 | | **Applied · Contacted · Skipped** | Your pipeline as lists |
+| | **All leads** | Every lead, where it was found (SEC Form D, X, a job board...), the address emailed, and whether it bounced, got a reply or a no |
 | | **Your rules** | Rules learned from your notes |
 | Opportunity agent | **Hackathons · Tech conferences · Research venues · Networking** | Everything found, soonest first, with travel / fit / effort badges once checked |
 | | **Travel paid ✈** | Events that pay some or all of your way |
 | | **Picked for you ★** | Hackathons picked and applied to for you |
 | | **Interested & registered · Skipped** | Your plans |
+
+**Every panel folds away** from its heading and resizes from its corner; the dashboard remembers both.
 
 **Every view is a page with its own address**, and so is every item in it: `/#/jobs`,
 `/#/picked/<event>`, `/#/jobs/<company>`. Back and forward work, and a page can be bookmarked. Push
