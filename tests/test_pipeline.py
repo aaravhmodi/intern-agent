@@ -40,13 +40,78 @@ NOVA = lead(
 LEADS = [ACME, NOVA]
 
 
-def mail(sender: str, subject: str, body: str, at: datetime = NOW, mid: str = "") -> Message:
+def mail(
+    sender: str, subject: str, body: str, at: datetime = NOW, mid: str = "", **headers: str
+) -> Message:
     m = EmailMessage()
     m["From"], m["To"], m["Subject"] = sender, "me@gmail.com", subject
     m["Date"] = format_datetime(at)
-    m["Message-ID"] = mid or f"<{abs(hash((sender, subject)))}@x>"
+    m["Message-ID"] = mid or f"<{abs(hash((sender, subject, body)))}@x>"
+    for name, value in headers.items():
+        m[name.replace("_", "-")] = value
     m.set_content(body)
     return m
+
+
+# Your own email quoted under theirs: the call asked for there is yours, not theirs.
+QUOTE = "\n\nOn Mon, Oct 19, 2026 at 2:31 PM <me@gmail.com> wrote:\n> Could we schedule a call?"
+
+
+@pytest.mark.parametrize(
+    ("body", "subject", "stage"),
+    [
+        # Founders saying no in their own words (TDAA, SafeWorld, NorBot, Lendavo).
+        (
+            "Thanks. We don't have any internship opportunities at this time." + QUOTE,
+            "Re: x",
+            "rejected",
+        ),
+        (
+            "We’re focused on full-time hiring and aren’t pursuing winter internships.",
+            "Re: x",
+            "rejected",
+        ),
+        (
+            "We currently looking for someone immediate and local. Thanks for your interest.",
+            "Re: x",
+            "rejected",
+        ),
+        ("Opt out\n-----Original Message-----\nFrom: me\nSent: Thursday\nHi", "RE: x", "rejected"),
+        # Asking for or booking a call (DeepMorph, Settle, Nodal, Optain).
+        (
+            "Do you have a 1-hour slot? We want to do a quick interview with you.",
+            "Re: x",
+            "interview",
+        ),
+        ("Thanks for reaching out! Let's chat next week.", "Re: x", "interview"),
+        (
+            "Join Zoom Meeting https://zoom.us/j/7523940762",
+            "Invitation: Jane <> Aarav",
+            "interview",
+        ),
+        # What you wrote, quoted below their answer, isn't theirs.
+        ("Are you a US citizen? This is required to work here." + QUOTE, "Re: x", "reply"),
+    ],
+)
+def test_a_founders_answer_is_read_without_the_quoted_thread(
+    body: str, subject: str, stage: str
+) -> None:
+    event = pipeline.to_event("me@gmail.com", mail("Jane <jane@nova.ai>", subject, body), LEADS)
+    assert event is not None and event.stage == stage
+
+
+def test_newsletters_and_auto_replies_are_not_pipeline_mail() -> None:
+    newsletter = mail(
+        "speedrun <speedrun@substack.com>",
+        "Still thinking about applying to speedrun?",
+        "We extend an offer to 30 teams.",
+        List_Unsubscribe="<https://x/unsub>",
+    )
+    away = mail(
+        "Jane <jane@nova.ai>", "Automatic reply", "I'm away.", Auto_Submitted="auto-replied"
+    )
+    assert pipeline.to_event("me@gmail.com", newsletter, LEADS) is None
+    assert pipeline.to_event("me@gmail.com", away, LEADS) is None
 
 
 @pytest.mark.parametrize(
@@ -236,6 +301,51 @@ def test_board_columns_follow_the_latest_email(tmp_path: Path) -> None:
     )
     assert cards["Mystery Co"]["column"] == "offer" and cards["Mystery Co"]["key"] is None
     assert "Idle" not in cards  # never applied to or emailed
+
+    # fJscaler: the interview was set up, then the Teams invite came in as a plain reply.
+    # And a guess that bounced before the address that got through isn't a bounce now.
+    sol = lead("Sol", sent_to="a@sol.ai", sent_at=NOW - timedelta(days=2))
+    bo = lead("Bo", sent_to="b@bo.ai", sent_at=NOW - timedelta(days=2))
+    later = {
+        c["company"]: c["column"]
+        for c in pipeline.board(
+            [sol, bo],
+            [
+                event("bounced", sol.key, 6),
+                event("interview", sol.key, 4),
+                event("reply", sol.key, 1),
+                event("bounced", bo.key, 5),
+            ],
+        )
+    }
+    assert later == {"Sol": "interview", "Bo": "waiting"}
+
+
+def test_reclassify_corrects_stored_mail_with_todays_rules(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    no = mail(
+        "Jane <jane@nova.ai>", "Re: chat", "We don't have any internship roles.", mid="<no@x>"
+    )
+    news = mail(
+        "Inspirit <a@inspirit.ai>",
+        "Ambassador Program Application Open!",
+        "We are excited to invite you to the program.",
+        mid="<ad@x>",
+        List_Unsubscribe="<https://x/unsub>",
+    )
+    for message, stage in ((no, "reply"), (news, "interview")):
+        old = pipeline.to_event(
+            "out@gmail.com", mail("Jane <jane@nova.ai>", "Re: chat", "ok"), LEADS
+        )
+        assert old is not None
+        db.append(
+            settings,
+            "pipeline",
+            {**old.model_dump(mode="json"), "message_id": message["Message-ID"], "stage": stage},
+        )
+    boxes = {"me@gmail.com": FakeBox([]), "out@gmail.com": FakeBox([no, news])}
+    assert pipeline.reclassify(settings, LEADS, open_mailbox=lambda a, pw: boxes[a]) == 2
+    assert [(e.message_id, e.stage) for e in pipeline.events(settings)] == [("<no@x>", "rejected")]
 
 
 def test_first_scan_is_quiet_then_pushes_what_needs_you(

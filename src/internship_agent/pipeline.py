@@ -132,16 +132,52 @@ def match(sender: str, sender_name: str, subject: str, body: str, leads: list[Le
     return None
 
 
+# Where the thread quoted under a reply begins: Gmail's "On ... wrote:", Outlook's headers.
+# Bodies arrive on one line (whitespace collapsed), so these can't anchor to a line start.
+_QUOTED = re.compile(
+    r"\bOn [^<>]{0,120}?(<[^>]+>\s*)?wrote:|-{2,} ?Original Message|\bFrom: .{0,200}? (Sent|Date): "
+)
+# A person at a company you emailed saying no in their own words.
+_DECLINED = re.compile(
+    r"\b(opt(ing)? out|remove me|unsubscribe|not interested|(do not|don['’]?t|aren['’]?t|are not"
+    r"|not) (currently )?(have|hiring|offering|pursuing|taking on|looking for) (any )?(winter "
+    r"|open )?(intern|co-?op|position|opening|role)|looking for someone (who is )?(immediate"
+    r"|local|full[- ]time|senior))",
+    re.I,
+)
+# A call booked or asked for: a calendar invite, a video link, the word interview, "let's chat".
+_CALL = re.compile(
+    r"^(updated )?invitation:|^appointment booked|meet\.google\.com/|zoom\.us/j/"
+    r"|teams\.microsoft\.com/(meet|l/meetup)|\binterview\b|let['’]?s (chat|talk|meet|connect)"
+    r"|book (a|some) time|find a (time|slot)|(do|have|set up|schedule) (a|an) ([\w-]+ ){0,2}"
+    r"(interview|call|chat)",
+    re.I | re.M,
+)
+
+
+def new_text(body: str) -> str:
+    """What the sender wrote, without the thread quoted below it (your own email included)."""
+    cut = _QUOTED.search(body)
+    return body[: cut.start()] if cut else body
+
+
 def classify(sender: str, subject: str, body: str, lead: Lead | None) -> EventStage | None:
     """The stage this email marks, or None if it isn't about your search."""
     if any(sender.lower().startswith(b) for b in _BOUNCE):
         return "bounced" if lead else None
+    body = new_text(body)
+    if lead is not None and lead.sent_at is not None and not _is_ats(sender):
+        # Someone at a company you emailed: a no, a step on, or a call, else just a reply.
+        if _DECLINED.search(body[:4000]):
+            return "rejected"
+        stage = classify_text(f"{subject}\n{body[:4000]}")
+        if stage is not Stage.OTHER:
+            return stage.value  # type: ignore[return-value]
+        return "interview" if _CALL.search(f"{subject}\n{body[:4000]}") else "reply"
     stage = classify_text(f"{subject}\n{body[:4000]}")
     relevant = lead is not None or _is_ats(sender) or _HINT.search(subject)
     if stage is not Stage.OTHER and relevant:
         return stage.value  # type: ignore[return-value]
-    if lead is not None and lead.sent_at is not None and not _is_ats(sender):
-        return "reply"  # someone at a company you emailed wrote back
     return None
 
 
@@ -214,6 +250,11 @@ def to_event(inbox: str, message: Message, leads: list[Lead]) -> InboxEvent | No
         if is_bounce
         else match(sender, sender_name, subject, body, leads)
     )
+    auto = _header(message, "Auto-Submitted").lower()
+    if not is_bounce and auto and auto != "no":  # an out-of-office or "we got your message"
+        return None
+    if lead is None and not _is_ats(sender) and _header(message, "List-Unsubscribe"):
+        return None  # a newsletter or campaign (speedrun's Substack was once an "offer")
     stage = classify(sender, subject, body, lead)
     if stage is None:
         return None
@@ -303,6 +344,38 @@ def sync(
     return added
 
 
+def reclassify(
+    settings: Settings, leads: list[Lead], open_mailbox: Callable[[str, str], Any] | None = None
+) -> int:
+    """Classify the stored emails again with today's rules, downloading each again (bodies
+    aren't stored). Bounces and mail no longer in the inbox stay as they are. Returns how
+    many changed or were dropped."""
+    from internship_agent.mailbox import GmailMailbox
+
+    connect = open_mailbox or GmailMailbox
+    stored = events(settings)
+    if not stored:
+        return 0
+    redo = {(e.inbox, e.message_id) for e in stored if e.stage != "bounced"}
+    since = min(e.received_at for e in stored)
+    fresh: dict[tuple[str, str], InboxEvent | None] = {}
+    for address, password in inboxes(settings):
+        with connect(address, password) as box:
+            for number, headers in box.inbox_headers(since):
+                key = (address, _header(headers, "Message-ID"))
+                if key in redo and (message := box.message(number)) is not None:
+                    fresh[key] = to_event(address, message, leads)
+    kept: list[InboxEvent] = []
+    changed = 0
+    for e in stored:
+        new = fresh.get((e.inbox, e.message_id), e)
+        changed += new is None or new.stage != e.stage or new.lead_key != e.lead_key
+        if new is not None:
+            kept.append(new)
+    db.replace_log(settings, "pipeline", [e.model_dump(mode="json") for e in kept])
+    return changed
+
+
 # Replies aren't here: n8n (main inbox) and `followups --check-only` (outreach) push those.
 _NOTABLE = {
     "assessment": "Assessment",
@@ -379,17 +452,40 @@ def board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
             and not lead.sent_at
         ):
             continue
-        cards.append(_card(lead.company, lead.key, lead.posting_title, lead.status.value, mail))
+        # Only a bounce of the address last emailed counts: earlier guesses bounce by design.
+        since = lead.sent_at - timedelta(minutes=5) if lead.sent_at else None
+        bounced = any(e.stage == "bounced" and (not since or e.received_at >= since) for e in mail)
+        cards.append(
+            _card(lead.company, lead.key, lead.posting_title, lead.status.value, mail, bounced)
+        )
     for company, mail in unmatched.items():
-        cards.append(_card(company, None, "", "", mail))
+        cards.append(_card(company, None, "", "", mail, False))
     return sorted(cards, key=lambda c: c["last"] or "", reverse=True)
 
 
+_RANK = ("reply", "assessment", "interview", "offer")
+
+
+def _column(mail: list[InboxEvent], bounced: bool) -> str:
+    """The furthest a company got with you; a no after it ends it, and a later email that
+    is only a reply (or a calendar note) doesn't move it back."""
+    heard = [e.stage for e in mail if e.stage in _RANK or e.stage == "rejected"]
+    if heard and heard[-1] == "rejected":
+        return "rejected"
+    if heard:
+        return max(heard, key=lambda s: _RANK.index(s) if s in _RANK else -1)
+    return "bounced" if bounced else "waiting"
+
+
 def _card(
-    company: str, key: str | None, title: str, status: str, mail: list[InboxEvent]
+    company: str,
+    key: str | None,
+    title: str,
+    status: str,
+    mail: list[InboxEvent],
+    bounced: bool,
 ) -> dict[str, Any]:
-    moved = [e for e in mail if e.stage != "applied"]
-    column = moved[-1].stage if moved else "waiting"
+    column = _column(mail, bounced)
     return {
         "company": company,
         "key": key,

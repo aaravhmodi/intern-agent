@@ -63,6 +63,17 @@ def append(settings: Settings, log: str, record: dict[str, Any]) -> None:
         f.write(line + "\n")
 
 
+def replace_log(settings: Settings, log: str, records: list[dict[str, Any]]) -> None:
+    """Write a log over with these records, in this order."""
+    lines = [json.dumps(record) for record in records]
+    if db := table(settings, log.replace("-", "_")):
+        db.put([(None, line) for line in lines], replace_all=True)
+        return
+    path = settings.data_dir / f"{log}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+
+
 def read_log(settings: Settings, log: str) -> list[dict[str, Any]]:
     if db := table(settings, log.replace("-", "_")):
         return [json.loads(data) for _, data in db.rows()]
