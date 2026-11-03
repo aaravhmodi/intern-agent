@@ -2,7 +2,8 @@
 # One outreach batch: email people never emailed (best-guess address format, sent from the
 # outreach Gmail), topping up from startups' published shared inboxes when there are fewer
 # founders left than the batch size.
-#   run-email-batch.sh toronto|europe|new-york|sf   20 emails from that area
+#   run-email-batch.sh toronto|europe|new-york|sf   20 emails from that area, topped up
+#                                                    from everywhere else when it runs out
 #   run-email-batch.sh others                        20 emails spread across Europe, Canada, USA
 set -euo pipefail
 
@@ -23,5 +24,12 @@ printf '%s\n' "$out" >&2
 sent=$(grep -oE '^[0-9]+ founder' <<<"$out" | tail -1 | grep -oE '^[0-9]+' || echo 0)
 left=$((batch - sent))
 if [ "$left" -gt 0 ]; then
-  run inbox-send --area "$area" --limit "$left" --send
+  out=$(run inbox-send --area "$area" --limit "$left" --send)
+  printf '%s\n' "$out" >&2
+  sent=$(grep -oE '^[0-9]+ inbox' <<<"$out" | tail -1 | grep -oE '^[0-9]+' || echo 0)
+  left=$((left - sent))
+fi
+# A city that has run out of people tops up from everywhere else, so the batch is still 20.
+if [ "$left" -gt 0 ] && [ "$area" != others ]; then
+  run guess-send --area others --limit "$left" --retries --per-company 3 --send
 fi

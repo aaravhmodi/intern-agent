@@ -688,7 +688,7 @@ def guess_and_send(
             domains[domain] += 1
             emailed.add(address)
             picked.append((lead, address))
-    for lead, address in picked:
+    for lead, address in list(picked):
         role = patterns.role_of(lead)
         bounced = patterns.bounced_addresses(lead)
         retry = f" (retry; bounced: {', '.join(bounced)})" if bounced else ""
@@ -716,6 +716,7 @@ def guess_and_send(
             )
         except Exception as error:  # one refused send must not stop the batch
             log(f"{lead.company}: not sent ({type(error).__name__}: {error})")
+            picked.remove((lead, address))  # counted as emailed only once it went out
             continue
         time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
     return picked
@@ -798,6 +799,7 @@ def inbox_send(
             )
         except Exception as error:  # one refused send must not stop the batch
             log(f"{inbox.company}: not sent ({type(error).__name__}: {error})")
+            picked.remove(inbox)  # counted as emailed only once it went out
             continue
         time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
     return picked
