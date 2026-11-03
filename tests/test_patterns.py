@@ -3,6 +3,8 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from internship_agent import workflows
 from internship_agent.config import Settings
 from internship_agent.leads import patterns
@@ -125,6 +127,19 @@ def test_per_company_emails_more_founders_before_the_format_is_proven(tmp_path: 
     assert len(workflows.guess_and_send(settings, 10)) == 1
     assert len(workflows.guess_and_send(settings, 10, per_company=3)) == 3
     assert len(workflows.guess_and_send(settings, 10, per_company=4)) == 4  # the recruiter too
+
+
+def test_a_refused_send_is_not_counted_as_emailed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("Daily user sending limit exceeded")
+
+    monkeypatch.setattr(workflows, "send_email", refuse)
+    LeadStore(tmp_path / "leads.json").save([founder(contact_name="Bo Chen")])
+    settings = Settings(_env_file=None, data_dir=tmp_path)
+    assert workflows.guess_and_send(settings, 10, send=True, pause_seconds=0) == []
+    assert len(workflows.guess_and_send(settings, 10)) == 1  # still waiting for a send
 
 
 def test_roles_pick_the_email() -> None:
