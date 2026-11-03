@@ -28,7 +28,10 @@ _STAGE_PATTERNS: list[tuple[Stage, re.Pattern[str]]] = [
     (
         Stage.REJECTED,
         re.compile(
-            r"\b(unfortunately|not (to )?(be )?mov(e|ing) forward|other candidates"
+            # Not "unfortunately, due to a high volume of candidates, we cannot respond to
+            # each" from a receipt (Brave's).
+            r"\b(unfortunately(?!,? (due to|given) (the |a )?(high|large) (volume|number))"
+            r"|not (to )?(be )?mov(e|ing) forward|other candidates"
             r"|no longer under consideration|regret to inform|position has been filled)\b"
         ),
     ),

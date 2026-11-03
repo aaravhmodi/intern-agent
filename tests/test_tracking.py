@@ -37,6 +37,11 @@ def test_a_receipt_that_mentions_interviews_is_not_one() -> None:
         "If your background matches, a recruiter will reach out to arrange an interview."
     )
     assert classify_text(receipt) is Stage.APPLIED
+    brave = (
+        "Thank you for applying to Brave\nYour application has been received. Unfortunately due "
+        "to a high volume of candidates, we cannot respond to each candidate individually."
+    )
+    assert classify_text(brave) is Stage.APPLIED
     assert classify_text("Next steps\nWe'd like to invite you to a technical interview.") is (
         Stage.INTERVIEW
     )
