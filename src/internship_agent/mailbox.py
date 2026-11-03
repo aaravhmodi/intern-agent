@@ -84,6 +84,7 @@ class GmailMailbox:
                 f"Could not sign in to Gmail to check for replies: {type(exc).__name__}"
             ) from exc
         self._folders: dict[str, str] = {}
+        self._selected = ""  # re-opening a folder costs a second on every search
 
     def __enter__(self) -> Self:
         return self
@@ -118,9 +119,12 @@ class GmailMailbox:
 
     def _search(self, folder_flag: str, *criteria: str) -> list[bytes]:
         try:
-            status, _ = self.connection.select(self._folder(folder_flag), readonly=True)
-            if status != "OK":
-                raise MailboxError(f"Gmail would not open its {folder_flag} folder")
+            folder = self._folder(folder_flag)
+            if folder != self._selected:
+                status, _ = self.connection.select(folder, readonly=True)
+                if status != "OK":
+                    raise MailboxError(f"Gmail would not open its {folder_flag} folder")
+                self._selected = folder
             status, data = self.connection.search(None, *criteria)
         except (imaplib.IMAP4.error, OSError) as exc:
             raise MailboxError(f"Searching Gmail failed: {type(exc).__name__}") from exc
@@ -143,10 +147,9 @@ class GmailMailbox:
         return times
 
     def heard_from(self, address: str, since: datetime) -> datetime | None:
-        senders = [address.strip().lower()]
         domain = company_domain(address)
-        if domain:
-            senders.append(f"@{domain}")
+        # "@domain" already finds the person's own address, so one search covers both.
+        senders = [f"@{domain}"] if domain else [address.strip().lower()]
         arrived: list[datetime] = []
         for sender in senders:
             ids = self._search("\\All", *reply_search(sender, since))
@@ -189,6 +192,7 @@ class GmailMailbox:
             status, _ = self.connection.select("INBOX", readonly=True)
             if status != "OK":
                 raise MailboxError("Gmail would not open the inbox")
+            self._selected = "INBOX"
             status, data = self.connection.search(None, "SINCE", _imap_date(since))
         except (imaplib.IMAP4.error, OSError) as exc:
             raise MailboxError(f"Searching Gmail failed: {type(exc).__name__}") from exc

@@ -7,7 +7,7 @@ nothing is sent.
 """
 
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel
@@ -24,6 +24,10 @@ from internship_agent.leads.followups import (
 from internship_agent.leads.schemas import Lead, LeadStatus, Note
 from internship_agent.leads.store import open_lead_store
 from internship_agent.mailbox import Mailbox
+
+# Bounce notices arrive within minutes, or after a couple of days of retries at worst, so
+# older emails aren't searched for one again: that search is most of a check's time.
+BOUNCE_WINDOW = timedelta(days=7)
 
 
 class FollowupSent(BaseModel):
@@ -147,7 +151,7 @@ def run_followups(
                 )
                 store.upsert(lead)
             continue
-        if box.bounced(lead.sent_to, lead.sent_at):
+        if moment - lead.sent_at < BOUNCE_WINDOW and box.bounced(lead.sent_to, lead.sent_at):
             report.bounced.append(_name(lead))
             if not dry_run:
                 lead.followups_stopped = "bounced"
