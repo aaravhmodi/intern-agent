@@ -427,6 +427,11 @@ textarea.short { min-height: 80px; }
 .batches td { padding: 6px 8px; border-top: 1px solid var(--line); color: var(--ink); text-align: right; }
 .batches th:nth-child(-n+2), .batches td:nth-child(-n+2) { text-align: left; }
 .batches small { color: var(--faint); }
+.lead-table { table-layout: fixed; }
+.lead-table th, .lead-table td { overflow-wrap: anywhere; text-align: left; vertical-align: top; }
+.lead-table .sub { color: var(--faint); font-size: 11px; }
+.lead-table tr.row-link { cursor: pointer; }
+.lead-table tr.row-link:hover td, .lead-table tr.row-link.on td { background: var(--rail); }
 @media (max-width: 640px) { .batches th:nth-child(2), .batches td:nth-child(2) { display: none; } }
 .brk-bar { display: flex; gap: 2px; height: 14px; }
 .brk-bar .seg { min-width: 3px; }
@@ -463,6 +468,21 @@ textarea.short { min-height: 80px; }
 .pipe-card .sub { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-subject { display: -webkit-box; margin-top: 3px; overflow: hidden; color: var(--ink); font-size: 11px; line-height: 1.4; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .pipe-col .btn.more { width: 100%; justify-content: center; font-size: 11px; }
+.pipe-card { position: relative; }
+.pipe-card.dragging { opacity: .4; }
+.pipe-col.drop { border-color: var(--blue); background: var(--surface); }
+/* The Move menu shows on hover or keyboard focus, so the board stays quiet. */
+.pipe-move { position: absolute; top: 6px; right: 6px; max-width: 92px; font-size: 11px; opacity: 0; }
+.pipe-card:hover .pipe-move, .pipe-move:focus { opacity: 1; }
+/* Panels: the heading folds them, the corner resizes them. */
+.fold:not(.shut) { overflow: auto; resize: vertical; }
+.fold.shut { height: auto !important; }
+.fold.shut > :not(.fold-h) { display: none; }
+.fold-h { cursor: pointer; user-select: none; }
+.fold-h::before { content: "▾"; display: inline-block; width: 1.1em; color: var(--faint); }
+.fold.shut > .fold-h { margin-bottom: 0; }
+.fold.shut > .fold-h::before { content: "▸"; }
+.fold-h:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 #viz-tip { position: fixed; z-index: 30; display: none; max-width: 320px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-raised); color: var(--ink); font-size: 11px; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }
 @media (max-width: 700px) {
   .pipe { padding: 12px 8px; }

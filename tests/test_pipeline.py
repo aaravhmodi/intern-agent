@@ -387,6 +387,24 @@ def test_dashboard_shows_the_board(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     ]
 
 
+def test_a_dragged_card_stays_put_until_a_newer_email(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", "")
+    LeadStore(tmp_path / "leads.json").save([ACME])
+    client = TestClient(dashboard.app)
+    assert client.post("/api/pipeline/move", json={"card": ACME.key, "column": "nope"}).is_error
+    client.post("/api/pipeline/move", json={"card": ACME.key, "column": "interview"})
+    card = client.get("/api/pipeline").json()["cards"][0]
+    assert (card["column"], card["moved"]) == ("interview", True)
+
+    moved = {ACME.key: {"column": "interview", "at": (NOW - timedelta(days=1)).isoformat()}}
+    later = _event("rejected", ACME, days_ago=0)
+    [card] = pipeline.board([ACME], [later], moved)
+    assert (card["column"], card["moved"]) == ("rejected", False)
+
+
 def _event(stage: str, lead: Lead, days_ago: int = 1) -> pipeline.InboxEvent:
     return pipeline.InboxEvent(
         message_id=f"{stage}-{lead.key}",

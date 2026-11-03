@@ -426,15 +426,44 @@ def scan(settings: Settings, push: bool = True) -> list[InboxEvent]:
     return added
 
 
-COLUMNS = ("waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced")
+Column = Literal["waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced"]
 
 
-def board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
-    """One card per company in your pipeline, in the column of its latest email.
+def moves(settings: Settings) -> dict[str, dict[str, str]]:
+    """Cards you dragged to another column: card id -> the latest {column, at}."""
+    return {m["card"]: m for m in db.read_log(settings, "pipeline-moves")}
+
+
+def move(settings: Settings, card: str, column: str) -> None:
+    db.append(
+        settings,
+        "pipeline-moves",
+        {"card": card, "column": column, "at": datetime.now(UTC).isoformat()},
+    )
+
+
+def board(
+    leads: list[Lead], found: list[InboxEvent], moved: dict[str, dict[str, str]] | None = None
+) -> list[dict[str, Any]]:
+    """One card per company in your pipeline, in the column its emails put it in, or where
+    you dragged it until an email newer than the move arrives.
 
     Applied-to and emailed leads with nothing back yet are "waiting". A confirmation
     ("applied") doesn't move a card: it's still waiting on a person.
     """
+    cards = _board(leads, found)
+    for card in cards:
+        m = (moved or {}).get(card["id"])
+        if m and (card["last"] is None or datetime.fromisoformat(m["at"]) > _at(card["last"])):
+            card.update(column=m["column"], moved=True)
+    return cards
+
+
+def _at(moment: str) -> datetime:
+    return datetime.fromisoformat(moment.replace("Z", "+00:00"))
+
+
+def _board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
     by_lead: dict[str, list[InboxEvent]] = {}
     unmatched: dict[str, list[InboxEvent]] = {}
     for e in sorted(found, key=lambda e: e.received_at):
@@ -487,6 +516,8 @@ def _card(
 ) -> dict[str, Any]:
     column = _column(mail, bounced)
     return {
+        "id": key or f"company:{company}",
+        "moved": False,
         "company": company,
         "key": key,
         "title": title,

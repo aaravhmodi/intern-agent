@@ -87,6 +87,7 @@ const VIEWS = {
   big:      { title: "Big companies", group: "Big companies", label: "Open postings", test: l => !isStartup(l) && !DONE.has(l.status), find: "postings" },
   applied:  { title: "Applied", group: "Pipeline", label: "Applied", test: l => l.status === "applied" },
   contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
+  leads:    { title: "All leads", group: "Pipeline", label: "All leads", everyLead: true, test: () => true },
   skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
   rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
   hackathons: { title: "Hackathons", group: "Find", label: "Hackathons", opp: true, test: o => o.kind === "hackathon" && o.status !== "skipped", find: "feeds" },
@@ -253,15 +254,16 @@ function renderRows() {
     picked: "Sponsored hackathons, online or reachable, where your work gets judged: picked and applied to for you. Skip any you don't want.",
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
+    leads: "Every lead, where it was found, and what happened when you emailed it.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe || !!v.today);
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe || !!v.today || !!v.everyLead);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = $("posted").style.display = v.opp || v.cal || v.pipe || v.today ? "none" : "";
+  $("region").style.display = $("posted").style.display = $("due").style.display = v.opp || v.cal || v.pipe || v.today || v.everyLead ? "none" : "";
   $("q").style.display = v.today ? "none" : "";
   $("where").style.display = v.opp ? "" : "none";
   if (state.view === "rules") return renderRules();
@@ -269,6 +271,7 @@ function renderRows() {
   if (v.today) return renderToday();
   if (v.home) return renderHome();
   if (v.pipe) return renderPipeline();
+  if (v.everyLead) return renderAllLeads();
   const items = visible();
   $("view-count").textContent = items.length;
   if (v.opp) return renderOpps(items);
@@ -280,6 +283,48 @@ function renderRows() {
       <div class="who">${esc(l.contact_name || (l.email ? l.email : "No contact yet"))}</div>
       <div class="status ${esc(l.status)}">${esc(l.sent_at ? "emailed" : l.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
+}
+
+// All leads: where each came from, and what happened when you emailed it.
+const SOURCE_HOSTS = [[/sec\.gov$/, "SEC Form D"], [/(^|\.)(x|twitter)\.com$/, "X"], [/linkedin\.com$/, "LinkedIn"],
+  [/greenhouse|lever\.co|ashbyhq|workday|smartrecruiters|workable|jobvite|icims/, "Job board"],
+  [/(githubusercontent|github)\.com$/, "GitHub internship lists"], [/northern\.dev$/, "Northern job board"],
+  [/ycombinator\.com$/, "Y Combinator"], [/careers|\.jobs$|^jobs\./, "Company careers page"]];
+function leadSource(l) {
+  let host = "";
+  try { host = new URL(l.source_url).hostname.replace(/^www\./, ""); } catch {}
+  const named = SOURCE_HOSTS.find(([re]) => re.test(host));
+  return named ? named[1] : host || "Unknown";
+}
+const OUTCOMES = { none: "Not contacted", waiting: "Emailed, waiting", bounced: "Bounced", replied: "Replied", interview: "Interview", rejected: "Said no", applied: "Applied" };
+function leadOutcome(l) {
+  const col = (state.pipe.cards.find(c => c.key === l.key) || {}).column;
+  if (col === "interview" || col === "offer" || col === "assessment") return "interview";
+  if (col === "rejected") return "rejected";
+  if (col === "reply" || l.replied_at) return "replied";
+  if (l.sent_at) return l.followups_stopped === "bounced" ? "bounced" : "waiting";
+  return l.status === "applied" ? "applied" : "none";
+}
+function renderAllLeads() {
+  const q = state.q, pick = state.outcome || "";
+  const rows = state.leads.map(l => ({ l, out: leadOutcome(l), src: leadSource(l) }))
+    .filter(r => !q || `${r.l.company} ${r.l.contact_name} ${r.l.sent_to || ""} ${r.src}`.toLowerCase().includes(q));
+  const count = k => rows.filter(r => r.out === k).length;
+  const shown = rows.filter(r => !pick || r.out === pick).sort((a, b) => (b.l.sent_at || "").localeCompare(a.l.sent_at || ""));
+  const sources = Object.entries(shown.reduce((m, r) => (m[r.src] = (m[r.src] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  $("view-count").textContent = shown.length;
+  $("rows").innerHTML = `<div class="pipe viz">
+    <div class="viz-tabs">${[["", "All", rows.length], ...Object.keys(OUTCOMES).map(k => [k, OUTCOMES[k], count(k)])].filter(([k, , n]) => !k || n)
+      .map(([k, label, n]) => `<button class="btn ${pick === k ? "on" : ""}" data-outcome="${k}" aria-pressed="${pick === k}">${esc(label)} ${n}</button>`).join("")}</div>
+    <div class="viz-card wide"><h3>Where these came from</h3><div class="hint">${sources.map(([s, n]) => `${esc(s)} <b>${n}</b>`).join(" · ") || "None"}</div></div>
+    <div class="viz-card wide"><h3>Leads</h3>${shown.length ? `<table class="batches lead-table"><thead><tr><th>Company</th><th>Contact</th><th>Found on</th><th>Emailed</th><th>Outcome</th></tr></thead>
+    <tbody>${shown.map(({ l, out, src }) => `<tr class="row-link ${state.selected === l.key ? "on" : ""}" data-key="${esc(l.key)}" tabindex="0">
+      <td>${esc(l.company)}<div class="sub">${esc(l.kind === "posting" ? "Job posting" : "Founder")}</div></td>
+      <td>${esc(l.contact_name || "–")}${l.contact_role ? `<div class="sub">${esc(l.contact_role)}</div>` : ""}</td>
+      <td>${l.source_url ? `<a href="${esc(l.source_url)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}</td>
+      <td>${l.sent_to ? `${esc(l.sent_to)}<div class="sub">${esc(l.sent_at.slice(0, 10))}${l.email_status === "pattern" ? " · guessed" : l.email_status === "published" ? " · published" : ""}${l.bounced_emails.length ? ` · ${l.bounced_emails.length} earlier bounced` : ""}</div>` : "–"}</td>
+      <td><span class="tag ${["replied", "interview"].includes(out) ? "ok" : ""}">${esc(OUTCOMES[out])}</span></td></tr>`).join("")}</tbody></table>` : `<div class="hint">No leads here.</div>`}</div>
+  </div>`;
 }
 
 // Opportunity agent: events and calls for submissions.
@@ -486,8 +531,10 @@ const BOARD_COLUMNS = ["waiting", "reply", "assessment", "interview", "offer", "
 const BOARD_CAP = 20;  // cards per column before "Show all"
 function boardCard(c) {
   const last = c.emails[0];
-  return `<div class="pipe-card ${c.key ? "link" : ""} ${state.selected && state.selected === c.key ? "on" : ""}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
-    <div class="co">${esc(c.company)}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
+  // Drag it to another column, or (keyboard) pick one from its Move menu.
+  return `<div class="pipe-card ${c.key ? "link" : ""} ${state.selected && state.selected === c.key ? "on" : ""}" draggable="true" data-card="${esc(c.id)}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
+    <select class="pipe-move" data-move="${esc(c.id)}" aria-label="Move ${esc(c.company)} to another column">${BOARD_COLUMNS.map(id => `<option value="${id}" ${id === c.column ? "selected" : ""}>${esc(STAGE_LABEL[id])}</option>`).join("")}</select>
+    <div class="co">${esc(c.company)}${c.moved ? ` <span class="sub" title="You moved this card">· moved</span>` : ""}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
     <div class="pipe-subject">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div>
     ${last ? `<div class="sub">${esc(last.received_at.slice(0, 10))}</div>` : ""}
     ${!c.key && c.emails.length > 1 ? `<details><summary class="hint">${c.emails.length} emails</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
@@ -498,7 +545,7 @@ function companyBoard(cards) {
   return `<div class="viz-card wide"><h3>Companies</h3><div class="pipe-board">${BOARD_COLUMNS.map(id => {
     const col = cards.filter(c => c.column === id).sort((a, b) => (b.last || "").localeCompare(a.last || ""));
     const shown = open.has(id) ? col : col.slice(0, BOARD_CAP);
-    return `<div class="pipe-col ${NEEDS_YOU.has(id) && col.length ? "needs" : ""}">
+    return `<div class="pipe-col ${NEEDS_YOU.has(id) && col.length ? "needs" : ""}" data-col="${id}">
       <div class="pipe-head"><span>${esc(STAGE_LABEL[id])}</span><span>${col.length}</span></div>
       ${shown.map(boardCard).join("") || `<div class="hint">None</div>`}
       ${col.length > BOARD_CAP ? `<button class="btn more" data-more="${id}">${open.has(id) ? "Show fewer" : `Show all ${col.length}`}</button>` : ""}
@@ -841,8 +888,78 @@ $("where").addEventListener("change", e => { state.where = e.target.value; rende
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
 $("rows").addEventListener("change", e => {
   if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }
+  if (e.target.dataset.move) moveCard(e.target.dataset.move, e.target.value);
+});
+// Board cards move by drag and drop; the server keeps the move until a newer email arrives.
+async function moveCard(id, column) {
+  const card = state.pipe.cards.find(c => c.id === id);
+  if (!card || card.column === column) return;
+  const was = card.column;
+  card.column = column; card.moved = true; renderRows();
+  try { await api("/api/pipeline/move", { card: id, column }); }
+  catch (err) { card.column = was; renderRows(); toast(`Couldn't move it: ${err.message}`); }
+}
+$("rows").addEventListener("dragstart", e => {
+  const card = e.target.closest && e.target.closest("[data-card]"); if (!card) return;
+  e.dataTransfer.setData("text/plain", card.dataset.card); e.dataTransfer.effectAllowed = "move";
+  card.classList.add("dragging");
+});
+$("rows").addEventListener("dragend", e => { e.target.classList && e.target.classList.remove("dragging"); });
+$("rows").addEventListener("dragover", e => {
+  const col = e.target.closest("[data-col]"); if (!col) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".pipe-col.drop").forEach(c => c !== col && c.classList.remove("drop"));
+  col.classList.add("drop");
+});
+$("rows").addEventListener("dragleave", e => {
+  const col = e.target.closest("[data-col]");
+  if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop");
+});
+$("rows").addEventListener("drop", e => {
+  const col = e.target.closest("[data-col]"); if (!col) return;
+  e.preventDefault(); col.classList.remove("drop");
+  moveCard(e.dataTransfer.getData("text/plain"), col.dataset.col);
+});
+// Panels fold away from their heading and resize from their bottom-right corner; both are
+// remembered per page.
+const folds = (() => { try { return JSON.parse(localStorage.getItem("folds") || "{}"); } catch { return {}; } })();
+function saveFolds() { try { localStorage.setItem("folds", JSON.stringify(folds)); } catch {} }
+function foldPanels() {
+  $("rows").querySelectorAll(".viz-card, .today-sec, .home section").forEach(p => {
+    const h = p.querySelector(":scope > h3"); if (!h || !h.firstChild) return;
+    const id = p.dataset.fold = `${state.view}:${h.firstChild.textContent.trim()}`, f = folds[id] || {};
+    h.classList.add("fold-h"); h.tabIndex = 0; h.setAttribute("role", "button"); h.setAttribute("aria-expanded", String(!f.shut));
+    p.classList.add("fold"); p.classList.toggle("shut", !!f.shut);
+    p.style.height = f.h && !f.shut ? f.h + "px" : "";
+  });
+}
+new MutationObserver(foldPanels).observe($("rows"), { childList: true });
+function toggleFold(h) {
+  const p = h.parentElement, f = folds[p.dataset.fold] || (folds[p.dataset.fold] = {});
+  f.shut = !f.shut; saveFolds(); foldPanels();
+}
+$("rows").addEventListener("keydown", e => {
+  const h = e.target.closest(".fold-h");
+  if (h && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleFold(h); }
+  const row = e.target.closest("tr.row-link");
+  if (row && e.key === "Enter") go(state.view, row.dataset.key);
+});
+// A resize sets an inline height; keep it for next time.
+document.addEventListener("pointerup", () => {
+  let changed = false;
+  $("rows").querySelectorAll(".fold:not(.shut)").forEach(p => {
+    const h = parseInt(p.style.height, 10), f = folds[p.dataset.fold] || {};
+    if (h && f.h !== h) { folds[p.dataset.fold] = { ...f, h }; changed = true; }
+  });
+  if (changed) saveFolds();
 });
 $("rows").addEventListener("click", async e => {
+  const fh = e.target.closest(".fold-h");
+  if (fh) return toggleFold(fh);
+  const outcome = e.target.closest("[data-outcome]");
+  if (outcome) { state.outcome = outcome.dataset.outcome; return renderRows(); }
+  if (e.target.closest(".lead-table a")) return;  // the source link opens on its own
+  if (e.target.closest(".pipe-move")) return;  // its change event moves the card
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
   const brk = e.target.closest("[data-break]");
@@ -870,7 +987,7 @@ $("rows").addEventListener("click", async e => {
     state.calMonth = step ? new Date(Date.UTC(y, m - 1 + step, 1)).toISOString().slice(0, 7) : today().slice(0, 7);
     return renderRows();
   }
-  const r = e.target.closest(".row"); if (!r) return;
+  const r = e.target.closest(".row, tr.row-link"); if (!r) return;
   go(state.view, r.dataset.key);
 });
 $("find").addEventListener("click", async e => {
