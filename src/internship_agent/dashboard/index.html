@@ -316,6 +316,7 @@ function renderAllLeads() {
   $("rows").innerHTML = `<div class="pipe viz">
     <div class="viz-tabs">${[["", "All", rows.length], ...Object.keys(OUTCOMES).map(k => [k, OUTCOMES[k], count(k)])].filter(([k, , n]) => !k || n)
       .map(([k, label, n]) => `<button class="btn ${pick === k ? "on" : ""}" data-outcome="${k}" aria-pressed="${pick === k}">${esc(label)} ${n}</button>`).join("")}</div>
+    ${csvPanel(rows)}
     <div class="viz-card wide"><h3>Where these came from</h3><div class="hint">${sources.map(([s, n]) => `${esc(s)} <b>${n}</b>`).join(" · ") || "None"}</div></div>
     <div class="viz-card wide"><h3>Leads</h3>${shown.length ? `<table class="batches lead-table"><thead><tr><th>Company</th><th>Contact</th><th>Found on</th><th>Emailed</th><th>Outcome</th></tr></thead>
     <tbody>${shown.map(({ l, out, src }) => `<tr class="row-link ${state.selected === l.key ? "on" : ""}" data-key="${esc(l.key)}" tabindex="0">
@@ -325,6 +326,65 @@ function renderAllLeads() {
       <td>${l.sent_to ? `${esc(l.sent_to)}<div class="sub">${esc(l.sent_at.slice(0, 10))}${l.email_status === "pattern" ? " · guessed" : l.email_status === "published" ? " · published" : ""}${l.bounced_emails.length ? ` · ${l.bounced_emails.length} earlier bounced` : ""}</div>` : "–"}</td>
       <td><span class="tag ${["replied", "interview"].includes(out) ? "ok" : ""}">${esc(OUTCOMES[out])}</span></td></tr>`).join("")}</tbody></table>` : `<div class="hint">No leads here.</div>`}</div>
   </div>`;
+}
+
+// The All leads CSV: pick outcomes, types, sources and columns, then download (opens in Excel).
+const CSV_COLS = [
+  ["company", "Company", l => l.company],
+  ["kind", "Type", l => l.kind === "posting" ? "Job posting" : "Founder"],
+  ["contact", "Contact", l => l.contact_name],
+  ["role", "Role", l => l.contact_role],
+  ["email", "Email", l => l.sent_to || l.email],
+  ["email_status", "Email status", l => l.email_status],
+  ["sent", "Emailed on", l => (l.sent_at || "").slice(0, 10)],
+  ["outcome", "Outcome", (l, r) => OUTCOMES[r.out]],
+  ["replied", "Replied on", l => (l.replied_at || "").slice(0, 10)],
+  ["bounced", "Bounced addresses", l => [...l.bounced_emails, ...(l.followups_stopped === "bounced" && l.sent_to ? [l.sent_to] : [])].join("; ")],
+  ["followups", "Follow-ups sent", l => l.followups.length],
+  ["source", "Found on", (l, r) => r.src],
+  ["source_url", "Source link", l => l.source_url],
+  ["company_url", "Website", l => l.company_url],
+  ["location", "Location", l => l.location],
+  ["round", "Round", l => l.round],
+  ["amount", "Amount (USD)", l => l.amount_usd],
+  ["announced", "Announced", l => l.announced_on],
+  ["fit", "Fit score", l => l.fit && l.fit.score],
+  ["linkedin", "LinkedIn", l => l.linkedin_url],
+  ["x", "X handle", l => l.x_handle],
+  ["posting", "Posting", l => l.posting_title],
+  ["posting_url", "Posting link", l => l.posting_url],
+  ["deadline", "Deadline", l => l.deadline],
+];
+const csv = { off: { outcome: new Set(), kind: new Set(), src: new Set() },
+  cols: new Set(["company", "kind", "contact", "role", "email", "sent", "outcome", "source", "source_url", "location"]), rows: [] };
+const csvPicked = () => csv.rows.filter(r => !csv.off.outcome.has(r.out) && !csv.off.kind.has(r.l.kind) && !csv.off.src.has(r.src));
+const csvLabel = () => `Download ${csvPicked().length} lead(s)`;
+function csvPanel(rows) {
+  csv.rows = rows;  // the search box narrows the download too
+  const box = (group, value, label, on) => `<label class="csv-opt"><input type="checkbox" data-csv="${group}" value="${esc(value)}" ${on ? "checked" : ""}> ${esc(label)}</label>`;
+  const present = f => [...new Set(rows.map(f))].sort();
+  const group = (title, html) => `<fieldset class="csv-group"><legend>${title}</legend>${html}</fieldset>`;
+  return `<div class="viz-card wide"><h3>Download as CSV (Excel)</h3>
+    ${group("Outcome", present(r => r.out).map(k => box("outcome", k, OUTCOMES[k], !csv.off.outcome.has(k))).join(""))}
+    ${group("Type", present(r => r.l.kind).map(k => box("kind", k, k === "posting" ? "Job postings" : "Founders", !csv.off.kind.has(k))).join(""))}
+    ${group("Found on", present(r => r.src).map(s => box("src", s, s, !csv.off.src.has(s))).join(""))}
+    ${group("Columns", CSV_COLS.map(([k, label]) => box("col", k, label, csv.cols.has(k))).join(""))}
+    <button class="btn" data-csv-download>${csvLabel()}</button></div>`;
+}
+function csvCell(v) {
+  let s = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;  // names come from the web: Excel must not run them as formulas
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadCsv() {
+  const cols = CSV_COLS.filter(([k]) => csv.cols.has(k));
+  if (!cols.length) return toast("Pick at least one column.");
+  const lines = [cols.map(c => csvCell(c[1])), ...csvPicked().map(r => cols.map(([, , f]) => csvCell(f(r.l, r))))];
+  // The BOM tells Excel the file is UTF-8, so names with accents read right.
+  const blob = new Blob(["﻿" + lines.map(l => l.join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `leads-${today()}.csv` });
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // Opportunity agent: events and calls for submissions.
@@ -889,6 +949,12 @@ $("region").addEventListener("change", e => { state.region = e.target.value; ren
 $("rows").addEventListener("change", e => {
   if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }
   if (e.target.dataset.move) moveCard(e.target.dataset.move, e.target.value);
+  const group = e.target.dataset.csv;
+  if (group) {  // only the count changes, so the checkbox keeps focus
+    const set = group === "col" ? csv.cols : csv.off[group];
+    (group === "col") === e.target.checked ? set.add(e.target.value) : set.delete(e.target.value);
+    $("rows").querySelector("[data-csv-download]").textContent = csvLabel();
+  }
 });
 // Board cards move by drag and drop; the server keeps the move until a newer email arrives.
 async function moveCard(id, column) {
@@ -958,6 +1024,7 @@ $("rows").addEventListener("click", async e => {
   if (fh) return toggleFold(fh);
   const outcome = e.target.closest("[data-outcome]");
   if (outcome) { state.outcome = outcome.dataset.outcome; return renderRows(); }
+  if (e.target.closest("[data-csv-download]")) return downloadCsv();
   if (e.target.closest(".lead-table a")) return;  // the source link opens on its own
   if (e.target.closest(".pipe-move")) return;  // its change event moves the card
   const del = e.target.closest("[data-del-pref]");
