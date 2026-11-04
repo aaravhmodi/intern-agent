@@ -95,6 +95,16 @@ def test_unknown_lead_404(client: TestClient) -> None:
     assert client.post("/api/status", json={"key": "nope", "status": "applied"}).status_code == 404
 
 
+def test_marking_applied_twice_refills_once(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(dashboard, "find_more_postings", lambda *a: calls.append(1) or [])
+    for _ in range(2):
+        client.post("/api/status", json={"key": "acme/jane-doe", "status": "applied"})
+    assert calls == [1]
+
+
 def test_finding_people_needs_an_openai_key(client: TestClient) -> None:
     response = client.post("/api/people", json={"key": "acme/jane-doe"})
     assert response.status_code == 400 and "OPENAI_API_KEY" in response.json()["detail"]
@@ -212,3 +222,17 @@ def test_confirmation_screenshot_is_served_as_proof(
     response = client.get(url, params={"key": lead.key})
     assert response.status_code == 200 and response.headers["content-type"] == "image/png"
     assert client.get("/api/leads").json()["leads"][0]["has_proof"] is True
+
+
+def test_favicon_is_served_for_every_path_browsers_ask_for(client: TestClient) -> None:
+    for path, kind in (
+        ("/favicon.svg", "image/svg+xml"),
+        ("/favicon.ico", "image/png"),
+        ("/apple-touch-icon.png", "image/png"),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200 and response.headers["content-type"] == kind
+        assert response.content
+    assert client.get("/favicon.svg").text.startswith("<svg")
+    page = client.get("/").text
+    assert 'rel="icon"' in page and 'rel="apple-touch-icon"' in page

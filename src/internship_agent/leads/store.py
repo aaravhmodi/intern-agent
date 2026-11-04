@@ -1,11 +1,12 @@
 import json
+import re
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import TypeAdapter
 
 from internship_agent.db import Table
-from internship_agent.leads.schemas import Lead
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
 
 _LEADS = TypeAdapter(list[Lead])
 _TRACKING_PARAMS = {"ref", "src", "source", "gh_src", "embed"}
@@ -95,7 +96,8 @@ def normalize_url(url: str) -> str:
     path = parts.path.rstrip("/")
     for suffix in ("/application", "/apply"):
         path = path.removesuffix(suffix)
-    return urlunsplit(("https", parts.netloc.lower(), path, urlencode(query), ""))
+    host = parts.netloc.lower().replace("job-boards.greenhouse.io", "boards.greenhouse.io")
+    return urlunsplit(("https", host, path, urlencode(query), ""))
 
 
 def _identity(lead: Lead) -> set[str]:
@@ -105,16 +107,28 @@ def _identity(lead: Lead) -> set[str]:
     return ids
 
 
+def _role(lead: Lead) -> str:
+    """Company and title without a bracketed term, e.g. "(Summer 2027)", or punctuation."""
+    title = re.sub(r"\([^)]*\)", "", lead.posting_title or "")
+    return re.sub(r"[^a-z0-9]+", "", f"{lead.company}/{title}".lower())
+
+
 def merge(existing: list[Lead], incoming: list[Lead]) -> tuple[list[Lead], int]:
     """Add new leads; never overwrite one already stored (it may be scored or contacted).
 
-    A lead is a duplicate if its key or its normalized posting URL is already known.
+    A lead is a duplicate if its key or its normalized posting URL is already known. A posting
+    you skipped also hides any later one with the same company and title, from any source.
     """
     known: set[str] = set().union(*(_identity(lead) for lead in existing)) if existing else set()
+    skipped = {
+        _role(lead)
+        for lead in existing
+        if lead.status is LeadStatus.SKIPPED and lead.kind is LeadKind.POSTING
+    }
     added: list[Lead] = []
     for lead in incoming:
         ids = _identity(lead)
-        if ids & known:
+        if ids & known or (lead.kind is LeadKind.POSTING and _role(lead) in skipped):
             continue
         known |= ids
         added.append(lead)

@@ -4,14 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Winter 2027 Search</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0d1119">
 <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
+<header id="topbar">
+  <button class="bar-btn" id="menu-toggle" aria-label="Collapse the menu" aria-expanded="true" aria-controls="nav">☰</button>
+  <a class="bar-brand" href="#/home"><span class="brand-mark">W.</span><span class="bar-title">Winter 2027</span></a>
+  <div class="crumbs" id="crumbs" role="navigation" aria-label="You are here"></div>
+  <span class="spacer"></span>
+  <button class="bar-btn wide" id="detail-toggle" aria-label="Collapse the details panel" aria-expanded="true" aria-controls="aside">Details</button>
+</header>
 <div class="app">
   <nav id="nav" aria-label="Workspace views"></nav>
   <div class="list">
     <div class="list-head">
-      <div class="header-top"><span class="eyebrow">The search / Winter 2027</span><span class="edition eyebrow">Opportunity desk</span></div>
+      <div class="header-top"><span class="eyebrow">The search / Winter 2027</span><span class="header-actions"><span class="edition eyebrow">Opportunity desk</span><button class="btn" id="refresh" title="Reload leads, events, calendar and pipeline">↻ Refresh</button></span></div>
       <div class="view-heading"><h1 id="view-title">Startups</h1><span class="count" id="view-count"></span></div>
       <p class="view-description" id="view-description">A focused view of your opportunities.</p>
       <div class="toolbar">
@@ -19,6 +30,20 @@
           <select class="search" id="region" aria-label="Region">
             <option value="">All regions</option><option value="canada">Canada</option>
             <option value="usa">USA</option><option value="europe">Europe</option>
+          </select>
+          <select class="search" id="due" aria-label="Deadline">
+            <option value="">Any deadline</option><option value="7">Due in 7 days</option>
+            <option value="30">Due in 30 days</option><option value="any">Has a deadline</option>
+          </select>
+          <select class="search" id="posted" aria-label="Posted">
+            <option value="">Posted any time</option><option value="1">Posted in 24 hours</option>
+            <option value="3">Posted in 3 days</option><option value="7">Posted this week</option>
+            <option value="30">Posted this month</option>
+          </select>
+          <select class="search" id="where" aria-label="Location">
+            <option value="">All locations</option><option value="online">Online</option>
+            <option value="canada">Canada</option><option value="usa">USA</option>
+            <option value="europe">Europe</option><option value="elsewhere">Rest of world</option>
           </select>
           <input class="search" id="q" type="search" placeholder="Search opportunities" aria-label="Search opportunities">
         </div>
@@ -41,6 +66,7 @@
   </aside>
 </div>
 <div id="toast"></div>
+<div id="tabs" role="navigation" aria-label="Main pages"></div>
 <button class="btn primary ask-open" id="ask-open" aria-label="Ask about you, your GitHub and your search">Ask ✦</button>
 <div class="ask" id="ask" role="dialog" aria-label="Ask">
   <div class="ask-head"><b>Ask</b><span id="ask-ctx"></span><button class="btn" id="ask-clear">Clear</button><button class="btn" id="ask-close" aria-label="Close">×</button></div>
@@ -50,14 +76,18 @@
 <script>
 const DONE = new Set(["applied", "contacted", "skipped"]);
 const VIEWS = {
+  home:     { title: "Home", group: "Start", label: "Home", home: true, test: () => false },
+  today:    { title: "Today", group: "Now", label: "Today", today: true, test: () => false },
   calendar: { title: "Calendar", group: "Plan", label: "Calendar", cal: true, test: () => false },
   jobs:     { title: "Job pipeline", group: "Track", label: "Job pipeline", pipe: true, test: () => false, find: "inbox" },
+  all:      { title: "All applications", group: "All applications", label: "Big companies + startups", test: l => l.kind === "posting" && !!l.posting_url && !DONE.has(l.status), find: "postings" },
   startups: { title: "Startups", group: "Startups", label: "All startups", test: l => isStartup(l) && !DONE.has(l.status), find: "startups" },
   early:    { title: "Early-stage startups", group: "Startups", label: "Early stage", test: l => l.segment === "early" && !DONE.has(l.status), find: "early" },
   mid:      { title: "Mid-stage startups", group: "Startups", label: "Mid stage", test: l => l.segment === "mid" && !DONE.has(l.status), find: "mid" },
   big:      { title: "Big companies", group: "Big companies", label: "Open postings", test: l => !isStartup(l) && !DONE.has(l.status), find: "postings" },
   applied:  { title: "Applied", group: "Pipeline", label: "Applied", test: l => l.status === "applied" },
   contacted:{ title: "Contacted", group: "Pipeline", label: "Contacted", test: l => l.status === "contacted" },
+  leads:    { title: "All leads", group: "Pipeline", label: "All leads", everyLead: true, test: () => true },
   skipped:  { title: "Skipped", group: "Pipeline", label: "Skipped", test: l => l.status === "skipped" },
   rules:    { title: "What I've learned", group: "Learned", label: "Your rules", test: () => false, find: "rescore" },
   hackathons: { title: "Hackathons", group: "Find", label: "Hackathons", opp: true, test: o => o.kind === "hackathon" && o.status !== "skipped", find: "feeds" },
@@ -72,13 +102,42 @@ const VIEWS = {
 const PLANNED = new Set(["interested", "registered", "submitted"]);
 const TRAVEL = new Set(["covered", "partial"]);
 const FIND_LABEL = { startups: "Search for startups", early: "Search early-stage", mid: "Search mid-stage", postings: "Find more postings", rescore: "Re-check to-do leads", feeds: "Refresh feeds", events: "Search for events", check: "Check 5 more events", inbox: "Check inboxes now" };
-let state = { leads: [], opps: [], cal: [], pipe: { cards: [], inboxes: [] }, calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "" };
+let state = { leads: [], opps: [], cal: [], pipe: { cards: [], inboxes: [] }, calMonth: new Date().toISOString().slice(0, 7), calAll: false, calKinds: new Set(), view: "startups", q: "", selected: null, sender: null, armed: null, prefs: [], region: "", due: "", posted: "", where: "" };
 
+function dueOk(l) {
+  if (!state.due) return true;
+  if (!l.deadline) return false;
+  const days = (Date.parse(l.deadline) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5;
+  return state.due === "any" || (days >= 0 && days <= +state.due);
+}
+// posted_on is the source's date, or the day the agent found the posting.
+function postedOk(l) {
+  if (!state.posted) return true;
+  if (!l.posted_on) return false;
+  return (Date.parse(today()) - Date.parse(l.posted_on)) / 864e5 <= +state.posted;
+}
+// regions comes from the server, read from the checked venue or the listed location.
+function whereOk(o) {
+  const online = o.online || ["online", "hybrid"].includes(o.assessment?.format);
+  if (!state.where) return true;
+  if (state.where === "online") return online;
+  if (state.where === "elsewhere") return !online && !o.regions.length;
+  return o.regions.includes(state.where);
+}
 function isStartup(l) { return l.segment === "early" || l.segment === "mid"; }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const when = iso => new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
 const appLine = a => a.submitted_at ? `Applied ${when(a.submitted_at)}` : `Application: ${a.submission_status}`;
 const $ = id => document.getElementById(id);
+// navigator.clipboard only exists on https or localhost; the server dashboard is plain http.
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const t = document.createElement("textarea");
+  t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+  document.body.appendChild(t); t.select();
+  const ok = document.execCommand("copy"); t.remove();
+  if (!ok) throw new Error("copy failed");
+}
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 4000); }
 async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {});
@@ -88,31 +147,77 @@ async function api(path, body) {
 async function load() {
   const [data, opps, cal, pipe] = await Promise.all([api("/api/leads"), api("/api/opportunities").catch(() => ({ opportunities: [] })), api("/api/calendar").catch(() => ({ items: [] })), api("/api/pipeline").catch(() => ({ cards: [], inboxes: [] }))]);
   state.leads = data.leads; state.sender = data.sender; state.prefs = data.preferences; state.opps = opps.opportunities; state.cal = cal.items; state.pipe = pipe;
-  renderNav(); renderRows(); renderDetail();
+  renderNav(); renderRows(); renderDetail(); renderTabs();
 }
+// Every view is a page with its own address: #/jobs, and #/picked/<key> for one item in it.
+// Pushes link here, so they open exactly what they're about.
+const enc = encodeURIComponent;
+function parseRoute() {
+  const m = location.hash.match(/^#\/([a-z]+)(?:\/(.+))?$/);
+  let key = null;
+  try { key = m && m[2] ? decodeURIComponent(m[2]) : null; } catch { key = null; }
+  return { view: m && VIEWS[m[1]] ? m[1] : "home", key };
+}
+function go(view, key) { location.hash = "/" + view + (key ? "/" + enc(key) : ""); }
+function applyRoute() {
+  const r = parseRoute();
+  state.view = r.view; state.selected = r.key; state.armed = null;
+  document.body.classList.remove("menu-open");
+  renderNav(); renderRows(); renderDetail(); renderTabs();
+  if (!r.key) window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", applyRoute);
 function money(n) { return n ? "$" + (n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : Math.round(n / 1e3) + "K") : ""; }
 function subtitle(l) {
-  if (l.kind === "posting") return l.posting_title;
+  if (l.kind === "posting") return [l.posting_title, l.posted_on && "posted " + new Date(l.posted_on + "T00:00").toLocaleDateString([], { month: "short", day: "numeric" })].filter(Boolean).join(" · ");
   return [l.round.replace("-", " "), money(l.amount_usd), l.announced_on && "raised " + l.announced_on].filter(Boolean).join(" · ");
 }
 
+const sectionOf = v => v.home ? "" : v.cal || v.today ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
+function navCount(id, v) {
+  return id === "rules" ? state.prefs.length : v.today ? todayCount() : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
+}
+// Home on top, then the three sections, each of which folds away (and stays open if it holds the current page).
 function renderNav() {
-  let html = `<div class="brand"><span class="brand-mark">W.</span><span>Winter 2027<small>Internships & opportunities</small></span></div><div class="nav-sections">`;
-  let group = null, section = null;
+  const sections = [];
   for (const [id, v] of Object.entries(VIEWS)) {
-    const s = v.cal ? "Both agents" : v.opp ? "Opportunity agent" : "Internship agent";
-    if (s !== section) { if (group) html += `</div>`; group = null; html += `<div class="section-h">${s}</div>`; section = s; }
-    if (v.group !== group) { if (group) html += `</div>`; html += `<div class="group"><h3>${v.group}</h3>`; group = v.group; }
-    const n = id === "rules" ? state.prefs.length : v.pipe ? state.pipe.cards.filter(c => !["waiting", "rejected", "bounced"].includes(c.column)).length : v.cal ? calShown().filter(i => i.day >= today()).length : (v.opp ? state.opps : state.leads).filter(v.test).length;
-    html += `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span><span>${n}</span></button>`;
+    const name = sectionOf(v);
+    let sec = sections.find(s => s.name === name); if (!sec) sections.push(sec = { name, groups: [] });
+    let g = sec.groups.find(x => x.name === v.group); if (!g) sec.groups.push(g = { name: v.group, items: [] });
+    g.items.push([id, v]);
   }
-  html += `</div></div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
-  $("nav").innerHTML = html;
+  const item = ([id, v]) => `<button class="nav-item ${state.view === id ? "on" : ""}" data-view="${id}"><span>${v.label}</span>${v.home ? "" : `<span>${navCount(id, v)}</span>`}</button>`;
+  const html = sections.map(sec => {
+    const body = sec.groups.map(g => `<div class="group">${sec.name ? `<h3>${esc(g.name)}</h3>` : ""}${g.items.map(item).join("")}</div>`).join("");
+    if (!sec.name) return `<div class="nav-top">${body}</div>`;
+    const here = sec.groups.some(g => g.items.some(([id]) => id === state.view));
+    const shut = shell.sections.has(sec.name) && !here;
+    return `<div class="nav-sec ${shut ? "shut" : ""}"><button class="section-h" data-section="${esc(sec.name)}" aria-expanded="${!shut}"><span>${esc(sec.name)}</span><span class="chev" aria-hidden="true">${shut ? "▸" : "▾"}</span></button><div class="sec-body">${body}</div></div>`;
+  }).join("");
+  $("nav").innerHTML = `<div class="nav-sections">${html}</div><div class="sender">${state.sender ? `Sending as <b>${esc(state.sender)}</b>` : "Email sending is off. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to .env."}</div>`;
+}
+// The site frame: a collapsible menu and details panel, and where you are. Choices persist.
+const shell = { nav: false, aside: false, sections: new Set() };
+try { const s = JSON.parse(localStorage.getItem("shell") || "{}"); shell.nav = !!s.nav; shell.aside = !!s.aside; shell.sections = new Set(s.sections || []); } catch {}
+function saveShell() { try { localStorage.setItem("shell", JSON.stringify({ nav: shell.nav, aside: shell.aside, sections: [...shell.sections] })); } catch {} }
+const phone = () => window.matchMedia("(max-width: 700px)").matches;
+function applyShell() {
+  const v = VIEWS[state.view], app = document.querySelector(".app");
+  app.classList.toggle("nav-collapsed", shell.nav);
+  app.classList.toggle("aside-collapsed", shell.aside || !!v.home);
+  document.querySelector(".list").classList.toggle("is-home", !!v.home);
+  $("menu-toggle").setAttribute("aria-expanded", String(phone() ? document.body.classList.contains("menu-open") : !shell.nav));
+  $("menu-toggle").setAttribute("aria-label", shell.nav ? "Open the menu" : "Collapse the menu");
+  $("detail-toggle").hidden = !!v.home;
+  $("detail-toggle").setAttribute("aria-expanded", String(!shell.aside));
+  $("detail-toggle").classList.toggle("on", !shell.aside);
+  const sec = sectionOf(v), name = v.label;
+  $("crumbs").innerHTML = [`<a href="#/home">Home</a>`, ...(v.home ? [] : [sec && `<span>${esc(sec)}</span>`, `<a href="#/${state.view}" aria-current="${!state.selected}">${esc(name)}</a>`])].filter(Boolean).join(`<i>/</i>`);
 }
 function visible() {
   const v = VIEWS[state.view];
-  if (v.opp) return state.opps.filter(o => v.test(o) && (!state.q || `${o.title} ${o.location} ${o.topics.join(" ")} ${o.details}`.toLowerCase().includes(state.q)));
-  return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
+  if (v.opp) return state.opps.filter(o => v.test(o) && whereOk(o) && (!state.q || `${o.title} ${o.location} ${o.topics.join(" ")} ${o.details}`.toLowerCase().includes(state.q)));
+  return state.leads.filter(l => v.test(l) && (!state.region || l.region === state.region) && dueOk(l) && postedOk(l) && (!state.q || `${l.company} ${l.posting_title} ${l.contact_name} ${l.what_they_build}`.toLowerCase().includes(state.q)));
 }
 function renderRules() {
   $("view-count").textContent = state.prefs.length;
@@ -125,10 +230,14 @@ function renderRules() {
 }
 function renderRows() {
   const v = VIEWS[state.view];
+  applyShell();
   $("view-title").textContent = v.title;
   $("view-description").textContent = {
+    home: "Both agents at a glance.",
+    today: "What needs you now: replies and interviews, events that stopped at a check, and what closes this week.",
     calendar: "Application and submission deadlines, event dates and follow-ups from both agents.",
     jobs: "Everything you applied to or emailed, moved along by what comes back to your Gmail inboxes.",
+    all: "Every open job posting, big companies and startups together.",
     startups: "Promising early and mid-stage teams, ready for a closer look.",
     early: "Small teams where your work can have immediate reach.",
     mid: "Growing companies with room to build and learn.",
@@ -145,18 +254,24 @@ function renderRows() {
     picked: "Sponsored hackathons, online or reachable, where your work gets judged: picked and applied to for you. Skip any you don't want.",
     plans: "Events and submissions you plan to pursue.",
     passed: "Events you have set aside.",
+    leads: "Every lead, where it was found, and what happened when you emailed it.",
   }[state.view];
-  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe);
+  $("table-head").classList.toggle("hidden", state.view === "rules" || !!v.cal || !!v.pipe || !!v.today || !!v.everyLead);
   $("table-head").children[0].textContent = v.opp ? "When" : "Fit";
   $("table-head").children[1].textContent = v.opp ? "Event / venue" : "Opportunity";
   $("table-head").children[2].textContent = v.opp ? "Where" : "Contact";
   const find = $("find");
   find.style.display = v.find ? "" : "none";
   find.textContent = FIND_LABEL[v.find] || "";
-  $("region").style.display = v.opp || v.cal || v.pipe ? "none" : "";
+  $("region").style.display = $("posted").style.display = $("due").style.display = v.opp || v.cal || v.pipe || v.today || v.everyLead ? "none" : "";
+  $("q").style.display = v.today ? "none" : "";
+  $("where").style.display = v.opp ? "" : "none";
   if (state.view === "rules") return renderRules();
   if (v.cal) return renderCalendar();
+  if (v.today) return renderToday();
+  if (v.home) return renderHome();
   if (v.pipe) return renderPipeline();
+  if (v.everyLead) return renderAllLeads();
   const items = visible();
   $("view-count").textContent = items.length;
   if (v.opp) return renderOpps(items);
@@ -168,6 +283,48 @@ function renderRows() {
       <div class="who">${esc(l.contact_name || (l.email ? l.email : "No contact yet"))}</div>
       <div class="status ${esc(l.status)}">${esc(l.sent_at ? "emailed" : l.status)}</div>
     </div>`).join("") : `<div class="empty">Nothing here yet.</div>`;
+}
+
+// All leads: where each came from, and what happened when you emailed it.
+const SOURCE_HOSTS = [[/sec\.gov$/, "SEC Form D"], [/(^|\.)(x|twitter)\.com$/, "X"], [/linkedin\.com$/, "LinkedIn"],
+  [/greenhouse|lever\.co|ashbyhq|workday|smartrecruiters|workable|jobvite|icims/, "Job board"],
+  [/(githubusercontent|github)\.com$/, "GitHub internship lists"], [/northern\.dev$/, "Northern job board"],
+  [/ycombinator\.com$/, "Y Combinator"], [/careers|\.jobs$|^jobs\./, "Company careers page"]];
+function leadSource(l) {
+  let host = "";
+  try { host = new URL(l.source_url).hostname.replace(/^www\./, ""); } catch {}
+  const named = SOURCE_HOSTS.find(([re]) => re.test(host));
+  return named ? named[1] : host || "Unknown";
+}
+const OUTCOMES = { none: "Not contacted", waiting: "Emailed, waiting", bounced: "Bounced", replied: "Replied", interview: "Interview", rejected: "Said no", applied: "Applied" };
+function leadOutcome(l) {
+  const col = (state.pipe.cards.find(c => c.key === l.key) || {}).column;
+  if (col === "interview" || col === "offer" || col === "assessment") return "interview";
+  if (col === "rejected") return "rejected";
+  if (col === "reply" || l.replied_at) return "replied";
+  if (l.sent_at) return l.followups_stopped === "bounced" ? "bounced" : "waiting";
+  return l.status === "applied" ? "applied" : "none";
+}
+function renderAllLeads() {
+  const q = state.q, pick = state.outcome || "";
+  const rows = state.leads.map(l => ({ l, out: leadOutcome(l), src: leadSource(l) }))
+    .filter(r => !q || `${r.l.company} ${r.l.contact_name} ${r.l.sent_to || ""} ${r.src}`.toLowerCase().includes(q));
+  const count = k => rows.filter(r => r.out === k).length;
+  const shown = rows.filter(r => !pick || r.out === pick).sort((a, b) => (b.l.sent_at || "").localeCompare(a.l.sent_at || ""));
+  const sources = Object.entries(shown.reduce((m, r) => (m[r.src] = (m[r.src] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  $("view-count").textContent = shown.length;
+  $("rows").innerHTML = `<div class="pipe viz">
+    <div class="viz-tabs">${[["", "All", rows.length], ...Object.keys(OUTCOMES).map(k => [k, OUTCOMES[k], count(k)])].filter(([k, , n]) => !k || n)
+      .map(([k, label, n]) => `<button class="btn ${pick === k ? "on" : ""}" data-outcome="${k}" aria-pressed="${pick === k}">${esc(label)} ${n}</button>`).join("")}</div>
+    <div class="viz-card wide"><h3>Where these came from</h3><div class="hint">${sources.map(([s, n]) => `${esc(s)} <b>${n}</b>`).join(" · ") || "None"}</div></div>
+    <div class="viz-card wide"><h3>Leads</h3>${shown.length ? `<table class="batches lead-table"><thead><tr><th>Company</th><th>Contact</th><th>Found on</th><th>Emailed</th><th>Outcome</th></tr></thead>
+    <tbody>${shown.map(({ l, out, src }) => `<tr class="row-link ${state.selected === l.key ? "on" : ""}" data-key="${esc(l.key)}" tabindex="0">
+      <td>${esc(l.company)}<div class="sub">${esc(l.kind === "posting" ? "Job posting" : "Founder")}</div></td>
+      <td>${esc(l.contact_name || "–")}${l.contact_role ? `<div class="sub">${esc(l.contact_role)}</div>` : ""}</td>
+      <td>${l.source_url ? `<a href="${esc(l.source_url)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}</td>
+      <td>${l.sent_to ? `${esc(l.sent_to)}<div class="sub">${esc(l.sent_at.slice(0, 10))}${l.email_status === "pattern" ? " · guessed" : l.email_status === "published" ? " · published" : ""}${l.bounced_emails.length ? ` · ${l.bounced_emails.length} earlier bounced` : ""}</div>` : "–"}</td>
+      <td><span class="tag ${["replied", "interview"].includes(out) ? "ok" : ""}">${esc(OUTCOMES[out])}</span></td></tr>`).join("")}</tbody></table>` : `<div class="hint">No leads here.</div>`}</div>
+  </div>`;
 }
 
 // Opportunity agent: events and calls for submissions.
@@ -374,8 +531,10 @@ const BOARD_COLUMNS = ["waiting", "reply", "assessment", "interview", "offer", "
 const BOARD_CAP = 20;  // cards per column before "Show all"
 function boardCard(c) {
   const last = c.emails[0];
-  return `<div class="pipe-card ${c.key ? "link" : ""} ${state.selected && state.selected === c.key ? "on" : ""}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
-    <div class="co">${esc(c.company)}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
+  // Drag it to another column, or (keyboard) pick one from its Move menu.
+  return `<div class="pipe-card ${c.key ? "link" : ""} ${state.selected && state.selected === c.key ? "on" : ""}" draggable="true" data-card="${esc(c.id)}" ${c.key ? `data-pipe-key="${esc(c.key)}"` : ""}>
+    <select class="pipe-move" data-move="${esc(c.id)}" aria-label="Move ${esc(c.company)} to another column">${BOARD_COLUMNS.map(id => `<option value="${id}" ${id === c.column ? "selected" : ""}>${esc(STAGE_LABEL[id])}</option>`).join("")}</select>
+    <div class="co">${esc(c.company)}${c.moved ? ` <span class="sub" title="You moved this card">· moved</span>` : ""}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
     <div class="pipe-subject">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div>
     ${last ? `<div class="sub">${esc(last.received_at.slice(0, 10))}</div>` : ""}
     ${!c.key && c.emails.length > 1 ? `<details><summary class="hint">${c.emails.length} emails</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
@@ -386,7 +545,7 @@ function companyBoard(cards) {
   return `<div class="viz-card wide"><h3>Companies</h3><div class="pipe-board">${BOARD_COLUMNS.map(id => {
     const col = cards.filter(c => c.column === id).sort((a, b) => (b.last || "").localeCompare(a.last || ""));
     const shown = open.has(id) ? col : col.slice(0, BOARD_CAP);
-    return `<div class="pipe-col ${NEEDS_YOU.has(id) && col.length ? "needs" : ""}">
+    return `<div class="pipe-col ${NEEDS_YOU.has(id) && col.length ? "needs" : ""}" data-col="${id}">
       <div class="pipe-head"><span>${esc(STAGE_LABEL[id])}</span><span>${col.length}</span></div>
       ${shown.map(boardCard).join("") || `<div class="hint">None</div>`}
       ${col.length > BOARD_CAP ? `<button class="btn more" data-more="${id}">${open.has(id) ? "Show fewer" : `Show all ${col.length}`}</button>` : ""}
@@ -432,6 +591,85 @@ function inboxSection(l) {
     <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
 }
 
+// Home: the landing page. Where things stand across both agents, and a door into each part.
+function renderHome() {
+  const tiles = (state.pipe.insights?.tiles) || [], tile = l => tiles.find(t => t.label === l)?.value ?? "–";
+  const h = new Date().getHours(), greet = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const needs = todayCount(), picked = state.opps.filter(o => o.picked && o.status !== "skipped").length;
+  const dueSoon = state.cal.filter(i => i.day >= today() && ["deadline", "apply"].includes(i.kind) && i.mine).sort((a, b) => a.day.localeCompare(b.day));
+  const said = [needs ? `${needs} thing${needs > 1 ? "s" : ""} need${needs > 1 ? "" : "s"} you` : "Nothing needs you right now",
+    picked ? `${picked} hackathon${picked > 1 ? "s" : ""} picked for you` : "", dueSoon[0] ? `next deadline ${dueSoon[0].day.slice(5)}: ${dueSoon[0].title.replace(/^[^:]+: /, "")}` : ""].filter(Boolean).join(" · ");
+  const checked = state.opps.filter(o => o.assessment).length, paid = state.opps.filter(o => o.assessment && ["covered", "partial"].includes(o.assessment.travel)).length;
+  const count = id => navCount(id, VIEWS[id]);
+  const doors = [
+    ["today", "Today", "What needs you now, with a link to each thing."],
+    ["jobs", "Job pipeline", "Replies, bounces and interviews from both inboxes, as charts and a board."],
+    ["startups", "Startups", "Recently funded teams, scored against your resume."],
+    ["big", "Big companies", "Open Winter 2027 postings."],
+    ["hackathons", "Hackathons", "Devpost and MLH, checked for travel, sponsors and fit."],
+    ["conferences", "Tech conferences", "Talk deadlines and events worth a trip."],
+    ["research", "Research venues", "Student tracks, posters and papers, with a plan."],
+    ["calendar", "Calendar", "Every deadline, event and follow-up in one place."],
+  ];
+  const recent = state.pipe.cards.flatMap(c => c.emails.slice(0, 1).map(e => ({ ...e, key: c.key, company: c.company }))).sort((a, b) => b.received_at.localeCompare(a.received_at)).slice(0, 6);
+  const p = state.pipe;
+  $("rows").innerHTML = `<div class="home">
+    <div class="hero"><div class="eyebrow">Winter 2027 · Waterloo</div><h2>${greet}, Aarav.</h2><p>${esc(said)}.</p>
+      <div class="hero-links"><a class="btn primary" href="#/today">What needs me</a><a class="btn" href="#/jobs">Job pipeline</a><a class="btn" href="#/picked">Picked hackathons</a></div></div>
+    <h3 class="home-h">Internship agent</h3>
+    <div class="tiles">${[["Leads tracked", state.leads.length, `${state.leads.filter(l => l.status === "contacted").length} contacted`], ["Emailed", tile("Emailed"), "outreach sent"], ["Replies", tile("Replies"), "from people"], ["Applied", tile("Applied"), "applications"]].map(([l, v, s]) => vizTile({ label: l, value: v, sub: s })).join("")}</div>
+    <h3 class="home-h">Opportunity agent</h3>
+    <div class="tiles">${[["Events found", state.opps.length, "hackathons, conferences, research"], ["Checked", checked, "location, travel, fit"], ["Picked for you", picked, "sponsored hackathons"], ["Travel paid", paid, "events that pay your way"]].map(([l, v, s]) => vizTile({ label: l, value: v, sub: s })).join("")}</div>
+    <h3 class="home-h">Jump in</h3>
+    <div class="doors">${doors.map(([id, title, blurb]) => `<a class="door" href="#/${id}"><span class="door-top"><b>${esc(title)}</b><span>${count(id)}</span></span><span class="sub">${esc(blurb)}</span></a>`).join("")}</div>
+    <div class="home-cols">
+      <section><h3 class="home-h">Latest from your inboxes</h3>${recent.map(e => `<a class="today-row" href="#/jobs${e.key ? "/" + enc(e.key) : ""}"><span class="co">${esc(e.company)}</span><span class="sub">${esc(STAGE_LABEL[e.stage])}: ${esc(e.subject)}</span><span class="when">${esc(e.received_at.slice(0, 10))}</span></a>`).join("") || `<div class="hint">No recruiting mail yet.</div>`}</section>
+      <section><h3 class="home-h">Closing soon</h3>${dueSoon.slice(0, 6).map(i => `<a class="today-row" href="#/calendar"><span class="co">${esc(i.title)}</span><span class="sub">${esc(CAL_KIND[i.kind])}</span><span class="when">${esc(i.day.slice(5))}</span></a>`).join("") || `<div class="hint">No deadlines on the calendar yet.</div>`}</section>
+    </div>
+    <div class="hint home-foot">${p.inboxes && p.inboxes.length ? `Reading ${p.inboxes.map(esc).join(" and ")} every 30 minutes${p.last_scan ? `, last ${esc(when(p.last_scan))}` : ""}.` : "Gmail isn't connected."} ${state.sender ? `Sending as ${esc(state.sender)}.` : "Email sending is off."}</div>
+  </div>`;
+}
+// Today: what needs you now, each row a link to its own page.
+function todaySections() {
+  const t = today(), week = addDays(t, 7);
+  const needs = [
+    ...state.pipe.cards.filter(c => NEEDS_YOU.has(c.column)).map(c => ({
+      href: `#/jobs/${enc(c.key || "")}`.replace(/\/$/, ""), title: c.company,
+      sub: `${STAGE_LABEL[c.column]}${c.emails[0] ? ": " + c.emails[0].subject : ""}`, when: c.emails[0]?.received_at.slice(0, 10) })),
+    ...state.opps.filter(o => o.application && ["needs_you", "uncertain"].includes(o.application.status) && o.status !== "skipped").map(o => ({
+      href: `#/plans/${enc(o.key)}`, title: o.title, sub: o.application.detail, when: o.deadline || o.starts_on })),
+  ];
+  const closing = state.opps.filter(o => ["interested", "registered"].includes(o.status) && openDeadline(o) && o.deadline <= week && !(o.application && o.application.status === "submitted"))
+    .sort((a, b) => a.deadline.localeCompare(b.deadline)).map(o => ({
+      href: `#/plans/${enc(o.key)}`, title: o.title, sub: `${o.deadline_label || "Closes"} ${o.deadline}`, when: daysTo(o.deadline) }));
+  const queued = state.opps.filter(o => o.picked && o.status === "interested" && !o.application).map(o => ({
+    href: `#/picked/${enc(o.key)}`, title: o.title, sub: `Picked for you: ${o.picked}`, when: o.deadline || o.starts_on }));
+  const due = state.cal.filter(i => i.kind === "followup" && i.day <= t);
+  const followups = due.length ? [{ href: "#/calendar", title: `${due.length} follow-up${due.length > 1 ? "s" : ""} due`, sub: "People emailed 5+ days ago with no reply", when: "" }] : [];
+  return [["Needs you", needs, "Replies, interviews, and events that stopped at a check or a sign-in."],
+    ["Closing this week", closing, "Events you're going to or applying to that close within 7 days."],
+    ["Queued for tomorrow's run", queued, "Hackathons picked for you; the morning run applies."],
+    ["Follow-ups", followups, ""]];
+}
+const todayCount = () => todaySections().slice(0, 2).reduce((n, [, rows]) => n + rows.length, 0);
+function renderToday() {
+  const sections = todaySections();
+  $("view-count").textContent = todayCount();
+  const empty = sections.every(([, rows]) => !rows.length);
+  $("rows").innerHTML = `<div class="today">${empty ? `<div class="empty">Nothing needs you right now.</div>` : sections.filter(([, rows]) => rows.length).map(([title, rows, hint]) => `
+    <section class="today-sec"><h3>${esc(title)} <span>${rows.length}</span></h3>${hint ? `<div class="hint">${esc(hint)}</div>` : ""}
+      ${rows.slice(0, 12).map(r => `<a class="today-row" href="${esc(r.href)}"><span class="co">${esc(r.title)}</span><span class="sub">${esc(r.sub)}</span><span class="when">${esc(r.when || "")}</span></a>`).join("")}
+      ${rows.length > 12 ? `<div class="hint">+${rows.length - 12} more</div>` : ""}</section>`).join("")}</div>`;
+}
+// Bottom tab bar (phones): the four pages you use most, and the rest under More.
+const TABS = [["today", "Today"], ["jobs", "Jobs"], ["hackathons", "Events"], ["calendar", "Calendar"]];
+function renderTabs() {
+  const v = VIEWS[state.view];
+  const active = v.today ? "today" : v.pipe ? "jobs" : v.opp ? "hackathons" : v.cal ? "calendar" : "more";
+  const n = todayCount();
+  $("tabs").innerHTML = TABS.map(([id, label]) => `<a class="tab ${active === id ? "on" : ""}" href="#/${id}">${label}${id === "today" && n ? `<b>${n}</b>` : ""}</a>`).join("")
+    + `<button class="tab ${active === "more" ? "on" : ""}" id="tab-more">More</button>`;
+}
 // Calendar: one month grid and the next 30 days, for both agents.
 const CAL_KIND = { apply: "Apply by", deadline: "Deadline", event: "Event", followup: "Follow-up" };
 const addDays = (iso, n) => { const d = new Date(iso + "T00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -552,6 +790,8 @@ function applicationSection(l) {
   </section>`;
 }
 function renderDetail() {
+  if (state.selected) shell.aside = false;  // choosing something opens its details
+  applyShell();
   $("ask-ctx").textContent = askAbout();
   const opp = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (opp) return renderOpp(opp);
@@ -638,14 +878,88 @@ function renderDetail() {
 
 $("nav").addEventListener("click", e => {
   const b = e.target.closest("[data-view]"); if (!b) return;
-  state.view = b.dataset.view; renderNav(); renderRows();
+  document.body.classList.remove("menu-open");
+  go(b.dataset.view);
 });
 $("q").addEventListener("input", e => { state.q = e.target.value.toLowerCase(); renderRows(); });
+$("due").addEventListener("change", e => { state.due = e.target.value; renderRows(); });
+$("posted").addEventListener("change", e => { state.posted = e.target.value; renderRows(); });
+$("where").addEventListener("change", e => { state.where = e.target.value; renderRows(); });
 $("region").addEventListener("change", e => { state.region = e.target.value; renderRows(); });
 $("rows").addEventListener("change", e => {
   if (e.target.id === "cal-all") { state.calAll = e.target.checked; renderNav(); renderRows(); }
+  if (e.target.dataset.move) moveCard(e.target.dataset.move, e.target.value);
+});
+// Board cards move by drag and drop; the server keeps the move until a newer email arrives.
+async function moveCard(id, column) {
+  const card = state.pipe.cards.find(c => c.id === id);
+  if (!card || card.column === column) return;
+  const was = card.column;
+  card.column = column; card.moved = true; renderRows();
+  try { await api("/api/pipeline/move", { card: id, column }); }
+  catch (err) { card.column = was; renderRows(); toast(`Couldn't move it: ${err.message}`); }
+}
+$("rows").addEventListener("dragstart", e => {
+  const card = e.target.closest && e.target.closest("[data-card]"); if (!card) return;
+  e.dataTransfer.setData("text/plain", card.dataset.card); e.dataTransfer.effectAllowed = "move";
+  card.classList.add("dragging");
+});
+$("rows").addEventListener("dragend", e => { e.target.classList && e.target.classList.remove("dragging"); });
+$("rows").addEventListener("dragover", e => {
+  const col = e.target.closest("[data-col]"); if (!col) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".pipe-col.drop").forEach(c => c !== col && c.classList.remove("drop"));
+  col.classList.add("drop");
+});
+$("rows").addEventListener("dragleave", e => {
+  const col = e.target.closest("[data-col]");
+  if (col && !col.contains(e.relatedTarget)) col.classList.remove("drop");
+});
+$("rows").addEventListener("drop", e => {
+  const col = e.target.closest("[data-col]"); if (!col) return;
+  e.preventDefault(); col.classList.remove("drop");
+  moveCard(e.dataTransfer.getData("text/plain"), col.dataset.col);
+});
+// Panels fold away from their heading and resize from their bottom-right corner; both are
+// remembered per page.
+const folds = (() => { try { return JSON.parse(localStorage.getItem("folds") || "{}"); } catch { return {}; } })();
+function saveFolds() { try { localStorage.setItem("folds", JSON.stringify(folds)); } catch {} }
+function foldPanels() {
+  $("rows").querySelectorAll(".viz-card, .today-sec, .home section").forEach(p => {
+    const h = p.querySelector(":scope > h3"); if (!h || !h.firstChild) return;
+    const id = p.dataset.fold = `${state.view}:${h.firstChild.textContent.trim()}`, f = folds[id] || {};
+    h.classList.add("fold-h"); h.tabIndex = 0; h.setAttribute("role", "button"); h.setAttribute("aria-expanded", String(!f.shut));
+    p.classList.add("fold"); p.classList.toggle("shut", !!f.shut);
+    p.style.height = f.h && !f.shut ? f.h + "px" : "";
+  });
+}
+new MutationObserver(foldPanels).observe($("rows"), { childList: true });
+function toggleFold(h) {
+  const p = h.parentElement, f = folds[p.dataset.fold] || (folds[p.dataset.fold] = {});
+  f.shut = !f.shut; saveFolds(); foldPanels();
+}
+$("rows").addEventListener("keydown", e => {
+  const h = e.target.closest(".fold-h");
+  if (h && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleFold(h); }
+  const row = e.target.closest("tr.row-link");
+  if (row && e.key === "Enter") go(state.view, row.dataset.key);
+});
+// A resize sets an inline height; keep it for next time.
+document.addEventListener("pointerup", () => {
+  let changed = false;
+  $("rows").querySelectorAll(".fold:not(.shut)").forEach(p => {
+    const h = parseInt(p.style.height, 10), f = folds[p.dataset.fold] || {};
+    if (h && f.h !== h) { folds[p.dataset.fold] = { ...f, h }; changed = true; }
+  });
+  if (changed) saveFolds();
 });
 $("rows").addEventListener("click", async e => {
+  const fh = e.target.closest(".fold-h");
+  if (fh) return toggleFold(fh);
+  const outcome = e.target.closest("[data-outcome]");
+  if (outcome) { state.outcome = outcome.dataset.outcome; return renderRows(); }
+  if (e.target.closest(".lead-table a")) return;  // the source link opens on its own
+  if (e.target.closest(".pipe-move")) return;  // its change event moves the card
   const del = e.target.closest("[data-del-pref]");
   if (del) { await api("/api/preferences/delete", { id: del.dataset.delPref }); toast("Forgotten."); return load(); }
   const brk = e.target.closest("[data-break]");
@@ -657,9 +971,9 @@ $("rows").addEventListener("click", async e => {
     return renderRows();
   }
   const card = e.target.closest("[data-pipe-key]");
-  if (card) { state.selected = card.dataset.pipeKey; state.armed = null; renderRows(); return renderDetail(); }
+  if (card) return go("jobs", card.dataset.pipeKey);
   const item = e.target.closest("[data-cal-key]");
-  if (item) { state.selected = item.dataset.calKey; state.armed = null; return renderDetail(); }
+  if (item) return go(state.view, item.dataset.calKey);
   const kind = e.target.closest("[data-cal-kind]");
   if (kind) {
     const k = kind.dataset.calKind;
@@ -673,8 +987,8 @@ $("rows").addEventListener("click", async e => {
     state.calMonth = step ? new Date(Date.UTC(y, m - 1 + step, 1)).toISOString().slice(0, 7) : today().slice(0, 7);
     return renderRows();
   }
-  const r = e.target.closest(".row"); if (!r) return;
-  state.selected = r.dataset.key; state.armed = null; renderRows(); renderDetail();
+  const r = e.target.closest(".row, tr.row-link"); if (!r) return;
+  go(state.view, r.dataset.key);
 });
 $("find").addEventListener("click", async e => {
   const b = e.currentTarget, kind = VIEWS[state.view].find, label = b.textContent;
@@ -707,12 +1021,20 @@ $("find").addEventListener("click", async e => {
   } catch (err) { toast(err.message); }
   finally { b.disabled = false; b.textContent = label; }
 });
+// Pick up what the daily run, inbox scans or another tab changed, without a page reload.
+$("refresh").addEventListener("click", async e => {
+  const b = e.currentTarget;
+  b.disabled = true; b.textContent = "Refreshing…";
+  try { await load(); toast("Up to date."); }
+  catch (err) { toast(err.message); }
+  finally { b.disabled = false; b.textContent = "↻ Refresh"; }
+});
 $("detail").addEventListener("click", async e => {
   const o = (VIEWS[state.view].opp || VIEWS[state.view].cal) && state.opps.find(x => x.key === state.selected);
   if (o) {
     const b = e.target.closest("button"); if (!b) return;
     try {
-      if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+      if (b.id === "close") go(state.view);
       else if (b.dataset.ostatus) { await api("/api/opportunities/status", { key: o.key, status: b.dataset.ostatus }); toast(`Marked ${b.dataset.ostatus}.`); await load(); }
       else if (b.id === "apply-now") {
         b.disabled = true; b.textContent = "Filling in the form… (a few minutes)";
@@ -737,10 +1059,12 @@ $("detail").addEventListener("click", async e => {
   const l = state.leads.find(x => x.key === state.selected); if (!l) return;
   const b = e.target.closest("button"); if (!b) return;
   try {
-    if (b.id === "close") { state.selected = null; renderRows(); renderDetail(); }
+    if (b.id === "close") go(state.view);
     else if (b.dataset.status) {
-      b.disabled = true;
-      if (b.dataset.status === "applied") b.textContent = "Saving, finding more…";
+      // Show the new status now: finding more postings can take a minute, and until then the
+      // row would still be in its list with a live "Mark applied" button to click again.
+      l.status = b.dataset.status; renderNav(); renderRows(); renderDetail();
+      if (b.dataset.status === "applied") toast("Marked applied. Finding more postings…");
       const r = await api("/api/status", { key: l.key, status: b.dataset.status });
       toast(r.added.length ? `Marked ${b.dataset.status}. Added ${r.added.length} new posting(s).` : `Marked ${b.dataset.status}.`);
       await load();
@@ -748,7 +1072,7 @@ $("detail").addEventListener("click", async e => {
       b.disabled = true; b.textContent = "Writing…";
       await api("/api/draft", { key: l.key }); toast("Drafts ready."); await load();
     } else if (b.dataset.copy) {
-      await navigator.clipboard.writeText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
+      await copyText(`Subject: ${$("f-subject").value}\n\n${$("f-body").value}`); toast("Copied.");
     } else if (b.id === "prep") {
       b.disabled = true; b.textContent = "Reading the application...";
       await api("/api/application/prepare", { key: l.key }); toast("Answers ready. Review the ones marked Needs you."); await load();
@@ -771,9 +1095,9 @@ $("detail").addEventListener("click", async e => {
       toast(`Application ${app.submission_status}: ${app.submission_detail}`); await load();
     } else if (b.dataset.copyA !== undefined) {
       const t = document.querySelector(`[data-ans="${b.dataset.copyA}"]`);
-      await navigator.clipboard.writeText(t ? t.value : ""); toast("Copied.");
+      await copyText(t ? t.value : ""); toast("Copied.");
     } else if (b.dataset.copyLetter !== undefined) {
-      await navigator.clipboard.writeText($("cover-letter").value); toast("Cover letter copied.");
+      await copyText($("cover-letter").value); toast("Cover letter copied.");
     } else if (b.id === "people") {
       b.disabled = true; b.textContent = "Searching… (up to a minute)";
       const n = (await api("/api/people", { key: l.key })).lead.people.length;
@@ -781,12 +1105,12 @@ $("detail").addEventListener("click", async e => {
     } else if (b.dataset.person !== undefined) {
       const p = l.people[Number(b.dataset.person)], li = $("f-li");
       // The drafted note greets the main contact; greet this person instead.
-      if (li) await navigator.clipboard.writeText(li.value.replace("Hi " + (l.contact_name.split(" ")[0] || "there"), "Hi " + p.name.split(" ")[0]));
+      if (li) await copyText(li.value.replace("Hi " + (l.contact_name.split(" ")[0] || "there"), "Hi " + p.name.split(" ")[0]));
       window.open(linkedinUrl(l, p), "_blank", "noopener"); toast(li ? "Note copied. Paste it into the invitation." : "Write a draft to get a note to paste.");
     } else if (b.id === "li-go") {
-      await navigator.clipboard.writeText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
+      await copyText($("f-li").value); window.open(linkedinUrl(l), "_blank", "noopener"); toast("Note copied. Paste it into the invitation.");
     } else if (b.id === "dm-go") {
-      await navigator.clipboard.writeText($("f-dm").value); if (l.x_url) window.open(l.x_url, "_blank", "noopener"); toast("Message copied.");
+      await copyText($("f-dm").value); if (l.x_url) window.open(l.x_url, "_blank", "noopener"); toast("Message copied.");
     } else if (b.id === "send") {
       if (state.armed !== l.key) {
         state.armed = l.key; b.textContent = "Click again to send"; b.classList.replace("primary", "danger");
@@ -865,6 +1189,23 @@ $("ask-clear").addEventListener("click", () => { askLog = []; saveAsk(); renderA
 $("ask-send").addEventListener("click", sendAsk);
 $("ask-in").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAsk(); } });
 
+$("menu-toggle").addEventListener("click", () => {
+  if (phone()) document.body.classList.toggle("menu-open"); else { shell.nav = !shell.nav; saveShell(); }
+  applyShell();
+});
+$("detail-toggle").addEventListener("click", () => { shell.aside = !shell.aside; saveShell(); applyShell(); });
+$("nav").addEventListener("click", e => {
+  const s = e.target.closest("[data-section]"); if (!s) return;
+  const name = s.dataset.section;
+  if (!shell.sections.delete(name)) shell.sections.add(name);
+  saveShell(); renderNav();
+});
+$("tabs").addEventListener("click", e => { if (e.target.closest("#tab-more")) document.body.classList.toggle("menu-open"); });
+{
+  const first = parseRoute(); state.view = first.view; state.selected = first.key;
+  $("view-title").textContent = VIEWS[first.view].title;  // right page from the first paint
+  $("rows").innerHTML = `<div class="empty">Loading…</div>`;
+}
 load().catch(err => $("rows").innerHTML = `<div class="empty">Could not load: ${esc(err.message)}</div>`);
 </script>
 </body>

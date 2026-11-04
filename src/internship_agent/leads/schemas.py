@@ -200,6 +200,8 @@ class Lead(BaseModel):
     posting_title: str = ""
     posting_url: str | None = None
     deadline: date | None = None
+    # The date the source says it was posted, else the day the agent first found it.
+    posted_on: date | None = None
 
     segment: Segment | None = None
     region: Region | None = None

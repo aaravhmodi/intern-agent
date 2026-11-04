@@ -204,6 +204,16 @@ def test_a_bounced_address_gets_nothing(settings: Settings, outbox: list[EmailMe
     assert store.load()[0].followups_stopped == "bounced"
 
 
+def test_a_bounce_is_only_searched_for_in_the_first_week(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    save(settings, emailed())
+    late = run_followups(
+        settings, FakeMailbox(bounced={"pranav@blueprint.io"}), now=SENT + timedelta(days=8)
+    )
+    assert late.bounced == []
+
+
 def test_a_dry_run_shows_what_would_go_and_changes_nothing(
     settings: Settings, outbox: list[EmailMessage]
 ) -> None:

@@ -2,6 +2,7 @@
 
 import re
 import urllib.request
+from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
 
 from pydantic import BaseModel
@@ -136,10 +137,10 @@ def is_software_role(role: str) -> bool:
     )
 
 
-def cap_per_company(postings: list["Posting"], per_company: int) -> list["Posting"]:
+def cap_per_company[T: ("Posting", Lead)](postings: list[T], per_company: int) -> list[T]:
     """Keep at most `per_company` postings per company, preserving order."""
     seen: dict[str, int] = {}
-    kept: list[Posting] = []
+    kept: list[T] = []
     for p in postings:
         if seen.get(p.company, 0) < per_company:
             seen[p.company] = seen.get(p.company, 0) + 1
@@ -173,6 +174,18 @@ def matching(
     return cap_per_company(sorted(found, key=lambda p: p.age_days), per_company=3)
 
 
+def posted_on(age: str, today: date | None = None) -> date | None:
+    """A list's age column ('3d', '1mo') or date ('Oct 22, 2026') as a date; None otherwise."""
+    today = today or date.today()
+    if match := re.fullmatch(r"(\d+)(d|mo)", age.strip()):
+        n = int(match.group(1))
+        return today - timedelta(days=n if match.group(2) == "d" else n * 30)
+    try:
+        return datetime.strptime(age.strip(), "%b %d, %Y").date()
+    except ValueError:
+        return None
+
+
 def to_lead(posting: Posting) -> Lead:
     return Lead(
         kind=LeadKind.POSTING,
@@ -182,6 +195,7 @@ def to_lead(posting: Posting) -> Lead:
         source_url=OFF_SEASON_URL,
         location=posting.location,
         region=region_from_text(posting.location),
+        posted_on=posted_on(posting.age),
     )
 
 

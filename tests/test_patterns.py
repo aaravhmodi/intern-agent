@@ -3,6 +3,8 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from internship_agent import workflows
 from internship_agent.config import Settings
 from internship_agent.leads import patterns
@@ -115,6 +117,31 @@ def test_a_recruiter_waits_until_the_ceos_email_shows_the_format(tmp_path: Path)
     assert picked[0][1] == "sam@acme.ai" and picked[1][1].endswith("@beta.io")
 
 
+def test_per_company_emails_more_founders_before_the_format_is_proven(tmp_path: Path) -> None:
+    beta = {"company": "Beta", "company_url": "https://beta.io"}
+    LeadStore(tmp_path / "leads.json").save(
+        [founder(contact_name=name, **beta) for name in ("Bo Chen", "Al Ng", "Cy Li")]
+        + [founder(contact_name="Ed Ko", contact_role="Technical Recruiter", **beta)]
+    )
+    settings = Settings(_env_file=None, data_dir=tmp_path)
+    assert len(workflows.guess_and_send(settings, 10)) == 1
+    assert len(workflows.guess_and_send(settings, 10, per_company=3)) == 3
+    assert len(workflows.guess_and_send(settings, 10, per_company=4)) == 4  # the recruiter too
+
+
+def test_a_refused_send_is_not_counted_as_emailed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("Daily user sending limit exceeded")
+
+    monkeypatch.setattr(workflows, "send_email", refuse)
+    LeadStore(tmp_path / "leads.json").save([founder(contact_name="Bo Chen")])
+    settings = Settings(_env_file=None, data_dir=tmp_path)
+    assert workflows.guess_and_send(settings, 10, send=True, pause_seconds=0) == []
+    assert len(workflows.guess_and_send(settings, 10)) == 1  # still waiting for a send
+
+
 def test_roles_pick_the_email() -> None:
     def role(title: str) -> str:
         return patterns.role_of(founder(contact_role=title))
@@ -155,3 +182,10 @@ def test_three_guesses_and_then_only_the_company_inbox() -> None:
     assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) is None
     lead.company_email = "careers@acme.ai"
     assert patterns.next_guess(lead, "acme.ai", counts, random.Random(0)) == "careers@acme.ai"
+
+
+def test_titles_are_not_part_of_the_name() -> None:
+    # "Dr. Ali Haddad" at XRlabs was once emailed at dr@xrlabs.ai.
+    assert patterns.guess_email("Dr. Ali Haddad", "xrlabs.ai", "first") == "ali@xrlabs.ai"
+    assert patterns.guess_email("Jane Doe, PhD", "acme.ai", "first.last") == "jane.doe@acme.ai"
+    assert patterns.format_of("ali.haddad@xrlabs.ai", "Dr. Ali Haddad") == "first.last"

@@ -1,8 +1,8 @@
 [Unit]
-Description=Scrape internship postings daily at 7:30 AM Toronto
+Description=Scrape postings, founders and emails daily at 9:30 PM Toronto, for the next day
 
 [Timer]
-OnCalendar=*-*-* 07:30:00 America/Toronto
+OnCalendar=*-*-* 21:30:00 America/Toronto
 AccuracySec=1min
 Persistent=true
 Unit=internship-job-scrape.service

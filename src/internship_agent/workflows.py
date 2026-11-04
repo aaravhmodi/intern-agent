@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
@@ -35,9 +36,20 @@ from internship_agent.leads.answers import (
     prefill,
     validate,
 )
+from internship_agent.leads.areas import in_area, spread
 from internship_agent.leads.contacts import company_key
+from internship_agent.leads.deadlines import find_deadline
+from internship_agent.leads.emails import name_words
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
-from internship_agent.leads.refill import DONE, is_workday, open_postings, refill
+from internship_agent.leads.refill import (
+    DONE,
+    drop_unavailable,
+    expire_closed,
+    expire_postings,
+    is_workday,
+    open_postings,
+    refill,
+)
 from internship_agent.leads.schemas import (
     ApplicationPrep,
     EmailStatus,
@@ -57,8 +69,12 @@ from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
 from internship_agent.sources import (
+    big_companies,
+    discord,
     form_d,
     funding_news,
+    gallery,
+    github_lists,
     hn_hiring,
     simplify,
     site_emails,
@@ -68,6 +84,7 @@ from internship_agent.sources import (
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
+from internship_agent.sources.regions import regions_of
 from internship_agent.sources.startup_jobs import find_intern_roles
 from internship_agent.x_search import post_confirms, search_x_raises
 
@@ -149,18 +166,22 @@ def score(settings: Settings, leads: list[Lead]) -> list[Lead]:
     prefs = preference_store(settings).load()
     skipped: list[Lead] = []
     for lead in leads:
-        if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
-            lead.posting_text = fetch_posting_text(lead.posting_url)
-        result = assess_fit(
-            client,
-            settings.openai_model,
-            resume,
-            lead,
-            prefs,
-            usage_callback=lambda usage: _record_openai_usage(
-                settings, "score", settings.openai_model, usage
-            ),
-        )
+        try:
+            if lead.kind is LeadKind.POSTING and lead.posting_url and not lead.posting_text:
+                lead.posting_text = fetch_posting_text(lead.posting_url)
+            lead.deadline = lead.deadline or find_deadline(lead.posting_text)
+            result = assess_fit(
+                client,
+                settings.openai_model,
+                resume,
+                lead,
+                prefs,
+                usage_callback=lambda usage: _record_openai_usage(
+                    settings, "score", settings.openai_model, usage
+                ),
+            )
+        except Exception:  # a bad reply, API or page error: stays unscored, retried next run
+            continue
         lead.fit = result.fit
         lead.segment = lead.segment or result.company_segment
         if lead.status is LeadStatus.NEW:
@@ -246,6 +267,7 @@ def startup_postings(founder: Lead) -> list[Lead]:
                 what_they_build=founder.what_they_build,
                 segment=founder.segment,
                 region=founder.region,
+                posted_on=role.posted_on,
                 contact_name=founder.contact_name,
                 contact_role=founder.contact_role,
                 x_handle=founder.x_handle,
@@ -371,8 +393,11 @@ def find_form_d_startups(
     log: Callable[[str], None] = lambda _: None,
     *,
     min_usd: int = 0,
+    officers: int = 1,
 ) -> list[Lead]:
     """US tech startups that filed a Form D in the last few days, with a site and an email.
+
+    `officers` is how many of each filing's executive officers become leads, contact first.
 
     Finding the website and email is free (likely domains are tried directly); only the
     usual fit score of each new lead uses OpenAI. min_usd skips smaller raises.
@@ -398,7 +423,7 @@ def find_form_d_startups(
                 log(f"{filing.company}: no website that names them")
                 continue
             try:
-                found.append(form_d.to_lead(filing, site))
+                found += [form_d.to_lead(filing, site, o) for o in filing.officers[:officers]]
             except ValueError as error:  # one odd site must not lose the whole run
                 log(f"{filing.company}: skipped ({error})")
         # Saved day by day, so a long backfill keeps what it found if it stops partway.
@@ -556,6 +581,7 @@ def add_team_contacts(
         and patterns.role_of(lead) == "founder"
         and not any(note.text.startswith(TEAM_SEARCHED) for note in lead.notes)
     ]
+    big.sort(key=lambda lead: lead.announced_on or date.min, reverse=True)  # newest raises first
     client = _openai(settings)
     added: list[Lead] = []
     for lead in big[:limit]:
@@ -655,6 +681,8 @@ def guess_and_send(
     *,
     send: bool = False,
     retries: bool = False,
+    area: str | None = None,
+    per_company: int = 1,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[tuple[Lead, str]]:
@@ -663,7 +691,11 @@ def guess_and_send(
     With `retries`, someone whose guess bounced (found by the inbox check) is also picked,
     with the next most likely format, up to three guesses each. A company gets one guess a
     day until one reaches someone there; then its format is known and its recruiter and
-    engineer, who wait until then, are emailed with it. Dry run unless `send`.
+    engineer, who wait until then, are emailed with it. With `area`, only that batch's leads
+    (see leads/areas.py); "others" is split evenly across Europe, Canada and the USA.
+    `per_company` allows that many unproven guesses per company in one run, recruiters and
+    engineers included.
+    Dry run unless `send`.
     """
     store = lead_store(settings)
     leads = store.load()
@@ -677,8 +709,12 @@ def guess_and_send(
         key=lambda lead: lead.fit.score if lead.fit else 0,
         reverse=True,
     )
+    if area:
+        wanted = [lead for lead in wanted if in_area(lead, area)]
+        if area == "others":
+            wanted = spread(wanted)
     picked: list[tuple[Lead, str]] = []
-    domains: set[str] = set()
+    domains: Counter[str] = Counter()
     # A shared inbox (careers@...) is written to once, however many people point at it.
     emailed = {lead.sent_to for lead in leads if lead.sent_to}
     for lead in wanted:
@@ -689,16 +725,16 @@ def guess_and_send(
             continue
         at_domain = known.get(domain)
         proven = patterns.proven(at_domain)
-        if patterns.role_of(lead) != "founder" and not proven:
+        if patterns.role_of(lead) != "founder" and not proven and per_company == 1:
             continue  # waits until the CEO's email shows the company's format
-        if domain in domains and not proven:
-            continue  # one unproven guess per company a day
+        if domains[domain] >= per_company and not proven:
+            continue  # one unproven guess per company a day, unless per_company allows more
         address = patterns.next_guess(lead, domain, counts, rng, at_domain)
         if address and address not in emailed:
-            domains.add(domain)
+            domains[domain] += 1
             emailed.add(address)
             picked.append((lead, address))
-    for lead, address in picked:
+    for lead, address in list(picked):
         role = patterns.role_of(lead)
         bounced = patterns.bounced_addresses(lead)
         retry = f" (retry; bounced: {', '.join(bounced)})" if bounced else ""
@@ -708,7 +744,11 @@ def guess_and_send(
         patterns.point_at(lead, address)
         store.upsert(lead)
         shared = address == lead.company_email
-        first = f"{lead.company} team" if shared else (lead.contact_name or "there").split()[0]
+        first = (
+            f"{lead.company} team"
+            if shared
+            else (name_words(lead.contact_name or "") or ["there"])[0]
+        )
         try:
             send_email(
                 settings,
@@ -722,6 +762,7 @@ def guess_and_send(
             )
         except Exception as error:  # one refused send must not stop the batch
             log(f"{lead.company}: not sent ({type(error).__name__}: {error})")
+            picked.remove((lead, address))  # counted as emailed only once it went out
             continue
         time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
     return picked
@@ -732,6 +773,7 @@ def inbox_send(
     limit: int,
     *,
     send: bool = False,
+    area: str | None = None,
     log: Callable[[str], None] = lambda _: None,
     pause_seconds: float = 20,
 ) -> list[Lead]:
@@ -750,6 +792,8 @@ def inbox_send(
         address = lead.company_email
         if lead.kind is not LeadKind.FOUNDER or not address or address in emailed:
             continue
+        if area and not in_area(lead, area):
+            continue
         if lead.company not in done:
             best.setdefault(lead.company, lead)
     ranked = sorted(
@@ -759,6 +803,8 @@ def inbox_send(
             -(lead.fit.score if lead.fit else 0),
         ),
     )
+    if area == "others":
+        ranked = spread(ranked)
     picked: list[Lead] = []
     for source in ranked[:limit]:
         inbox = Lead(
@@ -799,6 +845,7 @@ def inbox_send(
             )
         except Exception as error:  # one refused send must not stop the batch
             log(f"{inbox.company}: not sent ({type(error).__name__}: {error})")
+            picked.remove(inbox)  # counted as emailed only once it went out
             continue
         time.sleep(pause_seconds)  # spread the batch out so Gmail doesn't flag it
     return picked
@@ -1021,7 +1068,24 @@ def submit_application(
     """Submit one prepared application through a persistent, user-authenticated browser.
 
     accept_posting_term skips the January-April check; only a job you picked by hand sets it.
+    A real attempt that comes back skipped or blocked moves the posting to Skipped for good.
     """
+    lead = _submit(
+        settings, key, dry_run=dry_run, headless=headless, accept_posting_term=accept_posting_term
+    )
+    if not dry_run and drop_unavailable([lead]):
+        lead_store(settings).upsert(lead)
+    return lead
+
+
+def _submit(
+    settings: Settings,
+    key: str,
+    *,
+    dry_run: bool,
+    headless: bool,
+    accept_posting_term: bool,
+) -> Lead:
     from internship_agent.applications.browser import apply_to_posting
 
     if not settings.auto_submit_applications and not dry_run:
@@ -1086,6 +1150,7 @@ def submit_application(
                     settings.gmail_app_password.get_secret_value(),
                     started,
                     company=lead.company,
+                    board=urlparse(lead.posting_url or "").path.strip("/").partition("/")[0],
                 )
                 if settings.gmail_ready and settings.gmail_app_password
                 else None
@@ -1154,6 +1219,9 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     """Save every matching posting from the configured startup boards and Simplify feed."""
     store = lead_store(settings)
     leads = store.load()
+    log(f"{len(expire_postings(leads, date.today()))} posting(s) expired")
+    log(f"{len(expire_closed(leads, big_companies.posting_is_gone))} posting(s) no longer live")
+    log(f"{len(drop_unavailable(leads))} posting(s) removed: application closed or blocked")
     founders = [lead for lead in leads if lead.kind is LeadKind.FOUNDER and lead.status not in DONE]
     candidates: list[Lead] = []
     for founder in founders:
@@ -1165,6 +1233,32 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     regions = {Region(r) for r in settings.search_regions}
     simplify_postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
     candidates.extend(simplify.to_lead(p) for p in simplify_postings)
+    # Roles posted on company career sites and startups.gallery, which Simplify may not have yet.
+    # A source that is down is logged and skipped, never fatal.
+    for name, find in (
+        ("career sites", lambda: big_companies.postings(regions, log)),
+        (
+            "startups.gallery",
+            lambda: [lead for lead in gallery.postings(log) if regions_of(lead.location) & regions],
+        ),
+        (
+            "GitHub lists",
+            # Thousands of rows: keep your regions and term, at most 3 per company like Simplify.
+            lambda: simplify.cap_per_company(
+                [
+                    lead
+                    for lead in github_lists.postings(log)
+                    if regions_of(lead.location) & regions and not _incompatible_term(lead)
+                ],
+                per_company=3,
+            ),
+        ),
+    ):
+        try:
+            candidates.extend(find())
+        except Exception as error:
+            log(f"{name}: {error}")
+    # Hacker News "Who is hiring?" and the a16z speedrun feed; each logs and skips if down.
     candidates.extend(feed_postings(settings, regions, log))
 
     candidates = [lead for lead in candidates if not is_workday(lead)]
@@ -1172,8 +1266,48 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     # open database rather than stopping at the old small "top N" cap.
     target = len(open_postings(leads)) + len(candidates)
     leads, new = refill(leads, candidates, target)
+    leads, new = _only_live(leads, new, log)
     store.save(leads)
     log(f"{len(new)} new posting(s)")
+    return new
+
+
+def _only_live(
+    leads: list[Lead], new: list[Lead], log: Callable[[str], None]
+) -> tuple[list[Lead], list[Lead]]:
+    """Drop new postings whose page is already gone (lists lag behind), so only open jobs are
+    stored. Not stored, not skipped: a dead row is checked again on the next scrape."""
+    with ThreadPoolExecutor(8) as pool:
+        gone = list(
+            pool.map(lambda lead: big_companies.posting_is_gone(lead.posting_url or ""), new)
+        )
+    dead = {id(lead) for lead, is_gone in zip(new, gone, strict=True) if is_gone}
+    if dead:
+        log(f"{len(dead)} new posting(s) already closed, not stored")
+    return [lead for lead in leads if id(lead) not in dead], [
+        lead for lead in new if id(lead) not in dead
+    ]
+
+
+def scrape_discord(
+    settings: Settings, log: Callable[[str], None] = lambda _: None, days: int = 6
+) -> list[Lead]:
+    """Store the SWE intern roles posted in the Discord job channels over the last `days` days.
+
+    Its own run (every 5 days, at night), not part of the daily scrape: it scrolls back through
+    each channel's history, which takes minutes.
+    """
+    store = lead_store(settings)
+    leads = store.load()
+    candidates = [
+        lead
+        for lead in discord.postings(settings.discord_cdp_url, log, days=days)
+        if not is_workday(lead)
+    ]
+    leads, new = refill(leads, candidates, len(open_postings(leads)) + len(candidates))
+    leads, new = _only_live(leads, new, log)
+    store.save(leads)
+    log(f"{len(new)} new posting(s) from Discord")
     return new
 
 
@@ -1189,7 +1323,11 @@ def daily(
     if target_submissions is not None and target_submissions < 1:
         raise ValueError("target_submissions must be positive")
     started = datetime.now(UTC)
-    new = scrape_jobs(settings, log)
+    try:
+        new = scrape_jobs(settings, log)
+    except Exception as error:  # a down source must not cost the night's applications
+        log(f"Scrape failed ({type(error).__name__}); applying to saved postings")
+        new = []
     store = lead_store(settings)
     leads = store.load()
     unscored = [
@@ -1205,6 +1343,10 @@ def daily(
         ]
     log(f"Scoring {len(unscored)} new eligible posting(s)")
     skipped = score(settings, unscored)
+    expired = expire_postings(stored := store.load(), date.today())
+    if expired:
+        store.save(stored)
+        log(f"{len(expired)} newly scored posting(s) already past their deadline")
     skipped_keys = {lead.key for lead in skipped}
     eligible = [
         lead

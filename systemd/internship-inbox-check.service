@@ -1,4 +1,5 @@
 [Unit]
+OnFailure=internship-failure@%n.service
 Description=Record replies and bounces in both Gmail inboxes; push new outreach replies
 
 [Service]

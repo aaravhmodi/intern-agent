@@ -109,6 +109,44 @@ flowchart LR
 | Dashboard | `dashboard/app.py`, `dashboard/index.html`, `dashboard/dashboard.css` | Every view below; local or Tailscale only |
 | Calendar | `agenda.py` | Deadlines, event dates and follow-ups from both agents, and the `.ics` export |
 
+### System architecture
+
+Where each piece runs, and what talks to what. Everything on the server is reachable only over
+Tailscale; the agent reads your inboxes but sends mail only when you click Send.
+
+```mermaid
+flowchart TB
+  YOU([You<br/>browser or phone])
+  subgraph TS[Tailscale network]
+    subgraph SERVER[Home server · Docker Compose]
+      DASH[dashboard container<br/>FastAPI :8765 + CLI<br/>internship-agent]
+      PG[(Postgres<br/>projects db<br/>intern_agent_* tables)]
+      N8N[n8n<br/>reply alerts · follow-ups]
+      SYSD[systemd timers<br/>2:00 apply · 5 email batches<br/>9:30 PM scrape · 30 min inbox check]
+      BROWSER[Playwright<br/>saved browser profile]
+    end
+  end
+  SYSD -->|docker compose exec| DASH
+  N8N -->|HTTP| DASH
+  DASH <--> PG
+  DASH --> BROWSER
+  YOU -->|dashboard, Send, Calendar .ics| DASH
+  subgraph EXT[External services]
+    SRC[Job boards · Simplify · SEC Form D<br/>Devpost · MLH · Luma]
+    OPENAI[OpenAI + web search]
+    XAI[xAI Grok x_search]
+    GMAIL[Gmail ×2<br/>main + outreach<br/>IMAP read · SMTP send]
+    OUTLOOK[Outlook / M365<br/>read-only MCP]
+    NTFY[ntfy push]
+    SITES[Employer application forms<br/>event registration pages]
+  end
+  DASH --> SRC & OPENAI & XAI & OUTLOOK
+  DASH <--> GMAIL
+  DASH --> NTFY --> YOU
+  BROWSER --> SITES
+  GH[GitHub main] -->|push deploys<br/>within a minute| SERVER
+```
+
 ### Every day on the server
 
 The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
@@ -116,14 +154,18 @@ The server is a MacBook on Tailscale. Docker Compose runs the dashboard at
 
 | When (Toronto) | What | How |
 |---|---|---|
-| 7:30 AM | Scrape postings → Form D founders → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
-| 8:00 AM | Submit 20 job applications, lowest fit first | `scripts/run-daily-applications.sh` (systemd) |
+| 2:00 AM | Attempt every eligible open posting one at a time, lowest fit first; one that fails is logged and skipped (Greenhouse, Ashby, Lever; CAPTCHA and incomplete forms are skipped) | `scripts/run-daily-applications.sh` (systemd) |
+| 3:30 AM · 9:00 AM · 10:30 AM · 1:00 PM · 3:30 PM | Five email batches from the outreach Gmail (best-guess address format, retrying bounced guesses with the next format and up to 3 people per company; if a batch has fewer founders than its size, it tops up from startups' published shared inboxes, then a hub batch from the others pool): **Europe** 20, **Toronto** 20, **New York** 20, **San Francisco** 20 (10 AM there), then **others** 20, split evenly across Europe, Canada and the USA outside those hubs. 100 a day at most. A lead goes in a hub batch by its location text; Europe is by its region | `scripts/run-email-batch.sh <area>` (systemd `internship-email-batch@<area>`) |
+| 9:30 PM | End of day: skip expired postings → scrape postings → Form D founders → find published emails → refresh opportunity feeds (+ event search on Mondays) → check 10 events → pick hackathons → apply to events marked Interested | `scripts/run-daily-job-scrape.sh` (systemd) |
 | Every 30 min | Record replies and bounces in both inboxes; push new outreach replies | `leads followups --check-only` (systemd `internship-inbox-check`) |
 | Every 30 min | Scan both inboxes into the Job pipeline; push assessments, interviews, offers | Inside the dashboard |
 | Each new email | Push replies to the main inbox | n8n ([`n8n/README.md`](n8n/README.md)) |
 | Weekdays 9:30 AM | Follow-ups to people with no reply after 5 days, at most twice (only with `FOLLOWUPS_ENABLED=true`) | n8n |
+| 11 AM · 1 · 3 · 5 · 7 PM | More follow-ups from the same queue, up to `FOLLOWUP_DAILY_LIMIT` each run, so the backlog keeps draining | `scripts/run-followups.sh` (systemd `internship-followups`) |
+| When any job above fails | Push "Failed: <job>" with its last log lines to your phone | `OnFailure=` → `scripts/notify-failure.sh` (systemd `internship-failure@`) |
 
-Long jobs share one lock, so two never use the saved browser at once. Every ntfy push is kept
+Long jobs share one lock and queue behind each other (waiting up to 6 hours), so two never use
+the saved browser at once. Every ntfy push is kept
 and shown by the messages service in the
 [home-dashboard](https://github.com/aaravhmodi/home-dashboard) repo.
 
@@ -135,16 +177,36 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 
 | Section | View | What's there |
 |---|---|---|
-| Both agents | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
-| Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by its latest email ([more](#job-pipeline)) |
+| Start | **Home** | The landing page: a greeting and headline, key numbers for both agents, a door into each section, the latest from your inboxes, what closes soon |
+| Both agents | **Today** | What needs you now: replies and interviews, events that stopped at a check or sign-in, what closes within 7 days, picks queued for tomorrow, follow-ups due |
+| | **Calendar** | Apply-by dates, deadlines, event days and follow-ups on a month grid ([more](#calendar)) |
+| Internship agent | **Job pipeline** | Funnels, trends, takeaways and a board of every company by how far it got; drag a card to another column ([more](#job-pipeline)) |
 | | **Startups** · Early · Mid | Recently funded startups by fit |
 | | **Big companies** | Open postings from the SimplifyJobs list |
 | | **Applied · Contacted · Skipped** | Your pipeline as lists |
+| | **All leads** | Every lead, where it was found (SEC Form D, X, a job board...), the address emailed, and whether it bounced, got a reply or a no |
 | | **Your rules** | Rules learned from your notes |
 | Opportunity agent | **Hackathons · Tech conferences · Research venues · Networking** | Everything found, soonest first, with travel / fit / effort badges once checked |
 | | **Travel paid ✈** | Events that pay some or all of your way |
 | | **Picked for you ★** | Hackathons picked and applied to for you |
 | | **Interested & registered · Skipped** | Your plans |
+
+**Every panel folds away** from its heading and resizes from its corner; the dashboard remembers both.
+
+**Every view is a page with its own address**, and so is every item in it: `/#/jobs`,
+`/#/picked/<event>`, `/#/jobs/<company>`. Back and forward work, and a page can be bookmarked. Push
+notifications link to the most specific one: a push about one interview opens that company; one
+about several things opens the right list; a mix opens **Today**. Set `DASHBOARD_URL` for the
+links to work (the n8n workflows use `INTERN_AGENT_URL`).
+
+**The site frame.** A top bar holds the menu toggle, breadcrumbs and a **Details** toggle. The
+left menu collapses completely, and each of its sections (Internship agent, Opportunity agent,
+Both agents) folds on its own, though the section holding the page you're on stays open. The
+details panel collapses too, giving lists and charts the full width, and reopens when you pick
+something. Home hides the panel. Your choices are remembered in the browser.
+
+**On a phone** there's a bottom tab bar (Today, Jobs, Events, Calendar, More) with the full menu
+behind More, and a selected item opens full screen with a Close button.
 
 Select anything for its detail panel. Leads show fit, people, drafts, application answers and
 an **Inbox** timeline; events show "Is it worth going?", the application result and a
@@ -172,6 +234,11 @@ breaks it; company-wide boilerplate doesn't count. "Re-check to-do leads" re-sco
   [SimplifyJobs off-season list](https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README-Off-Season.md).
   "Mark applied" tops the open list back up to `TARGET_OPEN_POSTINGS` (15); postings you
   applied to or skipped are never re-added.
+- **Deadlines:** when scoring a posting reads its description and it states a dated deadline
+  ("Apply by November 30, 2026"), that date is saved and shows on the [calendar](#calendar) as
+  "Apply: company". Each scrape skips open postings already past their deadline, with an
+  "Expired" note, so they leave the open list and calendar but aren't found and added again.
+  Postings you applied to or emailed are left alone.
 - **SEC Form D** (`leads form-d`): the SEC's free daily index of Form D filings, keeping US tech
   companies incorporated in the last five years that raised $250K–$50M. The signing officer is
   the contact. The website is found without AI by trying likely domains, and counts only if it
@@ -199,7 +266,7 @@ never prompt content, are logged to `openai_usage`.
   "I've checked this address" ticked, and a lead is never emailed twice unless you choose
   "Send again".
 - **Addresses.** `leads site-emails` reads each startup's own pages for addresses at its domain;
-  a published address with the person's name replaces a guess. `leads guess-send --limit 40`
+  a published address with the person's name replaces a guess. `leads guess-send --limit 20`
   lists the format most likely to reach each founder (`first@`, `first.last@`, …), learned
   from past deliveries and bounces, and emails only with `--send`. People at the same company
   are emailed only once the CEO's guess, or any published personal address there, has proven
@@ -383,7 +450,9 @@ interview-like events. `.mcp.json` registers the same server for Claude Code ses
 ## Safety and privacy
 
 - **Email** goes out only when you send it: the dashboard's Send after a second confirming
-  click, or `guess-send --send` / `inbox-send --send`. Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
+  click, or `guess-send --send` / `inbox-send --send`, which the five daily email batches run
+  (at the times above; stop one with `systemctl --user disable --now
+  internship-email-batch-<area>.timer`). Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
   most twice, never after a reply or bounce.
 - **Inboxes are read-only.** Gmail is read over IMAP with folders opened read-only, so nothing
   is marked read, moved or deleted. Outlook goes through a read-only MCP server.
@@ -428,8 +497,8 @@ internship-agent leads scrape-jobs | form-d | team-contacts | site-emails
 internship-agent leads funding-news --days 30      # TechCrunch / PR Newswire / SiliconANGLE / HN
 internship-agent leads contacts "<company>" | contacts-vcf data/contacts.vcf
 internship-agent leads import data/leads-inbox.json && leads score && leads draft-all
-internship-agent leads guess-send --limit 40 [--send]
-internship-agent leads inbox-send --limit 20 [--send]
+internship-agent leads guess-send --limit 20 [--area toronto|europe|new-york|sf|others] [--send]
+internship-agent leads inbox-send --limit 20 [--area ...] [--send]
 internship-agent leads application-campaign --target 20 --lowest-first
 internship-agent leads apply <key> --dry-run
 internship-agent leads followups [--send | --check-only]

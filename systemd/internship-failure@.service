@@ -1,0 +1,6 @@
+[Unit]
+Description=Push a phone alert that %i failed
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/notify-failure.sh %i

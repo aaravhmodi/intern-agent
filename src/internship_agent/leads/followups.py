@@ -8,6 +8,7 @@ being reviewed first.
 
 from datetime import datetime, timedelta
 
+from internship_agent.leads.emails import name_words
 from internship_agent.leads.schemas import Lead, LeadStatus
 
 # What each follow-up says, in order: the same plain reminder each time, no apologising.
@@ -69,7 +70,7 @@ def is_due(lead: Lead, now: datetime, wait_days: int) -> bool:
 
 def first_name(lead: Lead) -> str:
     """Who a follow-up greets: their first name, or the team at a shared inbox."""
-    name = (lead.contact_name or "").split()
+    name = name_words(lead.contact_name or "")
     if not name or (lead.sent_to and lead.sent_to == lead.company_email):
         return f"{lead.company} team"
     return name[0]

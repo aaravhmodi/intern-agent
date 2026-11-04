@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from internship_agent import agenda, batches, chat, db, pipeline
 from internship_agent.ai import draft_outreach
@@ -26,6 +26,7 @@ from internship_agent.mailer import MailError
 from internship_agent.opportunities import run as opportunity_run
 from internship_agent.opportunities.schemas import Opportunity, OpportunityStatus
 from internship_agent.opportunities.store import OpportunityStore
+from internship_agent.sources.regions import regions_of
 from internship_agent.workflows import (
     _incompatible_term,
     _record_openai_usage,
@@ -188,6 +189,26 @@ def dashboard_css() -> Response:
     return Response(stylesheet.read_text(encoding="utf-8"), media_type="text/css")
 
 
+_ICONS = {  # path -> (file in this package, media type)
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/favicon.ico": ("favicon-48.png", "image/png"),  # browsers ask for this path unprompted
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+}
+
+
+def _icon(path: str) -> Response:
+    name, media_type = _ICONS[path]
+    return Response(
+        files("internship_agent.dashboard").joinpath(name).read_bytes(),
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+for _path in _ICONS:
+    app.add_api_route(_path, lambda _p=_path: _icon(_p), methods=["GET"], include_in_schema=False)
+
+
 @app.get("/api/leads")
 def leads() -> dict[str, Any]:
     settings = get_settings()
@@ -205,10 +226,11 @@ def set_status(update: StatusUpdate) -> dict[str, Any]:
     """Record a status. Marking a posting applied tops the open list back up."""
     settings = get_settings()
     lead = _get(update.key)
+    already = lead.status is update.status
     lead.status = update.status
     lead_store(settings).upsert(lead)
     added: list[Lead] = []
-    if update.status is LeadStatus.APPLIED and lead.kind is LeadKind.POSTING:
+    if update.status is LeadStatus.APPLIED and lead.kind is LeadKind.POSTING and not already:
         added = find_more_postings(settings, settings.target_open_postings)
     return {"lead": _view(lead), "added": [_view(x) for x in added]}
 
@@ -446,7 +468,9 @@ def _opportunity(key: str) -> Opportunity:
 
 
 def _opportunity_view(item: Opportunity) -> dict[str, Any]:
-    return {**item.model_dump(mode="json"), "key": item.key}
+    place = item.assessment.location if item.assessment else ""
+    regions = sorted(r.value for r in regions_of(place or item.location))
+    return {**item.model_dump(mode="json"), "key": item.key, "regions": regions}
 
 
 class OpportunityStatusUpdate(BaseModel):
@@ -533,7 +557,7 @@ def job_pipeline() -> dict[str, Any]:
     settings = get_settings()
     leads, found = lead_store(settings).load(), pipeline.events(settings)
     return {
-        "cards": pipeline.board(leads, found),
+        "cards": pipeline.board(leads, found, pipeline.moves(settings)),
         "insights": pipeline.insights(leads, found, settings.outreach_gmail_address, date.today()),
         "inboxes": [address for address, _ in pipeline.inboxes(settings)],
         "batches": batches.batches(
@@ -542,6 +566,18 @@ def job_pipeline() -> dict[str, Any]:
         "last_scan": _pipeline_state["at"],
         "error": _pipeline_state["error"],
     }
+
+
+class CardMove(BaseModel):
+    card: str = Field(max_length=300)
+    column: pipeline.Column
+
+
+@app.post("/api/pipeline/move")
+def move_card(request: CardMove) -> dict[str, Any]:
+    """Put a company's card in another column; it stays until a newer email arrives."""
+    pipeline.move(get_settings(), request.card, request.column)
+    return {"ok": True}
 
 
 @app.post("/api/pipeline/scan")

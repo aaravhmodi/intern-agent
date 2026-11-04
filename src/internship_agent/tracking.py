@@ -28,13 +28,21 @@ _STAGE_PATTERNS: list[tuple[Stage, re.Pattern[str]]] = [
     (
         Stage.REJECTED,
         re.compile(
-            r"\b(unfortunately|not (to )?(be )?mov(e|ing) forward|other candidates"
+            # Not "unfortunately, due to a high volume of candidates, we cannot respond to
+            # each" from a receipt (Brave's).
+            r"\b(unfortunately(?!,? (due to|given) (the |a )?(high|large) (volume|number))"
+            r"|not (to )?(be )?mov(e|ing) forward|other candidates"
             r"|no longer under consideration|regret to inform|position has been filled)\b"
         ),
     ),
     (
         Stage.INTERVIEW,
-        re.compile(r"\b(interview|phone screen|schedule (a|your) (call|chat)|next round)\b"),
+        # An invitation, not "if selected, we'll contact you to interview" from a receipt.
+        re.compile(
+            r"\b(invite you to|invitation to interview|interview (invitation|request|availability"
+            r"|slot|confirmation)|schedule (a|an|your) (call|chat|interview|time)|your (upcoming )?"
+            r"interview|like to (schedule|set up|speak|chat)|phone screen|next round|book a time)\b"
+        ),
     ),
     (
         Stage.ASSESSMENT,
@@ -80,10 +88,14 @@ class ApplicationUpdate(BaseModel):
 
 
 def classify_text(text: str) -> Stage:
+    """`text` is the subject, a newline, then the body."""
     lowered = text.lower()
+    subject = lowered.partition("\n")[0]
     for stage, pattern in _STAGE_PATTERNS:
         if pattern.search(lowered):
             return stage
+        if stage is Stage.INTERVIEW and re.search(r"\binterview", subject):
+            return stage  # a subject naming the interview is about one
     return Stage.OTHER
 
 

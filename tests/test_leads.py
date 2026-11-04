@@ -102,6 +102,25 @@ def test_merge_keeps_existing_and_dedupes_incoming() -> None:
     assert merged[0].status is LeadStatus.CONTACTED
 
 
+def test_a_skipped_posting_never_comes_back_from_another_source() -> None:
+    def job(title: str, url: str, status: LeadStatus = LeadStatus.NEW) -> Lead:
+        return Lead(
+            kind=LeadKind.POSTING,
+            company="Rivian",
+            posting_title=title,
+            posting_url=url,
+            source_url=url,
+            status=status,
+        )
+
+    skipped = job("SWE Intern (Summer 2027)", "https://a.test/1", LeadStatus.SKIPPED)
+    _, added = merge(
+        [skipped],
+        [job("SWE Intern", "https://b.test/2"), job("Data Intern", "https://b.test/3")],
+    )
+    assert added == 1  # only the different role is new
+
+
 def test_rank_orders_by_fit_then_round_and_drops_closed() -> None:
     leads = [
         lead(company="Seed", round=Round.SEED),

@@ -25,11 +25,20 @@ def _clean(part: str) -> str:
     return re.sub(r"[^a-z]", "", ascii_part.lower())
 
 
+# Titles around a name that are not part of it ("Dr. Ali Haddad" was once sent to dr@).
+_TITLES = frozenset({"dr", "mr", "mrs", "ms", "prof", "sir", "jr", "sr", "ii", "iii", "phd", "md"})
+
+
+def name_words(full_name: str) -> list[str]:
+    """The words of a person's name as written, without titles such as Dr. or PhD."""
+    return [w for w in full_name.replace(",", " ").split() if _clean(w) not in _TITLES]
+
+
 def guess_email(full_name: str, domain: str, pattern: str) -> str:
     """Build an address such as jane.doe@acme.ai. The result is always unverified."""
     if pattern not in PATTERNS:
         raise ValueError(f"unknown pattern {pattern!r}; expected one of {sorted(PATTERNS)}")
-    names = [_clean(p) for p in full_name.split()]
+    names = [_clean(p) for p in name_words(full_name)]
     names = [n for n in names if n]
     if len(names) < 2:
         raise ValueError(f"need a first and last name, got {full_name!r}")

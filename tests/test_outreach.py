@@ -170,6 +170,9 @@ def test_to_leads_sets_region_and_drops_bad_handle() -> None:
         ("London, UK", {"europe"}),
         ("Toronto, ON / New York, NY", {"canada", "usa"}),
         ("Remote", set()),
+        ("Builders Club, Kitchener, Ontario", {"canada"}),
+        ("Phoenix, Arizona, United State", {"usa"}),
+        ("Tokyo, Japan", set()),
     ],
 )
 def test_regions_of(location: str, expected: set[str]) -> None:

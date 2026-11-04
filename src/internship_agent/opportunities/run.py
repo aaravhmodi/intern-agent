@@ -15,6 +15,7 @@ from pydantic import BaseModel, TypeAdapter
 from internship_agent.config import Settings
 from internship_agent.leads.schemas import Region
 from internship_agent.leads.store import normalize_url
+from internship_agent.links import page_url
 from internship_agent.notify import Push
 from internship_agent.opportunities import apply, feeds
 from internship_agent.opportunities.ai import (
@@ -551,10 +552,12 @@ def applied_push(tried: list[Opportunity], click: str | None) -> Push:
         lines.append(
             f"{mark}: {o.title}" + ("" if a.status == "submitted" else f" ({a.detail[:90]})")
         )
+    # One event opens it; several open the plans list.
+    single = tried[0].key if len(tried) == 1 else None
     return Push(
         title="Event applications",
         message="\n".join(lines) or "Nothing tried",
-        click=click,
+        click=page_url(click, "plans", single),
         tags=["ticket"],
     )
 
@@ -570,11 +573,14 @@ def summary_push(
     """New finds by kind, hackathons picked for you, newly found trips with travel paid, and
     deadlines in the next week for anything you planned to do."""
     chosen = [f"Picked for you: {o.title} ({o.picked})" for o in picked or []]
+    paid = [
+        o for o in assessed or [] if o.assessment and o.assessment.travel in ("covered", "partial")
+    ]
     trips = [
-        f"{'Travel paid' if a.travel == 'covered' else 'Travel help'}: {o.title}"
-        f" ({o.starts_on or 'date?'}, {a.location or o.location})"
-        for o in assessed or []
-        if (a := o.assessment) and a.travel in ("covered", "partial")
+        f"{'Travel paid' if o.assessment.travel == 'covered' else 'Travel help'}: {o.title}"
+        f" ({o.starts_on or 'date?'}, {o.assessment.location or o.location})"
+        for o in paid
+        if o.assessment
     ]
     due = sorted(
         (
@@ -593,10 +599,22 @@ def summary_push(
     lines += chosen
     lines += trips
     lines += [f"Due {o.deadline:%b %d}: {o.title} ({o.deadline_label})" for o in due]
+    # What the push is mostly about: one kind of news opens its page (one item opens the
+    # item); a mix opens Today, which shows all of it.
+    news = {
+        "picked": picked or [],
+        "trips": paid,
+        "calendar": due,
+        "hackathons": added if not (chosen or trips or due) else [],
+    }
+    present = [(view, items) for view, items in news.items() if items]
+    view, items = present[0] if len(present) == 1 else ("today", [])
     return Push(
         title="Opportunity agent",
         message="\n".join(lines),
-        click=click,
+        click=page_url(
+            click, view, items[0].key if len(items) == 1 and view != "calendar" else None
+        ),
         tags=["calendar"],
         priority=4 if due else 3,
     )

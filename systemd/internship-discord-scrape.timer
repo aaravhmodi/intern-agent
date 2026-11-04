@@ -1,0 +1,13 @@
+[Unit]
+Description=Deep-scrape the Discord job channels every 5 days at 2:00 AM Toronto
+
+[Timer]
+# Days 1, 6, 11, ... 31: every 5 days, restarting on the 1st, so a gap at a month's end is
+# shorter, never longer. Each run reads 6 days back, so no post is missed.
+OnCalendar=*-*-01/5 02:00:00 America/Toronto
+AccuracySec=1min
+Persistent=true
+Unit=internship-discord-scrape.service
+
+[Install]
+WantedBy=timers.target

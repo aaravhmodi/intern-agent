@@ -47,7 +47,9 @@ def test_post_submit_state_is_persisted_for_tracker(
     saved = workflows.submit_application(settings, lead.key)
     tracker = _view(workflows.lead_store(settings).get(lead.key))
     assert tracker["application"]["submission_status"] == result_status
-    assert tracker["status"] == ("applied" if result_status == "submitted" else "scored")
+    # Closed or blocked applications leave the open lists for good.
+    expected = {"submitted": "applied", "blocked": "skipped", "skipped": "skipped"}
+    assert tracker["status"] == expected.get(result_status, "scored")
     assert bool(saved.application.submitted_at) == (result_status == "submitted")
 
 
@@ -88,11 +90,8 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
         return lead
 
     monkeypatch.setattr(workflows, "lead_store", lambda _: Store())
-    monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
-    monkeypatch.setattr(workflows, "feed_postings", lambda *_: [])
-    monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
-    monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
-    monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
+    # The scrape would check these made-up URLs online and close them as dead.
+    monkeypatch.setattr(workflows, "scrape_jobs", lambda _settings, _log: [])
     monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
     monkeypatch.setattr(workflows, "prepare_application", prepare)
     monkeypatch.setattr(workflows, "submit_application", submit)
@@ -160,10 +159,17 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     monkeypatch.setattr(workflows, "feed_postings", lambda *_: [])
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: candidates)
+    monkeypatch.setattr(workflows.big_companies, "postings", lambda *_: [])
+    monkeypatch.setattr(workflows.gallery, "postings", lambda *_: [])
+    monkeypatch.setattr(workflows.github_lists, "postings", lambda *_: [])
+    # The first company's page is gone: it must not be stored.
+    monkeypatch.setattr(workflows.big_companies, "posting_is_gone", lambda url: "company0" in url)
     monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)
 
     new = workflows.scrape_jobs(Settings(_env_file=None))
-    assert len(new) == len(store.items) == 3
+    # 4 found: Workday is excluded and company0's posting is already closed.
+    assert len(new) == len(store.items) == 2
+    assert "Company 0" not in {lead.company for lead in store.items}
 
 
 def test_pre_submit_block_can_be_retried_but_uncertain_cannot() -> None:
@@ -278,6 +284,61 @@ def test_refresh_uses_saved_answer_without_regenerating_cover_letter(monkeypatch
     assert refreshed.application.answers[0].answer == "Yes"
     assert refreshed.application.cover_letter == "Tailored letter"
     assert refreshed.application.submission_status == "pending"
+
+
+def test_campaign_moves_on_when_the_scrape_or_one_application_fails(monkeypatch) -> None:
+    leads = [
+        Lead(
+            kind="posting",
+            company=f"Company {i}",
+            posting_title="Software Intern",
+            posting_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            source_url=f"https://jobs.ashbyhq.com/company{i}/intern",
+            fit=FitAssessment(
+                score=50 + i, verdict="possible", reasons=[], concerns=[], talking_points=[]
+            ),
+        )
+        for i in range(3)
+    ]
+
+    class Store:
+        def load(self) -> list[Lead]:
+            return leads
+
+        def save(self, _: list[Lead]) -> None:
+            pass
+
+    order: list[str] = []
+
+    def prepare(_: Settings, key: str) -> Lead:
+        lead = next(item for item in leads if item.key == key)
+        lead.application = ApplicationPrep(prepared_at=datetime.now(UTC), source="form", answers=[])
+        return lead
+
+    def submit(_: Settings, key: str) -> Lead:
+        order.append(key)
+        if key == leads[0].key:
+            raise RuntimeError("browser crashed")
+        lead = next(item for item in leads if item.key == key)
+        lead.application.submission_status = "submitted"
+        return lead
+
+    def scrape(*_):
+        raise RuntimeError("Simplify is down")
+
+    monkeypatch.setattr(workflows, "scrape_jobs", scrape)
+    monkeypatch.setattr(workflows, "lead_store", lambda _: Store())
+    monkeypatch.setattr(workflows, "score", lambda settings, postings: [])
+    monkeypatch.setattr(workflows, "prepare_application", prepare)
+    monkeypatch.setattr(workflows, "submit_application", submit)
+
+    report = workflows.daily(
+        Settings(_env_file=None, auto_submit_applications=True),
+        target_submissions=1000,
+        lowest_first=True,
+    )
+    assert order == [lead.key for lead in leads]  # one at a time, lowest fit first
+    assert report.submitted == 2 and report.application_blocked == 1
 
 
 def test_daily_scores_only_new_leads_and_prepares_every_eligible_posting(monkeypatch) -> None:

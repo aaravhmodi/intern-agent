@@ -175,3 +175,21 @@ def test_software_role_filter_and_company_cap() -> None:
         for i in range(5)
     ]
     assert len(simplify.cap_per_company(rows, per_company=3)) == 3
+
+
+def test_posting_dates_come_from_the_source_or_the_day_found() -> None:
+    from datetime import date
+
+    today = date(2026, 10, 25)
+    assert simplify.posted_on("3d", today) == date(2026, 10, 22)
+    assert simplify.posted_on("1mo", today) == date(2026, 9, 25)
+    assert simplify.posted_on("Oct 22, 2026") == date(2026, 10, 22)
+    assert simplify.posted_on("🔒") is None
+
+    saved = posting("Old", "https://old.com/jobs/1")
+    seen_again = posting("Old", "https://old.com/jobs/1", posted_on=date(2026, 10, 1))
+    dated = posting("Dated", "https://dated.com/jobs/1", posted_on=date(2026, 10, 20))
+    undated = posting("Undated", "https://undated.com/jobs/1")
+    leads, added = refill([saved], [seen_again, dated, undated], target_open=10)
+    assert saved.posted_on == date(2026, 10, 1)  # filled in from the source listing it again
+    assert [lead.posted_on for lead in added] == [date(2026, 10, 20), date.today()]

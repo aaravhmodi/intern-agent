@@ -1,5 +1,6 @@
 [Unit]
-Description=Prepare and submit all eligible internship applications each morning
+OnFailure=internship-failure@%n.service
+Description=Attempt every eligible internship application each night
 
 [Service]
 Type=oneshot

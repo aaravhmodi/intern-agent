@@ -89,7 +89,8 @@ for (const { json: mail } of $('New email').all()) {
     message: `${nameOf(from) || address}: "${subject}"\n\n${snippet(mail.textPlain)}\n\n` +
       `You ${lead.status === 'applied' ? 'applied' : 'reached out'}${role}. ` +
       '👉 Reply from Gmail; open the tracker to see the lead.',
-    priority: kind.priority, tags: [kind.tag], click: page,
+    priority: kind.priority, tags: [kind.tag],
+    click: `${page}/#/jobs/${encodeURIComponent(lead.key)}`,
   } });
 }
 return pushes;
@@ -194,7 +195,7 @@ if (run.detail) {
   const message = `${run.detail}\n\nNothing was sent. ` +
     '👉 If this repeats tomorrow, ask Claude to look.';
   return [{ json: { title: "⚠️ Follow-ups didn't run", message, priority: 4,
-                    tags: ['warning'], click: page } }];
+                    tags: ['warning'], click: `${page}/#/jobs` } }];
 }
 const sent = run.sent || [];
 const parts = [];
@@ -219,7 +220,7 @@ const title = sent.length && !run.dry_run
   ? `📨 ${sent.length} follow-up${sent.length === 1 ? '' : 's'} sent`
   : '📨 Follow-ups: nothing sent today';
 const message = parts.join('\n\n') + `\n\n${run.waiting || 0} still inside their 5 days.`;
-return [{ json: { title, message, priority: run.error ? 4 : 3, tags: ['email'], click: page } }];
+return [{ json: { title, message, priority: run.error ? 4 : 3, tags: ['email'], click: `${page}/#/jobs` } }];
 """
 
 

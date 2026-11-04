@@ -11,13 +11,38 @@ services:
       DATA_DIR: /app/data
       RESUME_PATH: /app/data/resume.pdf
       DASHBOARD_ALLOWED_HOSTS: '["${TAILSCALE_IP}"]'
+      # The browser below. Chromium only answers debugging requests made to an
+      # address, never to a name, so it has a fixed one.
+      DISCORD_CDP_URL: http://172.31.58.10:9223
     volumes:
       - ./data:/app/data
     ports:
       - "${TAILSCALE_IP}:8765:8765"
-    networks: [default, homelab]
+    networks: [default, homelab, discord]
+
+  # The browser the job scrape reads the Discord jobs channel with. Sign in at
+  # http://<TAILSCALE_IP>:6081/vnc.html and leave the jobs channel open; the session is
+  # kept in browser-profile/. Create that folder yourself first, so it is yours and not root's.
+  browser:
+    build: browser
+    restart: unless-stopped
+    user: "${SERVER_USER:-1000:1000}"
+    mem_limit: 2g
+    volumes:
+      - ./browser-profile:/profile
+    ports:
+      # Tailscale only: whoever opens this page is using your Discord session.
+      # 6081 because the study agent's browser has 6080 on the same server.
+      - "${TAILSCALE_IP}:6081:6080"
+    networks:
+      discord:
+        ipv4_address: 172.31.58.10
 
 networks:
   homelab:
     name: homelab_default
     external: true
+  discord:
+    ipam:
+      config:
+        - subnet: 172.31.58.0/24

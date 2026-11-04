@@ -5,6 +5,12 @@ import re
 from internship_agent.leads.schemas import Region
 
 _PROVINCES = {"ON", "QC", "BC", "AB", "MB", "SK", "NS", "NB", "NL", "PE", "YT", "NT", "NU"}
+# Event venues often spell the province out or give only the city.
+_CANADA_RE = re.compile(
+    r"\b(Canada|Ontario|Quebec|Québec|British Columbia|Alberta|Manitoba|Saskatchewan|"
+    r"Nova Scotia|New Brunswick|Newfoundland|Prince Edward Island|Toronto|Waterloo|Kitchener|"
+    r"Mississauga|Ottawa|Montreal|Montréal|Vancouver|Calgary|Edmonton|Winnipeg|Halifax)\b"
+)
 _EUROPE = (
     "United Kingdom",
     "UK",
@@ -67,9 +73,11 @@ _STATE_RE = re.compile(r",\s*([A-Z]{2})\b")
 def regions_of(location: str) -> set[Region]:
     """All regions a location string mentions (a posting may list several offices)."""
     found: set[Region] = set()
-    if "Canada" in location or any(code in _PROVINCES for code in _STATE_RE.findall(location)):
+    if _CANADA_RE.search(location) or any(
+        code in _PROVINCES for code in _STATE_RE.findall(location)
+    ):
         found.add(Region.CANADA)
-    if re.search(r"\b(USA|United States|US)\b", location) or any(
+    if re.search(r"\b(USA|United States?|US)\b", location) or any(
         code in _US_STATES for code in _STATE_RE.findall(location)
     ):
         found.add(Region.USA)

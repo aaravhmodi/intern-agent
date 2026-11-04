@@ -23,6 +23,7 @@ from internship_agent.leads.store import (
     merge,
     open_lead_store,
 )
+from internship_agent.links import page_url
 from internship_agent.mailbox import GmailMailbox, MailboxError
 from internship_agent.mailer import MailError
 from internship_agent.resume import load_resume_text
@@ -40,6 +41,7 @@ from internship_agent.workflows import (
     inbox_send,
     prepare_application,
     score,
+    scrape_discord,
     scrape_jobs,
     submit_application,
 )
@@ -242,13 +244,26 @@ def scrape_jobs_cmd() -> None:
     console.print(f"Scraped {len(new)} new posting(s).")
 
 
+@leads_app.command("scrape-discord")
+def scrape_discord_cmd(
+    days: Annotated[int, typer.Option(help="How many past days of posts to read.")] = 6,
+) -> None:
+    """Store the SWE intern roles posted in the Discord job channels (scrolls back `days`)."""
+    new = scrape_discord(get_settings(), log=console.print, days=days)
+    console.print(f"Scraped {len(new)} new posting(s) from Discord.")
+
+
 @leads_app.command("form-d")
 def form_d_cmd(
     days: Annotated[int, typer.Option(help="How many past days of filings to read.")] = 3,
     min_usd: Annotated[int, typer.Option(help="Skip raises smaller than this.")] = 0,
+    officers: Annotated[int, typer.Option(help="Executive officers per startup to add.")] = 1,
 ) -> None:
     """Add US tech startups that just filed an SEC Form D, with their site and an email."""
-    new = find_form_d_startups(get_settings(), days=days, log=console.print, min_usd=min_usd)
+    with busy(get_settings()):  # a deploy waits until this ends
+        new = find_form_d_startups(
+            get_settings(), days=days, log=console.print, min_usd=min_usd, officers=officers
+        )
     console.print(f"Added {len(new)} lead(s) from Form D filings.")
 
 
@@ -290,16 +305,28 @@ def contacts_vcf_cmd(
 
 @leads_app.command("guess-send")
 def guess_send_cmd(
-    limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 40,
+    limit: Annotated[int, typer.Option(help="Most founders to email in this run.")] = 20,
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
     retries: Annotated[
         bool, typer.Option(help="Also retry people whose guess bounced (up to 3 guesses).")
     ] = False,
+    area: Annotated[
+        str | None, typer.Option(help="Only toronto, europe, new-york, sf or others.")
+    ] = None,
+    per_company: Annotated[
+        int, typer.Option(help="People per company to email before its format is proven.")
+    ] = 1,
 ) -> None:
     """Email people never emailed, at the address format most likely to work."""
     with busy(get_settings()):  # a deploy waits until this ends
         picked = guess_and_send(
-            get_settings(), limit, send=send, retries=retries, log=console.print
+            get_settings(),
+            limit,
+            send=send,
+            retries=retries,
+            area=area,
+            per_company=per_company,
+            log=console.print,
         )
     console.print(f"{len(picked)} founder(s) {'emailed' if send else 'would be emailed'}.")
 
@@ -308,10 +335,13 @@ def guess_send_cmd(
 def inbox_send_cmd(
     limit: Annotated[int, typer.Option(help="Most company inboxes to email in this run.")] = 20,
     send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
+    area: Annotated[
+        str | None, typer.Option(help="Only toronto, europe, new-york, sf or others.")
+    ] = None,
 ) -> None:
     """Email the shared inboxes startups publish (careers@ first), once each."""
     with busy(get_settings()):  # a deploy waits until this ends
-        picked = inbox_send(get_settings(), limit, send=send, log=console.print)
+        picked = inbox_send(get_settings(), limit, send=send, area=area, log=console.print)
     console.print(f"{len(picked)} inbox(es) {'emailed' if send else 'would be emailed'}.")
 
 
@@ -426,6 +456,7 @@ def followups_cmd(
     password = settings.gmail_app_password.get_secret_value()
     try:
         with (
+            busy(settings),  # a deploy waits until this ends instead of killing it
             GmailMailbox(settings.gmail_address, password) as mailbox,
             (
                 GmailMailbox(*settings.gmail_account("outreach"))
@@ -454,6 +485,9 @@ def followups_cmd(
                 title=f"New reply: {names}"[:120],
                 message=f"{names} wrote back to {settings.outreach_gmail_address}. Answer from "
                 "that inbox so it stays in the same thread.",
+                click=page_url(
+                    settings.dashboard_url, "jobs", replied[0].key if len(replied) == 1 else None
+                ),
                 priority=4,
                 tags=["email"],
             ),

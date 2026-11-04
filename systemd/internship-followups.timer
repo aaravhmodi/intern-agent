@@ -1,0 +1,10 @@
+[Unit]
+Description=Work through the follow-up queue at 11:00, 13:00, 15:00, 17:00 and 19:00 Toronto
+
+[Timer]
+OnCalendar=*-*-* 11,13,15,17,19:00:00 America/Toronto
+AccuracySec=1min
+Unit=internship-followups.service
+
+[Install]
+WantedBy=timers.target

@@ -5,6 +5,7 @@ no-auth APIs (the last three ported from career-ops' providers).
 """
 
 import re
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -25,6 +26,15 @@ class OpenRole(BaseModel):
     url: str
     location: str
     board: str
+    posted_on: date | None = None
+
+
+def _day(stamp: str | None) -> date | None:
+    """The date of a board's ISO timestamp; None when missing or unreadable."""
+    try:
+        return datetime.fromisoformat(stamp).date() if stamp else None
+    except ValueError:
+        return None
 
 
 def _json(url: str) -> Any:
@@ -49,7 +59,13 @@ def board_slugs(company: str, company_url: str | None) -> list[str]:
 def _ashby(slug: str) -> list[OpenRole]:
     data = _json(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
     return [
-        OpenRole(title=j["title"], url=j["jobUrl"], location=j.get("location", ""), board="ashby")
+        OpenRole(
+            title=j["title"],
+            url=j["jobUrl"],
+            location=j.get("location", ""),
+            board="ashby",
+            posted_on=_day(j.get("publishedAt")),
+        )
         for j in data.get("jobs", [])
         if j.get("isListed", True)
     ]
@@ -63,6 +79,7 @@ def _greenhouse(slug: str) -> list[OpenRole]:
             url=j["absolute_url"],
             location=(j.get("location") or {}).get("name", ""),
             board="greenhouse",
+            posted_on=_day(j.get("first_published")),
         )
         for j in data.get("jobs", [])
     ]
@@ -76,6 +93,7 @@ def _lever(slug: str) -> list[OpenRole]:
             url=j["hostedUrl"],
             location=(j.get("categories") or {}).get("location", ""),
             board="lever",
+            posted_on=date.fromtimestamp(j["createdAt"] / 1000) if j.get("createdAt") else None,
         )
         for j in data
     ]
@@ -98,7 +116,15 @@ def parse_workable(data: dict[str, Any]) -> list[OpenRole]:
         location = _join(j.get("city"), j.get("country")) or (
             "Remote" if j.get("telecommuting") else ""
         )
-        roles.append(OpenRole(title=j["title"], url=url, location=location, board="workable"))
+        roles.append(
+            OpenRole(
+                title=j["title"],
+                url=url,
+                location=location,
+                board="workable",
+                posted_on=_day(j.get("published_on")),
+            )
+        )
     return roles
 
 
@@ -115,7 +141,15 @@ def parse_recruitee(data: dict[str, Any]) -> list[OpenRole]:
         location = j.get("location") or _join(j.get("city"), j.get("country"))
         if j.get("remote") and "remote" not in location.lower():
             location = _join(location, "Remote")
-        roles.append(OpenRole(title=j["title"], url=url, location=location, board="recruitee"))
+        roles.append(
+            OpenRole(
+                title=j["title"],
+                url=url,
+                location=location,
+                board="recruitee",
+                posted_on=_day((j.get("published_at") or "")[:10] or None),
+            )
+        )
     return roles
 
 
@@ -136,7 +170,15 @@ def parse_smartrecruiters(data: dict[str, Any], slug: str) -> list[OpenRole]:
         if loc.get("remote"):
             location = _join(location, "Remote")
         url = f"https://jobs.smartrecruiters.com/{slug}/{quote(str(j['id']), safe='')}"
-        roles.append(OpenRole(title=j["name"], url=url, location=location, board="smartrecruiters"))
+        roles.append(
+            OpenRole(
+                title=j["name"],
+                url=url,
+                location=location,
+                board="smartrecruiters",
+                posted_on=_day((j.get("releasedDate") or "")[:10] or None),
+            )
+        )
     return roles
 
 

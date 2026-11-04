@@ -22,7 +22,9 @@ from internship_agent import db, notify
 from internship_agent.applications.verification_mail import _message_text
 from internship_agent.config import Settings
 from internship_agent.leads.followups import company_domain
-from internship_agent.leads.schemas import Lead, LeadStatus
+from internship_agent.leads.refill import DONE
+from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
+from internship_agent.links import page_url
 from internship_agent.notify import Push
 from internship_agent.tracking import Stage, classify_text
 
@@ -76,6 +78,8 @@ class InboxEvent(BaseModel):
     company: str
     lead_key: str | None
     snippet: str
+    # Open postings this email shows you applied to; scan() marks them applied.
+    confirms: list[str] = []
 
 
 def _header(message: Message, name: str) -> str:
@@ -128,17 +132,84 @@ def match(sender: str, sender_name: str, subject: str, body: str, leads: list[Le
     return None
 
 
+# Where the thread quoted under a reply begins: Gmail's "On ... wrote:", Outlook's headers.
+# Bodies arrive on one line (whitespace collapsed), so these can't anchor to a line start.
+_QUOTED = re.compile(
+    r"\bOn [^<>]{0,120}?(<[^>]+>\s*)?wrote:|-{2,} ?Original Message|\bFrom: .{0,200}? (Sent|Date): "
+)
+# A person at a company you emailed saying no in their own words.
+_DECLINED = re.compile(
+    r"\b(opt(ing)? out|remove me|unsubscribe|not interested|(do not|don['’]?t|aren['’]?t|are not"
+    r"|not) (currently )?(have|hiring|offering|pursuing|taking on|looking for) (any )?(winter "
+    r"|open )?(intern|co-?op|position|opening|role)|looking for someone (who is )?(immediate"
+    r"|local|full[- ]time|senior))",
+    re.I,
+)
+# A call booked or asked for: a calendar invite, a video link, the word interview, "let's chat".
+_CALL = re.compile(
+    r"^(updated )?invitation:|^appointment booked|meet\.google\.com/|zoom\.us/j/"
+    r"|teams\.microsoft\.com/(meet|l/meetup)|\binterview\b|let['’]?s (chat|talk|meet|connect)"
+    r"|book (a|some) time|find a (time|slot)|(do|have|set up|schedule) (a|an) ([\w-]+ ){0,2}"
+    r"(interview|call|chat)",
+    re.I | re.M,
+)
+
+
+def new_text(body: str) -> str:
+    """What the sender wrote, without the thread quoted below it (your own email included)."""
+    cut = _QUOTED.search(body)
+    return body[: cut.start()] if cut else body
+
+
 def classify(sender: str, subject: str, body: str, lead: Lead | None) -> EventStage | None:
     """The stage this email marks, or None if it isn't about your search."""
     if any(sender.lower().startswith(b) for b in _BOUNCE):
         return "bounced" if lead else None
+    body = new_text(body)
+    if lead is not None and lead.sent_at is not None and not _is_ats(sender):
+        # Someone at a company you emailed: a no, a step on, or a call, else just a reply.
+        if _DECLINED.search(body[:4000]):
+            return "rejected"
+        stage = classify_text(f"{subject}\n{body[:4000]}")
+        if stage is not Stage.OTHER:
+            return stage.value  # type: ignore[return-value]
+        return "interview" if _CALL.search(f"{subject}\n{body[:4000]}") else "reply"
     stage = classify_text(f"{subject}\n{body[:4000]}")
     relevant = lead is not None or _is_ats(sender) or _HINT.search(subject)
     if stage is not Stage.OTHER and relevant:
         return stage.value  # type: ignore[return-value]
-    if lead is not None and lead.sent_at is not None and not _is_ats(sender):
-        return "reply"  # someone at a company you emailed wrote back
     return None
+
+
+_SHOWS_APPLIED = {"applied", "rejected", "assessment", "interview", "offer"}
+
+
+def confirmed_postings(sender_name: str, subject: str, body: str, leads: list[Lead]) -> list[Lead]:
+    """Open postings an application email is about: it names the company and the role.
+    Naming only the company counts for that company's one posting whose automatic submit
+    wasn't confirmed, since this email is the missing confirmation."""
+    text = _words(f"{sender_name} {subject} {body[:8000]}")
+    at_company = [
+        lead
+        for lead in leads
+        if lead.kind is LeadKind.POSTING
+        and lead.status not in DONE
+        and len(name := _words(lead.company).strip()) >= 4
+        and f" {name} " in text
+    ]
+    titled = [
+        lead for lead in at_company if lead.posting_title and _words(lead.posting_title) in text
+    ]
+    if titled:
+        # "SWE Intern" is inside "SWE Intern Backend": keep only the most specific titles.
+        longest = max(len(_words(lead.posting_title)) for lead in titled)
+        return [lead for lead in titled if len(_words(lead.posting_title)) == longest]
+    unsure = [
+        lead
+        for lead in at_company
+        if lead.application is not None and lead.application.submission_status == "uncertain"
+    ]
+    return unsure if len(unsure) == 1 else []
 
 
 def _bounced_lead(body: str, leads: list[Lead]) -> Lead | None:
@@ -179,6 +250,11 @@ def to_event(inbox: str, message: Message, leads: list[Lead]) -> InboxEvent | No
         if is_bounce
         else match(sender, sender_name, subject, body, leads)
     )
+    auto = _header(message, "Auto-Submitted").lower()
+    if not is_bounce and auto and auto != "no":  # an out-of-office or "we got your message"
+        return None
+    if lead is None and not _is_ats(sender) and _header(message, "List-Unsubscribe"):
+        return None  # a newsletter or campaign (speedrun's Substack was once an "offer")
     stage = classify(sender, subject, body, lead)
     if stage is None:
         return None
@@ -197,6 +273,9 @@ def to_event(inbox: str, message: Message, leads: list[Lead]) -> InboxEvent | No
         company=lead.company if lead else (sender_name or sender.rpartition("@")[2]),
         lead_key=lead.key if lead else None,
         snippet=body[:240],
+        confirms=[found.key for found in confirmed_postings(sender_name, subject, body, leads)]
+        if stage in _SHOWS_APPLIED
+        else [],
     )
 
 
@@ -265,6 +344,38 @@ def sync(
     return added
 
 
+def reclassify(
+    settings: Settings, leads: list[Lead], open_mailbox: Callable[[str, str], Any] | None = None
+) -> int:
+    """Classify the stored emails again with today's rules, downloading each again (bodies
+    aren't stored). Bounces and mail no longer in the inbox stay as they are. Returns how
+    many changed or were dropped."""
+    from internship_agent.mailbox import GmailMailbox
+
+    connect = open_mailbox or GmailMailbox
+    stored = events(settings)
+    if not stored:
+        return 0
+    redo = {(e.inbox, e.message_id) for e in stored if e.stage != "bounced"}
+    since = min(e.received_at for e in stored)
+    fresh: dict[tuple[str, str], InboxEvent | None] = {}
+    for address, password in inboxes(settings):
+        with connect(address, password) as box:
+            for number, headers in box.inbox_headers(since):
+                key = (address, _header(headers, "Message-ID"))
+                if key in redo and (message := box.message(number)) is not None:
+                    fresh[key] = to_event(address, message, leads)
+    kept: list[InboxEvent] = []
+    changed = 0
+    for e in stored:
+        new = fresh.get((e.inbox, e.message_id), e)
+        changed += new is None or new.stage != e.stage or new.lead_key != e.lead_key
+        if new is not None:
+            kept.append(new)
+    db.replace_log(settings, "pipeline", [e.model_dump(mode="json") for e in kept])
+    return changed
+
+
 # Replies aren't here: n8n (main inbox) and `followups --check-only` (outreach) push those.
 _NOTABLE = {
     "assessment": "Assessment",
@@ -280,8 +391,14 @@ def push_for(new: list[InboxEvent], click: str | None) -> Push | None:
     ]
     if not lines:
         return None
+    keys = {e.lead_key for e in new if e.stage in _NOTABLE}
+    only = next(iter(keys)) if len(keys) == 1 else None  # one company opens it, else the board
     return Push(
-        title="Job pipeline", message="\n".join(lines), click=click, priority=4, tags=["briefcase"]
+        title="Job pipeline",
+        message="\n".join(lines),
+        click=page_url(click, "jobs", only),
+        priority=4,
+        tags=["briefcase"],
     )
 
 
@@ -291,8 +408,14 @@ def scan(settings: Settings, push: bool = True) -> list[InboxEvent]:
     from internship_agent.leads.store import open_lead_store
 
     first = not events(settings)
-    leads = open_lead_store(settings.data_dir, settings.database_url).load()
+    store = open_lead_store(settings.data_dir, settings.database_url)
+    leads = store.load()
     added = sync(settings, leads, settings.pipeline_days)
+    confirmed = {key for event in added for key in event.confirms}
+    for lead in leads:
+        if lead.key in confirmed and lead.status not in DONE:
+            lead.status = LeadStatus.APPLIED  # out of open postings and the daily run's queue
+            store.upsert(lead)
     if (
         push
         and not first
@@ -303,15 +426,44 @@ def scan(settings: Settings, push: bool = True) -> list[InboxEvent]:
     return added
 
 
-COLUMNS = ("waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced")
+Column = Literal["waiting", "reply", "assessment", "interview", "offer", "rejected", "bounced"]
 
 
-def board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
-    """One card per company in your pipeline, in the column of its latest email.
+def moves(settings: Settings) -> dict[str, dict[str, str]]:
+    """Cards you dragged to another column: card id -> the latest {column, at}."""
+    return {m["card"]: m for m in db.read_log(settings, "pipeline-moves")}
+
+
+def move(settings: Settings, card: str, column: str) -> None:
+    db.append(
+        settings,
+        "pipeline-moves",
+        {"card": card, "column": column, "at": datetime.now(UTC).isoformat()},
+    )
+
+
+def board(
+    leads: list[Lead], found: list[InboxEvent], moved: dict[str, dict[str, str]] | None = None
+) -> list[dict[str, Any]]:
+    """One card per company in your pipeline, in the column its emails put it in, or where
+    you dragged it until an email newer than the move arrives.
 
     Applied-to and emailed leads with nothing back yet are "waiting". A confirmation
     ("applied") doesn't move a card: it's still waiting on a person.
     """
+    cards = _board(leads, found)
+    for card in cards:
+        m = (moved or {}).get(card["id"])
+        if m and (card["last"] is None or datetime.fromisoformat(m["at"]) > _at(card["last"])):
+            card.update(column=m["column"], moved=True)
+    return cards
+
+
+def _at(moment: str) -> datetime:
+    return datetime.fromisoformat(moment.replace("Z", "+00:00"))
+
+
+def _board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
     by_lead: dict[str, list[InboxEvent]] = {}
     unmatched: dict[str, list[InboxEvent]] = {}
     for e in sorted(found, key=lambda e: e.received_at):
@@ -329,18 +481,43 @@ def board(leads: list[Lead], found: list[InboxEvent]) -> list[dict[str, Any]]:
             and not lead.sent_at
         ):
             continue
-        cards.append(_card(lead.company, lead.key, lead.posting_title, lead.status.value, mail))
+        # Only a bounce of the address last emailed counts: earlier guesses bounce by design.
+        since = lead.sent_at - timedelta(minutes=5) if lead.sent_at else None
+        bounced = any(e.stage == "bounced" and (not since or e.received_at >= since) for e in mail)
+        cards.append(
+            _card(lead.company, lead.key, lead.posting_title, lead.status.value, mail, bounced)
+        )
     for company, mail in unmatched.items():
-        cards.append(_card(company, None, "", "", mail))
+        cards.append(_card(company, None, "", "", mail, False))
     return sorted(cards, key=lambda c: c["last"] or "", reverse=True)
 
 
+_RANK = ("reply", "assessment", "interview", "offer")
+
+
+def _column(mail: list[InboxEvent], bounced: bool) -> str:
+    """The furthest a company got with you; a no after it ends it, and a later email that
+    is only a reply (or a calendar note) doesn't move it back."""
+    heard = [e.stage for e in mail if e.stage in _RANK or e.stage == "rejected"]
+    if heard and heard[-1] == "rejected":
+        return "rejected"
+    if heard:
+        return max(heard, key=lambda s: _RANK.index(s) if s in _RANK else -1)
+    return "bounced" if bounced else "waiting"
+
+
 def _card(
-    company: str, key: str | None, title: str, status: str, mail: list[InboxEvent]
+    company: str,
+    key: str | None,
+    title: str,
+    status: str,
+    mail: list[InboxEvent],
+    bounced: bool,
 ) -> dict[str, Any]:
-    moved = [e for e in mail if e.stage != "applied"]
-    column = moved[-1].stage if moved else "waiting"
+    column = _column(mail, bounced)
     return {
+        "id": key or f"company:{company}",
+        "moved": False,
         "company": company,
         "key": key,
         "title": title,
