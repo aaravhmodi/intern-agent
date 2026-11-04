@@ -21,6 +21,7 @@ from internship_agent.leads.store import (
     PostgresLeadStore,
     load_inbox,
     merge,
+    new_companies,
     open_lead_store,
 )
 from internship_agent.links import page_url
@@ -76,7 +77,8 @@ def _email_cell(lead: Lead) -> str:
 def import_leads(path: Path) -> None:
     """Import leads from a JSON list (e.g. data/leads-inbox.json written by Claude)."""
     store = _store(get_settings())
-    leads, added = merge(store.load(), load_inbox(path))
+    existing = store.load()
+    leads, added = merge(existing, new_companies(existing, load_inbox(path)))
     store.save(leads)
     console.print(f"Imported {added} new lead(s); {len(leads)} total.")
 

@@ -191,7 +191,7 @@ class Lead(BaseModel):
     email_source: str = ""
     people: list[Person] = Field(default_factory=list)
 
-    # Founder leads
+    # Founder leads (announced_on is None for a startup found hiring rather than raising)
     round: Round = Round.OTHER
     amount_usd: int | None = Field(default=None, ge=0)
     announced_on: date | None = None
@@ -251,8 +251,6 @@ class Lead(BaseModel):
 
     @model_validator(mode="after")
     def _check_kind_fields(self) -> "Lead":
-        if self.kind is LeadKind.FOUNDER and self.announced_on is None:
-            raise ValueError("founder leads need announced_on")
         if self.kind is LeadKind.POSTING and not self.posting_url:
             raise ValueError("posting leads need posting_url")
         if self.email and self.email_status is EmailStatus.NONE:

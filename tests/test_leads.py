@@ -69,8 +69,8 @@ def test_source_url_required() -> None:
 
 
 def test_kind_specific_fields_required() -> None:
-    with pytest.raises(ValidationError, match="announced_on"):
-        lead(announced_on=None)
+    # A startup found hiring, not raising, has no raise date.
+    assert lead(announced_on=None).announced_on is None
     with pytest.raises(ValidationError, match="posting_url"):
         posting(posting_url=None)
 

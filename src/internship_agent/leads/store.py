@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pydantic import TypeAdapter
 
 from internship_agent.db import Table
+from internship_agent.leads.contacts import company_key
 from internship_agent.leads.schemas import Lead, LeadKind, LeadStatus
 
 _LEADS = TypeAdapter(list[Lead])
@@ -137,3 +138,15 @@ def merge(existing: list[Lead], incoming: list[Lead]) -> tuple[list[Lead], int]:
 
 def load_inbox(path: Path) -> list[Lead]:
     return _LEADS.validate_python(json.loads(path.read_text(encoding="utf-8")))
+
+
+def new_companies(existing: list[Lead], incoming: list[Lead]) -> list[Lead]:
+    """Incoming leads, minus company-only ones (no contact) for companies already stored.
+
+    A startup stored under its founder's name has a different key, so merge alone would add
+    the same company again.
+    """
+    known = {company_key(lead.company) for lead in existing}
+    return [
+        lead for lead in incoming if lead.contact_name or company_key(lead.company) not in known
+    ]
