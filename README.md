@@ -184,7 +184,7 @@ uv run internship-agent dashboard        # http://127.0.0.1:8765
 | | **Startups** · Early · Mid | Recently funded startups by fit |
 | | **Big companies** | Open postings from the SimplifyJobs list |
 | | **Applied · Contacted · Skipped** | Your pipeline as lists |
-| | **All leads** | Every lead, where it was found (SEC Form D, X, a job board...), the address emailed, and whether it bounced, got a reply or a no |
+| | **All leads** | Every lead, where it was found (SEC Form D, X, a job board...), the address emailed, and whether it bounced, got a reply or a no. **Download as CSV** saves them for Excel, filtered by outcome, type and source, with the columns you pick |
 | | **Your rules** | Rules learned from your notes |
 | Opportunity agent | **Hackathons · Tech conferences · Research venues · Networking** | Everything found, soonest first, with travel / fit / effort badges once checked |
 | | **Travel paid ✈** | Events that pay some or all of your way |

@@ -580,3 +580,6 @@ nav#nav .brand { display: none; }
   .hero h2 { font-size: 30px; }
   .list { min-height: calc(100dvh - 118px); }
 }
+.csv-group { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; padding: 0; border: 0; }
+.csv-group legend { margin-bottom: 4px; padding: 0; color: var(--faint); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.csv-opt { color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
