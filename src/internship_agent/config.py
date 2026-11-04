@@ -39,6 +39,9 @@ class Settings(BaseSettings):
 
     # Where to look for startups and postings: canada, usa, europe.
     search_regions: list[str] = ["canada", "usa", "europe"]
+    # Extra public job feeds `leads scrape-jobs` reads besides Simplify and startup boards.
+    hn_hiring_jobs: bool = True  # Hacker News "Who is hiring?" thread
+    speedrun_jobs: bool = True  # a16z speedrun / portfolio talent network
 
     # Opportunity agent. In-person events count as nearby when in search_regions or one of
     # these cities (Devpost locations are often just a city); event search looks here.

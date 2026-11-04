@@ -1,12 +1,16 @@
-"""Look for open intern/co-op roles on a startup's public job board (Ashby, Greenhouse, Lever)."""
+"""Look for open intern/co-op roles on a startup's public job board.
 
-import json
+Boards: Ashby, Greenhouse, Lever, Workable, Recruitee and SmartRecruiters, all public
+no-auth APIs (the last three ported from career-ops' providers).
+"""
+
 import re
-import urllib.request
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from pydantic import BaseModel
+
+from internship_agent.sources.http import get_json
 
 _INTERN = re.compile(r"\b(intern|interns|internship|co-?op|student)\b", re.I)
 _ENGINEERING = re.compile(
@@ -24,9 +28,7 @@ class OpenRole(BaseModel):
 
 
 def _json(url: str) -> Any:
-    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(request, timeout=15) as response:
-        return json.loads(response.read())
+    return get_json(url)
 
 
 def board_slugs(company: str, company_url: str | None) -> list[str]:
@@ -79,14 +81,85 @@ def _lever(slug: str) -> list[OpenRole]:
     ]
 
 
+def _join(*parts: object) -> str:
+    return ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
+
+
+def _https(*candidates: object) -> str:
+    return next((c for c in candidates if isinstance(c, str) and c.startswith("https://")), "")
+
+
+def parse_workable(data: dict[str, Any]) -> list[OpenRole]:
+    roles: list[OpenRole] = []
+    for j in data.get("jobs") or []:
+        url = _https(j.get("url"), j.get("shortlink"))
+        if not j.get("title") or not url:
+            continue
+        location = _join(j.get("city"), j.get("country")) or (
+            "Remote" if j.get("telecommuting") else ""
+        )
+        roles.append(OpenRole(title=j["title"], url=url, location=location, board="workable"))
+    return roles
+
+
+def _workable(slug: str) -> list[OpenRole]:
+    return parse_workable(_json(f"https://apply.workable.com/api/v1/widget/accounts/{slug}"))
+
+
+def parse_recruitee(data: dict[str, Any]) -> list[OpenRole]:
+    roles: list[OpenRole] = []
+    for j in data.get("offers") or []:
+        url = _https(j.get("careers_url"), j.get("url"))
+        if not j.get("title") or not url:
+            continue
+        location = j.get("location") or _join(j.get("city"), j.get("country"))
+        if j.get("remote") and "remote" not in location.lower():
+            location = _join(location, "Remote")
+        roles.append(OpenRole(title=j["title"], url=url, location=location, board="recruitee"))
+    return roles
+
+
+def _recruitee(slug: str) -> list[OpenRole]:
+    return parse_recruitee(_json(f"https://{slug}.recruitee.com/api/offers/"))
+
+
+def parse_smartrecruiters(data: dict[str, Any], slug: str) -> list[OpenRole]:
+    """Postings, linked to the public jobs.smartrecruiters.com page (the API ref 404s there)."""
+    roles: list[OpenRole] = []
+    for j in data.get("content") or []:
+        if not j.get("name") or not j.get("id"):
+            continue
+        loc = j.get("location") or {}
+        location = loc.get("fullLocation") or _join(
+            loc.get("city"), loc.get("region"), loc.get("country")
+        )
+        if loc.get("remote"):
+            location = _join(location, "Remote")
+        url = f"https://jobs.smartrecruiters.com/{slug}/{quote(str(j['id']), safe='')}"
+        roles.append(OpenRole(title=j["name"], url=url, location=location, board="smartrecruiters"))
+    return roles
+
+
+def _smartrecruiters(slug: str) -> list[OpenRole]:
+    data = _json(f"https://api.smartrecruiters.com/v1/companies/{slug}/postings?limit=100")
+    return parse_smartrecruiters(data, slug)
+
+
+BOARDS = (_ashby, _greenhouse, _lever, _workable, _recruitee, _smartrecruiters)
+
+
+def is_intern_engineering(title: str) -> bool:
+    return bool(_INTERN.search(title) and _ENGINEERING.search(title))
+
+
 def intern_roles(roles: list[OpenRole]) -> list[OpenRole]:
-    return [r for r in roles if _INTERN.search(r.title) and _ENGINEERING.search(r.title)]
+    return [r for r in roles if is_intern_engineering(r.title)]
 
 
 def find_intern_roles(company: str, company_url: str | None) -> list[OpenRole]:
     """Open intern/co-op roles from the first public job board found for the company."""
     for slug in board_slugs(company, company_url):
-        for fetch in (_ashby, _greenhouse, _lever):
+        for fetch in BOARDS:
             try:
                 roles = fetch(slug)
             except Exception:

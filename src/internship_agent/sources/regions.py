@@ -85,3 +85,8 @@ def region_from_text(text: str) -> Region | None:
         if region in found:
             return region
     return None
+
+
+def wanted_location(location: str, regions: set[Region]) -> bool:
+    """A posting's location is in one of the wanted regions, or it is remote."""
+    return bool(regions_of(location) & regions) or "remote" in location.lower()

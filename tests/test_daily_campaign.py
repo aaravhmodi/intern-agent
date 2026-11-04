@@ -89,6 +89,7 @@ def test_campaign_stops_after_target_confirmed_submissions(monkeypatch) -> None:
 
     monkeypatch.setattr(workflows, "lead_store", lambda _: Store())
     monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
+    monkeypatch.setattr(workflows, "feed_postings", lambda *_: [])
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: [])
     monkeypatch.setattr(workflows, "refill", lambda existing, candidates, target: (existing, []))
@@ -156,6 +157,7 @@ def test_scrape_stores_every_matching_non_workday_posting(monkeypatch) -> None:
     store = Store()
     monkeypatch.setattr(workflows, "lead_store", lambda _: store)
     monkeypatch.setattr(workflows.simplify, "fetch", lambda: "")
+    monkeypatch.setattr(workflows, "feed_postings", lambda *_: [])
     monkeypatch.setattr(workflows.simplify, "parse", lambda _: [])
     monkeypatch.setattr(workflows.simplify, "matching", lambda _, regions: candidates)
     monkeypatch.setattr(workflows.simplify, "to_lead", lambda candidate: candidate)

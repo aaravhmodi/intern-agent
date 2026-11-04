@@ -12,6 +12,7 @@ from internship_agent import notify
 from internship_agent.ai import draft_outreach
 from internship_agent.config import Settings, get_settings
 from internship_agent.followup_run import run_followups
+from internship_agent.leads.contacts import contacts_at, contacts_from_leads, to_vcard
 from internship_agent.leads.export import render_outreach
 from internship_agent.leads.ranking import rank
 from internship_agent.leads.schemas import EmailStatus, Lead, LeadStatus, Region, Segment
@@ -31,6 +32,7 @@ from internship_agent.workflows import (
     busy,
     daily,
     find_form_d_startups,
+    find_funding_news,
     find_more_postings,
     find_site_emails,
     find_startups,
@@ -248,6 +250,42 @@ def form_d_cmd(
     """Add US tech startups that just filed an SEC Form D, with their site and an email."""
     new = find_form_d_startups(get_settings(), days=days, log=console.print, min_usd=min_usd)
     console.print(f"Added {len(new)} lead(s) from Form D filings.")
+
+
+@leads_app.command("funding-news")
+def funding_news_cmd(
+    days: Annotated[int, typer.Option(help="How many past days of news to read.")] = 30,
+    max_usd: Annotated[int, typer.Option(help="Skip raises bigger than this.")] = 250_000_000,
+) -> None:
+    """Add startups that announced a raise on TechCrunch, PR Newswire, SiliconANGLE or HN."""
+    new = find_funding_news(get_settings(), days=days, log=console.print, max_usd=max_usd)
+    console.print(f"Added {len(new)} lead(s) from funding news.")
+
+
+@leads_app.command("contacts")
+def contacts_cmd(company: str) -> None:
+    """Everyone already known at a company: founders, recruiters, engineers."""
+    found = contacts_at(_store(get_settings()).load(), company)
+    if not found:
+        console.print(f"No saved contacts at {company}.")
+        return
+    table = Table("Name", "Role", "Type", "Email", "LinkedIn")
+    for c in found:
+        table.add_row(c.name, c.role, c.type.value, c.email or "-", c.linkedin_url or "-")
+    console.print(table)
+
+
+@leads_app.command("contacts-vcf")
+def contacts_vcf_cmd(
+    path: Annotated[Path, typer.Argument(help="Where to write the vCard file.")] = Path(
+        "data/contacts.vcf"
+    ),
+) -> None:
+    """Export every known contact as vCard 3.0; re-importing updates rather than duplicates."""
+    contacts = contacts_from_leads(_store(get_settings()).load())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(to_vcard(contacts), encoding="utf-8", newline="")
+    console.print(f"Wrote {len(contacts)} contact(s) to {path}.")
 
 
 @leads_app.command("guess-send")

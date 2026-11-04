@@ -35,6 +35,7 @@ from internship_agent.leads.answers import (
     prefill,
     validate,
 )
+from internship_agent.leads.contacts import company_key
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import DONE, is_workday, open_postings, refill
 from internship_agent.leads.schemas import (
@@ -55,7 +56,15 @@ from internship_agent.leads.segments import effective_segment
 from internship_agent.leads.sending import check_outreach_text, check_send
 from internship_agent.leads.store import LeadStore, PostgresLeadStore, merge, open_lead_store
 from internship_agent.resume import load_resume_text
-from internship_agent.sources import form_d, simplify, site_emails, startups
+from internship_agent.sources import (
+    form_d,
+    funding_news,
+    hn_hiring,
+    simplify,
+    site_emails,
+    speedrun,
+    startups,
+)
 from internship_agent.sources.application_form import fetch_questions
 from internship_agent.sources.people import to_people
 from internship_agent.sources.posting_text import fetch_posting_text
@@ -401,6 +410,48 @@ def find_form_d_startups(
         new += leads[len(existing) :]
         if found:
             log(f"+{added} startups, +{len(roles)} open roles")
+    score(settings, new)
+    return new
+
+
+def find_funding_news(
+    settings: Settings,
+    days: int = 30,
+    log: Callable[[str], None] = lambda _: None,
+    *,
+    max_usd: int = 250_000_000,
+) -> list[Lead]:
+    """Startups that announced a raise in public funding news, plus their open intern roles.
+
+    Reading the news is free; only the usual fit score of each new lead uses OpenAI.
+    """
+    today = date.today()
+    items = funding_news.fetch_items(today, days, log)
+    candidates = funding_news.build_candidates(items, today, days, max_usd)
+    log(f"{len(items)} news item(s), {len(candidates)} funded startup(s)")
+    store = lead_store(settings)
+    existing = store.load()
+    known = {company_key(lead.company) for lead in existing}
+    found = []
+    for candidate in candidates:
+        if company_key(candidate.company) in known:
+            continue
+        known.add(company_key(candidate.company))
+        try:
+            found.append(funding_news.to_lead(candidate))
+        except ValueError as error:
+            log(f"{candidate.company}: skipped ({error})")
+    leads, _ = merge(existing, found)
+    roles: list[Lead] = []
+    for lead in leads[len(existing) :]:
+        try:
+            roles.extend(startup_postings(lead))
+        except Exception as error:  # one broken job board must not stop the run
+            log(f"{lead.company}: {error}")
+    leads, _ = merge(leads, roles)
+    store.save(leads)
+    new = leads[len(existing) :]
+    log(f"+{len(found)} startups, +{len(roles)} open roles")
     score(settings, new)
     return new
 
@@ -1077,6 +1128,28 @@ def _run_ai_cost(settings: Settings, started: datetime) -> float:
     return total
 
 
+def feed_postings(
+    settings: Settings, regions: set[Region], log: Callable[[str], None] = lambda _: None
+) -> list[Lead]:
+    """Intern postings from the Hacker News hiring thread and the a16z speedrun feed."""
+    leads: list[Lead] = []
+    if settings.hn_hiring_jobs:
+        try:
+            found = hn_hiring.matching(hn_hiring.fetch(), regions)
+            leads.extend(hn_hiring.to_lead(p) for p in found)
+            log(f"{len(found)} intern post(s) in HN Who is hiring")
+        except Exception as error:  # one feed being down must not stop the run
+            log(f"HN Who is hiring: {error}")
+    if settings.speedrun_jobs:
+        try:
+            jobs = speedrun.matching(speedrun.fetch(), regions)
+            leads.extend(speedrun.to_lead(j) for j in jobs)
+            log(f"{len(jobs)} intern role(s) on the a16z speedrun feed")
+        except Exception as error:
+            log(f"a16z speedrun: {error}")
+    return leads
+
+
 def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None) -> list[Lead]:
     """Save every matching posting from the configured startup boards and Simplify feed."""
     store = lead_store(settings)
@@ -1092,6 +1165,7 @@ def scrape_jobs(settings: Settings, log: Callable[[str], None] = lambda _: None)
     regions = {Region(r) for r in settings.search_regions}
     simplify_postings = simplify.matching(simplify.parse(simplify.fetch()), regions=regions)
     candidates.extend(simplify.to_lead(p) for p in simplify_postings)
+    candidates.extend(feed_postings(settings, regions, log))
 
     candidates = [lead for lead in candidates if not is_workday(lead)]
     # Store every eligible job surfaced today; the daily preparation pass covers the whole
