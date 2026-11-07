@@ -21,6 +21,8 @@ def check_send(lead: Lead, to: str, confirm_unverified: bool, resend: bool) -> N
     if lead.sent_at is not None and not resend:
         raise SendBlocked(f"Already emailed {lead.sent_to} on {lead.sent_at:%Y-%m-%d}")
     to = to.strip().lower()
+    if to in lead.bounced_emails or (lead.followups_stopped == "bounced" and to == lead.sent_to):
+        raise SendBlocked(f"Email to {to} bounced before. Send to another address.")
     guessed = lead.email_status is EmailStatus.PATTERN and to == (lead.email or "")
     if guessed and not confirm_unverified:
         raise SendBlocked("This address is a guess. Confirm you verified it before sending.")

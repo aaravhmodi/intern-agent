@@ -213,6 +213,10 @@ if ((run.wrong_address || []).length) {
   parts.push('Sent to another company\'s address, so stopped (email them properly from the ' +
     `tracker):\n${run.wrong_address.map((n) => `• ${n}`).join('\n')}`);
 }
+if ((run.unanswered || []).length) {
+  parts.push(`⏰ They wrote back and you haven't answered:\n` +
+    run.unanswered.map((n) => `• ${n}`).join('\n'));
+}
 if (run.held) parts.push(`${run.held} more are due and go out tomorrow (daily limit).`);
 if (run.error) parts.push(`⚠️ Stopped early: ${run.error}`);
 if (!parts.length) return [];  // a quiet day: nobody due, nobody new replied
@@ -220,7 +224,9 @@ const title = sent.length && !run.dry_run
   ? `📨 ${sent.length} follow-up${sent.length === 1 ? '' : 's'} sent`
   : '📨 Follow-ups: nothing sent today';
 const message = parts.join('\n\n') + `\n\n${run.waiting || 0} still inside their 5 days.`;
-return [{ json: { title, message, priority: run.error ? 4 : 3, tags: ['email'], click: `${page}/#/jobs` } }];
+const urgent = run.error || (run.unanswered || []).length;
+return [{ json: { title, message, priority: urgent ? 4 : 3, tags: ['email'],
+                  click: `${page}/#/jobs` } }];
 """
 
 
@@ -290,7 +296,6 @@ def internship_followups() -> dict[str, Any]:
         for a, b in zip(names, names[1:], strict=False)
     }
 
-
     return {
         "id": _id("internship followups").replace("-", "")[:16],
         "name": "Internship tracker: follow-ups",
@@ -347,9 +352,7 @@ def internship_daily_prep() -> dict[str, Any]:
         "name": "Internship tracker: daily applications",
         "active": True,
         "nodes": nodes,
-        "connections": {
-            trigger: {"main": [[{"node": run, "type": "main", "index": 0}]]}
-        },
+        "connections": {trigger: {"main": [[{"node": run, "type": "main", "index": 0}]]}},
         "pinData": {},
         "meta": {
             "notes": "Every morning at 8 AM America/Toronto, finds postings, "
@@ -366,6 +369,8 @@ def internship_daily_prep() -> dict[str, Any]:
         },
         "tags": [],
     }
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     for build, file in (

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from internship_agent import mailer
+from internship_agent import db, mailer
 from internship_agent.config import Settings
 from internship_agent.followup_run import run_followups
 from internship_agent.leads.followups import (
@@ -51,6 +51,11 @@ class FakeMailbox:
 
     def bounced(self, address: str, since: datetime) -> bool:
         return address in self.gone
+
+    answered: set[str] = set()  # addresses you wrote to after their reply
+
+    def wrote_to(self, address: str, since: datetime) -> bool:
+        return address in self.answered
 
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
         return SentMessage(
@@ -212,6 +217,93 @@ def test_a_bounce_is_only_searched_for_in_the_first_week(
         settings, FakeMailbox(bounced={"pranav@blueprint.io"}), now=SENT + timedelta(days=8)
     )
     assert late.bounced == []
+
+
+def test_a_bounce_the_inbox_scan_found_stops_follow_ups_at_any_age(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    store = save(settings, emailed(), emailed("Zip", "Vibhav Kotriwala"))
+    key = store.load()[0].key
+    bounce = {
+        "message_id": "<b@mail>",
+        "inbox": "me@gmail.com",
+        "received_at": SENT.isoformat(),
+        "sender": "mailer-daemon@googlemail.com",
+        "sender_name": "",
+        "subject": "Undeliverable",
+        "stage": "bounced",
+        "company": "Blueprint",
+        "lead_key": key,
+        "snippet": "",
+    }
+    db.append(settings, "pipeline", bounce)
+
+    report = run_followups(settings, FakeMailbox(), now=SENT + timedelta(days=8))
+
+    assert [m["To"] for m in outbox] == ["vibhav@zip.io"]
+    assert report.bounced == ["Pranav Seelam at Blueprint"]
+
+
+def test_an_address_gmail_refuses_is_stopped_and_the_rest_still_go(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = save(settings, emailed(), emailed("Zip", "Vibhav Kotriwala"))
+    sent: list[str] = []
+
+    def send(message: EmailMessage, sender: str, password: str) -> None:
+        if message["To"] == "pranav@blueprint.io":
+            raise mailer.RecipientRefused("Gmail refused the address")
+        sent.append(message["To"])
+
+    monkeypatch.setattr(mailer, "send", send)
+
+    report = run_followups(settings, FakeMailbox(), now=NOW)
+
+    assert sent == ["vibhav@zip.io"] and report.bounced == ["Pranav Seelam at Blueprint"]
+    stopped = {lead.company: lead for lead in store.load()}
+    assert stopped["Blueprint"].followups_stopped == "bounced"
+    assert stopped["Blueprint"].followups == []
+    later = run_followups(settings, FakeMailbox(), now=NOW + timedelta(days=6)).sent
+    assert [item.to for item in later] == ["vibhav@zip.io"]
+
+
+def reply_event(key: str, sender: str, at: datetime, stage: str = "reply") -> dict[str, Any]:
+    return {
+        "message_id": f"<{sender}>",
+        "inbox": "me@gmail.com",
+        "received_at": at.isoformat(),
+        "sender": sender,
+        "sender_name": "",
+        "subject": "Re: internship",
+        "stage": stage,
+        "company": "",
+        "lead_key": key,
+        "snippet": "",
+    }
+
+
+def test_a_reply_you_never_answered_gets_one_reminder(
+    settings: Settings, outbox: list[EmailMessage]
+) -> None:
+    store = save(settings, emailed(), emailed("Zip", "Vibhav Kotriwala"))
+    blueprint, zip_ = (lead.key for lead in store.load())
+    replied = SENT + timedelta(days=1)
+    db.append(settings, "pipeline", reply_event(blueprint, "pranav@blueprint.io", replied))
+    db.append(settings, "pipeline", reply_event(zip_, "vibhav@zip.io", replied))
+    box = FakeMailbox({"pranav@blueprint.io": replied, "vibhav@zip.io": replied})
+    box.answered = {"vibhav@zip.io"}
+
+    assert run_followups(settings, box, now=replied + timedelta(days=1)).unanswered == []
+    first = run_followups(settings, box, now=replied + timedelta(days=3))
+    again = run_followups(settings, box, now=replied + timedelta(days=4))
+
+    assert first.unanswered == ["pranav@blueprint.io at Blueprint"] and again.unanswered == []
+    later = replied + timedelta(days=5)  # they write again: a new reply, a new reminder
+    db.append(settings, "pipeline", reply_event(blueprint, "pranav@blueprint.io", later))
+    assert run_followups(settings, box, now=later + timedelta(days=2)).unanswered == [
+        "pranav@blueprint.io at Blueprint"
+    ]
+    assert outbox == []
 
 
 def test_a_dry_run_shows_what_would_go_and_changes_nothing(

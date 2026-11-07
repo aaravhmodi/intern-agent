@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
-from internship_agent import db, mailer
+from internship_agent import db, mailer, pipeline
 from internship_agent.config import Settings
 from internship_agent.leads.followups import (
     TEMPLATES,
@@ -22,12 +22,14 @@ from internship_agent.leads.followups import (
     reply_subject,
 )
 from internship_agent.leads.schemas import Lead, LeadStatus, Note
-from internship_agent.leads.store import open_lead_store
+from internship_agent.leads.store import LeadStore, PostgresLeadStore, open_lead_store
 from internship_agent.mailbox import Mailbox
 
 # Bounce notices arrive within minutes, or after a couple of days of retries at worst, so
 # older emails aren't searched for one again: that search is most of a check's time.
 BOUNCE_WINDOW = timedelta(days=7)
+# A reply you haven't answered after this long gets one reminder push.
+ANSWER_WITHIN = timedelta(days=2)
 
 
 class FollowupSent(BaseModel):
@@ -57,6 +59,8 @@ class FollowupReport(BaseModel):
     # Due today but over the daily limit; they go out on the next run.
     held: int = 0
     error: str = ""
+    # Wrote back and you haven't answered: reminded once per reply.
+    unanswered: list[str] = []
 
 
 def _logged_subject(settings: Settings, key: str) -> str | None:
@@ -119,6 +123,11 @@ def run_followups(
     report = FollowupReport(dry_run=dry_run)
     leads = store.load()
     misaddressed = _misaddressed(leads)
+    # Bounces the dashboard's inbox scan already found, at any age, beyond the mailbox search.
+    scanned: dict[str, list[datetime]] = {}
+    for event in pipeline.events(settings):
+        if event.stage == "bounced" and event.lead_key:
+            scanned.setdefault(event.lead_key, []).append(event.received_at)
     for lead in leads:
         if not lead.sent_at or not lead.sent_to or lead.status is LeadStatus.SKIPPED:
             continue
@@ -151,7 +160,13 @@ def run_followups(
                 )
                 store.upsert(lead)
             continue
-        if moment - lead.sent_at < BOUNCE_WINDOW and box.bounced(lead.sent_to, lead.sent_at):
+        # Only a bounce since the address last emailed counts: earlier guesses bounce by design.
+        since = lead.sent_at - timedelta(minutes=5)
+        if (
+            lead.sent_to in lead.bounced_emails
+            or any(at >= since for at in scanned.get(lead.key, []))
+            or (moment - lead.sent_at < BOUNCE_WINDOW and box.bounced(lead.sent_to, lead.sent_at))
+        ):
             report.bounced.append(_name(lead))
             if not dry_run:
                 lead.followups_stopped = "bounced"
@@ -204,6 +219,15 @@ def run_followups(
             )
             try:
                 mailer.send(message, sender, password)
+            except mailer.RecipientRefused:
+                # This address will never take mail: stop its follow-ups, go on with the rest.
+                report.bounced.append(_name(lead))
+                lead.followups_stopped = "bounced"
+                lead.notes.append(
+                    Note(at=moment, text=f"Gmail refused {lead.sent_to}; no follow-ups.")
+                )
+                store.upsert(lead)
+                continue
             except mailer.MailError as exc:
                 # Gmail is refusing: stop rather than try everyone else.
                 report.error = str(exc)
@@ -228,4 +252,37 @@ def run_followups(
             if pause_seconds:
                 time.sleep(pause_seconds)
         report.sent.append(sending)
+    _remind_unanswered(settings, store, mailbox, outreach_mailbox, moment, dry_run, report)
     return report
+
+
+def _remind_unanswered(
+    settings: Settings,
+    store: LeadStore | PostgresLeadStore,
+    mailbox: Mailbox,
+    outreach_mailbox: Mailbox | None,
+    moment: datetime,
+    dry_run: bool,
+    report: FollowupReport,
+) -> None:
+    """List people whose latest reply you never answered, once per reply."""
+    latest: dict[str, pipeline.InboxEvent] = {}
+    for event in pipeline.events(settings):
+        if event.stage in pipeline.HEARD and event.lead_key:
+            seen = latest.get(event.lead_key)
+            if seen is None or event.received_at > seen.received_at:
+                latest[event.lead_key] = event
+    outreach = (settings.outreach_gmail_address or "").lower()
+    for lead in store.load():
+        event = latest.get(lead.key)
+        if event is None or moment - event.received_at < ANSWER_WITHIN:
+            continue
+        if lead.reminded_reply_at and lead.reminded_reply_at >= event.received_at:
+            continue
+        box = outreach_mailbox if outreach_mailbox and event.inbox.lower() == outreach else mailbox
+        if box.wrote_to(event.sender, event.received_at):
+            continue
+        report.unanswered.append(f"{event.sender_name or event.sender} at {lead.company}")
+        if not dry_run:
+            lead.reminded_reply_at = event.received_at
+            store.upsert(lead)

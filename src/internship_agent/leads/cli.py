@@ -494,6 +494,21 @@ def followups_cmd(
                 tags=["email"],
             ),
         )
+    if report.unanswered and not report.dry_run and settings.ntfy_topic:
+        notify.send(
+            settings.ntfy_server,
+            settings.ntfy_topic,
+            notify.Push(
+                title=f"Waiting on your reply: {len(report.unanswered)}",
+                message="They wrote back and you haven't answered:\n"
+                + "\n".join(f"• {name}" for name in report.unanswered),
+                click=page_url(settings.dashboard_url, "jobs", None),
+                priority=4,
+                tags=["email"],
+            ),
+        )
+    for name in report.unanswered:
+        console.print(f"waiting on your reply: {name}")
     for item in report.sent:
         verb = "sent" if send else "would send"
         console.print(f"{verb} follow-up {item.number}: {item.contact} at {item.company}")
