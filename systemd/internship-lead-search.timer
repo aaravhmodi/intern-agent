@@ -1,0 +1,12 @@
+[Unit]
+Description=Find more people to email at 7:30 AM and noon Toronto, before the email batches
+
+[Timer]
+OnCalendar=*-*-* 07:30:00 America/Toronto
+OnCalendar=*-*-* 12:00:00 America/Toronto
+AccuracySec=1min
+Persistent=true
+Unit=internship-lead-search.service
+
+[Install]
+WantedBy=timers.target
