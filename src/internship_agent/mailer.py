@@ -12,6 +12,10 @@ class MailError(RuntimeError):
     pass
 
 
+class RecipientRefused(MailError):
+    """Gmail refused the address itself: sending to it again won't work."""
+
+
 def build_message(
     sender: str,
     to: str,
@@ -53,5 +57,7 @@ def send(message: EmailMessage, sender: str, app_password: str) -> None:
     except smtplib.SMTPAuthenticationError as exc:
         # Never include the password or server response details that could echo it.
         raise MailError("Gmail rejected the login. Check GMAIL_APP_PASSWORD in .env.") from exc
+    except smtplib.SMTPRecipientsRefused as exc:
+        raise RecipientRefused(f"Gmail refused the address {message['To']}") from exc
     except (smtplib.SMTPException, OSError) as exc:
         raise MailError(f"Sending failed: {type(exc).__name__}") from exc

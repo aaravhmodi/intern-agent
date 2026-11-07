@@ -217,6 +217,8 @@ class Lead(BaseModel):
     followups: list[datetime] = Field(default_factory=list)
     replied_at: datetime | None = None
     followups_stopped: str = ""
+    # Their latest reply you were reminded to answer, so each reply gets one reminder.
+    reminded_reply_at: datetime | None = None
     # Guessed addresses that bounced, so the next guess never repeats one.
     bounced_emails: list[str] = Field(default_factory=list)
     # A shared inbox the company publishes (careers@, hello@...), used once guesses bounce.

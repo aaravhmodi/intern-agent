@@ -59,6 +59,9 @@ class Mailbox(Protocol):
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
         """The email sent to this address at about `since`."""
 
+    def wrote_to(self, address: str, since: datetime) -> bool:
+        """Whether you sent this address anything after `since`."""
+
 
 def _imap_date(moment: datetime) -> str:
     # IMAP's SINCE takes a day, not a time; results are narrowed by time afterwards.
@@ -159,6 +162,12 @@ class GmailMailbox:
     def bounced(self, address: str, since: datetime) -> bool:
         ids = self._search("\\All", *bounce_search(address, since - BOUNCE_EARLY))
         return any(time > since - BOUNCE_EARLY for time in self._received(ids))
+
+    def wrote_to(self, address: str, since: datetime) -> bool:
+        ids = self._search(
+            "\\Sent", "TO", _quoted(address.strip().lower()), "SINCE", _imap_date(since)
+        )
+        return any(time > since for time in self._received(ids))
 
     def first_email(self, address: str, since: datetime) -> SentMessage | None:
         ids = self._search(

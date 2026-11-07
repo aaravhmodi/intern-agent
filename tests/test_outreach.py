@@ -94,6 +94,11 @@ def test_check_send_blocks_unconfirmed_guess_and_resends() -> None:
         check_send(sent, "jane@acme.com", confirm_unverified=True, resend=False)
     check_send(sent, "jane@acme.com", confirm_unverified=True, resend=True)
 
+    gone = lead(sent_to="jane@acme.com", followups_stopped="bounced", bounced_emails=["j@acme.com"])
+    for address in ("jane@acme.com", "J@acme.com"):
+        with pytest.raises(SendBlocked, match="bounced"):
+            check_send(gone, address, confirm_unverified=True, resend=True)
+
 
 def test_build_message_with_attachment(tmp_path: Path) -> None:
     pdf = tmp_path / "resume.pdf"

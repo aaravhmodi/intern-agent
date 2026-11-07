@@ -152,6 +152,13 @@ async function load() {
 // Every view is a page with its own address: #/jobs, and #/picked/<key> for one item in it.
 // Pushes link here, so they open exactly what they're about.
 const enc = encodeURIComponent;
+// Gmail finds a message by its Message-ID; authuser opens the inbox it arrived at. Emails
+// stored without one (their id is "sender|subject|date") get no link.
+function gmailLink(e) {
+  const id = (e.message_id || "").replace(/^<|>$/g, "");
+  if (!id || id.includes("|")) return "";
+  return ` · <a href="https://mail.google.com/mail/?authuser=${enc(e.inbox)}#search/rfc822msgid:${enc(id)}" target="_blank" rel="noopener">Open in Gmail</a>`;
+}
 function parseRoute() {
   const m = location.hash.match(/^#\/([a-z]+)(?:\/(.+))?$/);
   let key = null;
@@ -597,7 +604,7 @@ function boardCard(c) {
     <div class="co">${esc(c.company)}${c.moved ? ` <span class="sub" title="You moved this card">· moved</span>` : ""}</div>${c.title ? `<div class="sub">${esc(c.title)}</div>` : ""}
     <div class="pipe-subject">${last ? esc(last.subject) : esc(c.status === "contacted" ? "Emailed, no reply yet" : "Applied, no reply yet")}</div>
     ${last ? `<div class="sub">${esc(last.received_at.slice(0, 10))}</div>` : ""}
-    ${!c.key && c.emails.length > 1 ? `<details><summary class="hint">${c.emails.length} emails</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))}: ${esc(e.subject)}</div>`).join("")}</details>` : ""}
+    ${!c.key && c.emails.length > 1 ? `<details><summary class="hint">${c.emails.length} emails</summary>${c.emails.map(e => `<div class="hint">${esc(e.received_at.slice(0, 10))}: ${esc(e.subject)}${gmailLink(e)}</div>`).join("")}</details>` : ""}
   </div>`;
 }
 function companyBoard(cards) {
@@ -648,7 +655,7 @@ function inboxSection(l) {
   const card = state.pipe.cards.find(c => c.key === l.key);
   if (!card || !card.emails.length) return "";
   return `<section><h4>Inbox</h4>${card.emails.map(e => `<div class="qa"><div class="qa-label"><span>${esc(e.subject)}</span><span class="tag ${["interview", "offer", "reply", "assessment"].includes(e.stage) ? "ok" : ""}">${esc(STAGE_LABEL[e.stage])}</span></div>
-    <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
+    <div class="hint">${esc(when(e.received_at))} · ${esc(e.sender_name || e.sender)} → ${esc(e.inbox)}${gmailLink(e)}</div><div class="hint">${esc(e.snippet)}</div></div>`).join("")}</section>`;
 }
 
 // Home: the landing page. Where things stand across both agents, and a door into each part.
