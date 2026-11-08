@@ -23,6 +23,15 @@ Do you have 15 minutes to talk next week?
 
 Aarav""",
 ) * 2
+# For someone on a big tech team: about their team, no internship.
+TEAM_TEMPLATE = """\
+Hi {first},
+
+Following up on my note about {team}.
+
+Do you have 15 minutes to talk next week?
+
+Aarav"""
 
 # Addresses at these domains say nothing about a company, so a reply from someone else
 # there is not a reply from the company.
@@ -78,8 +87,8 @@ def first_name(lead: Lead) -> str:
 
 def followup_body(lead: Lead) -> str:
     """The text of this lead's next follow-up."""
-    template = TEMPLATES[len(lead.followups)]
-    return template.format(first=first_name(lead), company=lead.company)
+    template = TEAM_TEMPLATE if lead.team else TEMPLATES[len(lead.followups)]
+    return template.format(first=first_name(lead), company=lead.company, team=lead.team)
 
 
 def reply_subject(original: str) -> str:

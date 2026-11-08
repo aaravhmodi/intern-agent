@@ -92,3 +92,34 @@ def test_find_people_stores_them_and_keeps_them_when_a_later_search_finds_nobody
     found.clear()
     again = workflows.find_people(settings, LEAD.key)
     assert again.people == lead.people and isinstance(again.people[0], Person)
+
+
+def test_big_tech_teams_drafts_a_note_about_their_team_and_the_batches_skip_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from internship_agent.leads.followups import followup_body
+    from internship_agent.leads.patterns import wants_email
+
+    settings = Settings(data_dir=tmp_path, openai_api_key="test", _env_file=None)  # type: ignore[call-arg]
+    found = [
+        person(
+            name="Ana Ruiz", role="Senior Software Engineer | the BigQuery data engineering team"
+        ),
+        person(name="Raj Patel", role="Software Engineer"),  # no named team: left out
+    ]
+    monkeypatch.setattr(workflows, "search_people", lambda *a, **k: found)
+    monkeypatch.setattr(people_source, "page_names", lambda *a: True)
+
+    added = workflows.find_big_tech_teams(settings, ["Google"])
+    assert [(x.contact_name, x.contact_role, x.team) for x in added] == [
+        ("Ana Ruiz", "Senior Software Engineer", "the BigQuery data engineering team")
+    ]
+    body = added[0].draft.email_body if added[0].draft else ""
+    assert (
+        body.startswith("Hi Ana,")
+        and "learn more about the BigQuery data engineering team?" in body
+    )
+    assert "Winter 2027" not in body and "Google" not in body
+    assert not wants_email(added[0], retries=True)
+    assert "internship" not in followup_body(added[0])
+    assert workflows.find_big_tech_teams(settings, ["Google"]) == []  # already saved

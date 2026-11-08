@@ -33,6 +33,7 @@ from internship_agent.workflows import (
     add_team_contacts,
     busy,
     daily,
+    find_big_tech_teams,
     find_form_d_startups,
     find_funding_news,
     find_more_postings,
@@ -366,6 +367,19 @@ def team_contacts_cmd(
     with busy(get_settings()):  # a deploy waits until this ends
         added = add_team_contacts(get_settings(), min_usd, limit, log=console.print)
     console.print(f"Added {len(added)} people.")
+
+
+@leads_app.command("big-tech-teams")
+def big_tech_teams_cmd(
+    company: Annotated[
+        list[str] | None, typer.Option(help="Only these companies (default: the BIG_TECH list).")
+    ] = None,
+    per_company: Annotated[int, typer.Option(help="Most people to find per company.")] = 5,
+) -> None:
+    """Find engineers on backend and data engineering teams at big tech, with a drafted note."""
+    with busy(get_settings()):  # a deploy waits until this ends
+        added = find_big_tech_teams(get_settings(), company, per_company, log=console.print)
+    console.print(f"Drafted {len(added)} note(s); review and send them from the dashboard.")
 
 
 @leads_app.command("application-campaign")

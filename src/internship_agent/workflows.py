@@ -57,6 +57,7 @@ from internship_agent.leads.schemas import (
     LeadKind,
     LeadStatus,
     Note,
+    OutreachDraft,
     Person,
     Preference,
     PreparedAnswer,
@@ -629,6 +630,96 @@ def add_team_contacts(
     return added
 
 
+# Big tech companies whose backend and data engineering teams get a drafted note.
+BIG_TECH = {
+    "Google": "https://google.com",
+    "Meta": "https://meta.com",
+    "Amazon": "https://amazon.com",
+    "Microsoft": "https://microsoft.com",
+    "Apple": "https://apple.com",
+    "Netflix": "https://netflix.com",
+    "NVIDIA": "https://nvidia.com",
+    "Uber": "https://uber.com",
+    "Airbnb": "https://airbnb.com",
+    "Stripe": "https://stripe.com",
+    "Databricks": "https://databricks.com",
+    "Snowflake": "https://snowflake.com",
+    "Shopify": "https://shopify.com",
+    "LinkedIn": "https://linkedin.com",
+    "Salesforce": "https://salesforce.com",
+    "DoorDash": "https://doordash.com",
+}
+BIG_TECH_TEAMS = (
+    "software engineers on a named backend, infrastructure or data engineering team (a "
+    "product or platform team, e.g. Spanner, Ads data pipelines, S3). Write their title as "
+    "'<title> | <team>', the team phrased to follow 'learn more about', e.g. 'Senior "
+    "Software Engineer | the BigQuery data engineering team'. Leave out anyone whose team "
+    "no source names."
+)
+TEAM_SUBJECT = "15 min chat? Waterloo SWE student"
+# Aarav's note of November 7: the team in place of the company, no internship.
+TEAM_BODY = (
+    "Hi {first},\n\n" + _PITCH + "\n\nCould we do a 15-minute call so I can learn more about "
+    "{team}?" + _SIGN_OFF
+)
+
+
+def find_big_tech_teams(
+    settings: Settings,
+    companies: list[str] | None = None,
+    per_company: int = 5,
+    log: Callable[[str], None] = lambda _: None,
+) -> list[Lead]:
+    """Find engineers on backend and data engineering teams at big tech, each drafted a note.
+
+    One web search per company. Each person becomes a drafted lead for you to review and
+    send; the email batches never pick them up. Someone already saved is left as is.
+    """
+    store = lead_store(settings)
+    client = _openai(settings)
+    added: list[Lead] = []
+    for company in companies or list(BIG_TECH):
+        url = BIG_TECH.get(company)
+        at = Lead(company=company, company_url=url, source_url=url or company, segment=Segment.BIG)
+        try:
+            found = search_people(
+                client, settings.openai_model, at, None, count=per_company, who=BIG_TECH_TEAMS
+            )
+        except Exception as error:  # one failed search must not stop the rest
+            log(f"{company}: search failed ({type(error).__name__})")
+            continue
+        known = {lead.key for lead in store.load()}
+        new: list[Lead] = []
+        for person in to_people(company, found):
+            title, _, team = person.role.partition("|")
+            first = (name_words(person.name) or ["there"])[0]
+            lead = Lead(
+                company=company,
+                company_url=url,
+                source_url=person.source_url or at.source_url,
+                contact_name=person.name,
+                contact_role=title.strip(),
+                team=team.strip(),
+                linkedin_url=person.linkedin_url,
+                segment=Segment.BIG,
+                status=LeadStatus.DRAFTED,
+                draft=OutreachDraft(
+                    x_dm="",
+                    email_subject=TEAM_SUBJECT,
+                    email_body=TEAM_BODY.format(first=first, team=team.strip()),
+                ),
+            )
+            if lead.team and lead.key not in known:
+                new.append(lead)
+        store.save(merge(store.load(), new)[0])  # saved company by company
+        added += new
+        log(
+            f"{company}: "
+            + (", ".join(f"{x.contact_name} ({x.team})" for x in new) or "nobody new")
+        )
+    return added
+
+
 def find_site_emails(
     settings: Settings, log: Callable[[str], None] = lambda _: None
 ) -> tuple[int, int]:
@@ -641,7 +732,12 @@ def find_site_emails(
     store = lead_store(settings)
     by_domain: dict[str, list[Lead]] = {}
     for lead in store.load():
-        if lead.kind is LeadKind.FOUNDER and lead.status is not LeadStatus.SKIPPED:
+        # Not big tech teams: their careers@ would end up in the automatic inbox batches.
+        if (
+            lead.kind is LeadKind.FOUNDER
+            and lead.status is not LeadStatus.SKIPPED
+            and not lead.team
+        ):
             if lead.company_url and (domain := patterns.domain_of(lead)):
                 by_domain.setdefault(domain, []).append(lead)
 

@@ -496,6 +496,7 @@ Gmail needs 2-Step Verification and an app password
 internship-agent leads find-startups --stage early --stage mid --count 8
 internship-agent leads scrape-jobs | form-d | team-contacts | site-emails
 internship-agent leads funding-news --days 30      # TechCrunch / PR Newswire / SiliconANGLE / HN
+internship-agent leads big-tech-teams --company Google  # backend/data eng people at big tech, drafted (you send)
 internship-agent leads contacts "<company>" | contacts-vcf data/contacts.vcf
 internship-agent leads import data/leads-inbox.json && leads score && leads draft-all
 internship-agent leads guess-send --limit 20 [--area toronto|europe|new-york|sf|others] [--send]
