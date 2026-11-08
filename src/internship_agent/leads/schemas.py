@@ -184,6 +184,9 @@ class Lead(BaseModel):
     # Who to contact: the founder, or the hiring manager / recruiter for a posting.
     contact_name: str = ""
     contact_role: str = ""
+    # The big tech team they work on ("the BigQuery data engineering team"); such a lead is
+    # drafted for you to send, never emailed by the batches.
+    team: str = ""
     x_handle: str | None = None
     linkedin_url: str | None = None
     email: str | None = None

@@ -133,7 +133,7 @@ def proven(at_domain: dict[str, bool] | None) -> bool:
 
 def wants_email(lead: Lead, retries: bool = False) -> bool:
     """Someone never emailed; with `retries`, also one whose last guess bounced."""
-    if lead.kind is not LeadKind.FOUNDER or lead.status is LeadStatus.SKIPPED:
+    if lead.kind is not LeadKind.FOUNDER or lead.status is LeadStatus.SKIPPED or lead.team:
         return False
     if not lead.contact_name or lead.replied_at is not None:
         return False

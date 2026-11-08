@@ -328,7 +328,7 @@ function renderAllLeads() {
     <div class="viz-card wide"><h3>Leads</h3>${shown.length ? `<table class="batches lead-table"><thead><tr><th>Company</th><th>Contact</th><th>Found on</th><th>Emailed</th><th>Outcome</th></tr></thead>
     <tbody>${shown.map(({ l, out, src }) => `<tr class="row-link ${state.selected === l.key ? "on" : ""}" data-key="${esc(l.key)}" tabindex="0">
       <td>${esc(l.company)}<div class="sub">${esc(l.kind === "posting" ? "Job posting" : "Founder")}</div></td>
-      <td>${esc(l.contact_name || "–")}${l.contact_role ? `<div class="sub">${esc(l.contact_role)}</div>` : ""}</td>
+      <td>${esc(l.contact_name || "–")}${l.contact_role ? `<div class="sub">${esc(l.contact_role)}</div>` : ""}${l.team ? `<div class="sub">${esc(l.team)}</div>` : ""}</td>
       <td>${l.source_url ? `<a href="${esc(l.source_url)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}</td>
       <td>${l.sent_to ? `${esc(l.sent_to)}<div class="sub">${esc(l.sent_at.slice(0, 10))}${l.email_status === "pattern" ? " · guessed" : l.email_status === "published" ? " · published" : ""}${l.bounced_emails.length ? ` · ${l.bounced_emails.length} earlier bounced` : ""}</div>` : "–"}</td>
       <td><span class="tag ${["replied", "interview"].includes(out) ? "ok" : ""}">${esc(OUTCOMES[out])}</span></td></tr>`).join("")}</tbody></table>` : `<div class="hint">No leads here.</div>`}</div>
@@ -920,7 +920,7 @@ function renderDetail() {
     <div class="meta">${meta.map(esc).map(m => `<span>${m}</span>`).join("")}</div>
     <div class="links">${links}</div>
     ${l.what_they_build ? `<p style="margin:12px 0 0">${esc(l.what_they_build)}</p>` : ""}
-    ${l.contact_name || l.contact_role ? `<p style="margin:10px 0 0"><b>${esc(l.contact_name || "Contact")}</b>${l.contact_role ? ", " + esc(l.contact_role) : ""}</p>` : ""}
+    ${l.contact_name || l.contact_role ? `<p style="margin:10px 0 0"><b>${esc(l.contact_name || "Contact")}</b>${l.contact_role ? ", " + esc(l.contact_role) : ""}${l.team ? ", " + esc(l.team) : ""}</p>` : ""}
     <div class="actions">
       ${l.posting_url ? `<a class="btn primary" href="${esc(l.posting_url)}" target="_blank" rel="noopener">Open application</a>` : ""}
       ${l.kind === "posting" && l.status !== "applied" ? `<button class="btn" data-status="applied">Mark applied</button>` : ""}
