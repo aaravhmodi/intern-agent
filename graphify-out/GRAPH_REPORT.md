@@ -1,7 +1,7 @@
-# Graph Report - lead-search-timer  (2026-11-08)
+# Graph Report - team-filter  (2026-11-09)
 
 ## Corpus Check
-- 139 files · ~291,050 words
+- 139 files · ~291,130 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 32 file(s) not represented in the graph (top: .timer 12, .service 9, (none) 6)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `095b69b9`
+- Built from commit: `7d7b019e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

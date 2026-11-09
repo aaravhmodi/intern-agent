@@ -106,6 +106,11 @@ def test_big_tech_teams_drafts_a_note_about_their_team_and_the_batches_skip_them
             name="Ana Ruiz", role="Senior Software Engineer | the BigQuery data engineering team"
         ),
         person(name="Raj Patel", role="Software Engineer"),  # no named team: left out
+        # Seen in the first run, none worth a note:
+        person(name="Victor Zheng", role="Software Engineer | (team unspecified)"),
+        person(name="Aryan Dhawan", role="SWE | learn more about backend work"),
+        person(name="Surya Sendhilraj", role="SWE | systems (intern) team"),
+        person(name="Kai Hu’s referenced member", role="SWE | the Build team"),
     ]
     monkeypatch.setattr(workflows, "search_people", lambda *a, **k: found)
     monkeypatch.setattr(people_source, "page_names", lambda *a: True)
