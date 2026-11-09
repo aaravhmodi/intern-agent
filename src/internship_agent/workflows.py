@@ -656,6 +656,10 @@ BIG_TECH_TEAMS = (
     "Software Engineer | the BigQuery data engineering team'. Leave out anyone whose team "
     "no source names."
 )
+# A team the search could not name, or an intern: no note. Seen in the first run.
+NO_TEAM = re.compile(
+    r"unnamed|unspecified|not specified|didn.t include|learn more|\bintern\b", re.IGNORECASE
+)
 TEAM_SUBJECT = "15 min chat? Waterloo SWE student"
 # Aarav's note of November 7: the team in place of the company, no internship.
 TEAM_BODY = (
@@ -709,7 +713,8 @@ def find_big_tech_teams(
                     email_body=TEAM_BODY.format(first=first, team=team.strip()),
                 ),
             )
-            if lead.team and lead.key not in known:
+            unnamed = NO_TEAM.search(f"{person.name} {person.role}") or "’s" in person.name
+            if lead.team and not unnamed and lead.key not in known:
                 new.append(lead)
         store.save(merge(store.load(), new)[0])  # saved company by company
         added += new
