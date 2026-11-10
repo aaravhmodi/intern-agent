@@ -127,4 +127,9 @@ def test_big_tech_teams_drafts_a_note_about_their_team_and_the_batches_skip_them
     assert "Winter 2027" not in body and "Google" not in body
     assert not wants_email(added[0], retries=True)
     assert "internship" not in followup_body(added[0])
+    # Google's usual format; a guess, so the dashboard asks you to confirm before sending.
+    assert (added[0].email, added[0].email_status.value) == ("aruiz@google.com", "pattern")
+    initial_only = Lead(company="Amazon", contact_name="Tushar J.", source_url="https://x.com")
+    workflows.team_email(initial_only)
+    assert initial_only.email is None  # no last name to build one from
     assert workflows.find_big_tech_teams(settings, ["Google"]) == []  # already saved
