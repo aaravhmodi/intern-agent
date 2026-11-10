@@ -39,7 +39,7 @@ from internship_agent.leads.answers import (
 from internship_agent.leads.areas import in_area, spread
 from internship_agent.leads.contacts import company_key
 from internship_agent.leads.deadlines import find_deadline
-from internship_agent.leads.emails import name_words
+from internship_agent.leads.emails import guess_email, name_words
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import (
     DONE,
@@ -649,6 +649,39 @@ BIG_TECH = {
     "Salesforce": "https://salesforce.com",
     "DoorDash": "https://doordash.com",
 }
+# Each company's most common address format, from email-format sites (AddToCRM, LeadIQ,
+# Mailmo, Clay), checked November 9. Meta and Amazon are weak guesses (aliases); Google takes
+# mail for any address, so a wrong guess there never bounces.
+BIG_TECH_EMAIL = {
+    "Google": "flast@google.com",
+    "Meta": "first@meta.com",
+    "Amazon": "flast@amazon.com",
+    "Netflix": "flast@netflix.com",
+    "NVIDIA": "flast@nvidia.com",
+    "Airbnb": "first.last@airbnb.com",
+    "Stripe": "first@stripe.com",
+    "Databricks": "first.last@databricks.com",
+    "Snowflake": "first.last@snowflake.com",
+    "Shopify": "first.last@shopify.com",
+    "LinkedIn": "flast@linkedin.com",
+    "Salesforce": "flast@salesforce.com",
+}
+
+
+def team_email(lead: Lead) -> None:
+    """Give a big tech lead an address in its company's usual format (unverified)."""
+    fmt, _, domain = BIG_TECH_EMAIL.get(lead.company, "").partition("@")
+    last = (name_words(lead.contact_name) or [""])[-1].strip(".")
+    if not domain or lead.email or len(last) < 2:  # "Tushar J.": no last name to build from
+        return
+    try:
+        lead.email = guess_email(lead.contact_name, domain, fmt)
+    except ValueError:
+        return
+    lead.email_status = EmailStatus.PATTERN
+    lead.email_source = f"Guessed {fmt}@, {lead.company}'s most common format; unverified"
+
+
 BIG_TECH_TEAMS = (
     "software engineers on a named backend, infrastructure or data engineering team (a "
     "product or platform team, e.g. Spanner, Ads data pipelines, S3). Write their title as "
@@ -715,6 +748,7 @@ def find_big_tech_teams(
             )
             unnamed = NO_TEAM.search(f"{person.name} {person.role}") or "’s" in person.name
             if lead.team and not unnamed and lead.key not in known:
+                team_email(lead)
                 new.append(lead)
         store.save(merge(store.load(), new)[0])  # saved company by company
         added += new
