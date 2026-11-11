@@ -37,6 +37,7 @@ from internship_agent.workflows import (
     find_form_d_startups,
     find_funding_news,
     find_more_postings,
+    find_networks,
     find_site_emails,
     find_startups,
     guess_and_send,
@@ -254,6 +255,21 @@ def scrape_discord_cmd(
     """Store the SWE intern roles posted in the Discord job channels (scrolls back `days`)."""
     new = scrape_discord(get_settings(), log=console.print, days=days)
     console.print(f"Scraped {len(new)} new posting(s) from Discord.")
+
+
+@leads_app.command("network")
+def network_cmd(
+    limit: Annotated[
+        int | None, typer.Option(help="Companies to check (default LINKEDIN_NETWORK_PER_RUN).")
+    ] = None,
+) -> None:
+    """Find your 2nd and 3rd degree LinkedIn connections at each company (read-only search).
+
+    Uses the server browser signed in to LinkedIn; never-checked companies go first, and a
+    company is checked again after three weeks.
+    """
+    checked = find_networks(get_settings(), limit, log=console.print)
+    console.print(f"Checked {checked} compan{'y' if checked == 1 else 'ies'} on LinkedIn.")
 
 
 @leads_app.command("form-d")

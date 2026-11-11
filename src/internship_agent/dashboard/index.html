@@ -812,6 +812,20 @@ function peopleSection(l) {
     <div class="actions"><button class="btn ${people.length ? "" : "primary"}" id="people">${people.length ? "Look again" : "Find people"}</button></div>
   </section>`;
 }
+// Your 2nd and 3rd degree LinkedIn connections there, from the server browser's search.
+function networkSection(l) {
+  const net = l.network || [];
+  const rows = net.map(p => `<div class="qa">
+      <div class="qa-label"><span>${esc(p.name)} <span class="sub">${p.degree === 2 ? "2nd" : "3rd+"}</span></span><a class="btn" href="${esc(p.profile_url)}" target="_blank" rel="noopener">Open LinkedIn</a></div>
+      <div class="hint">${esc(p.headline)}${p.mutual ? ` · ${esc(p.mutual)}` : ""}</div>
+    </div>`).join("");
+  const checked = l.network_checked_at ? `Checked ${esc(l.network_checked_at.slice(0, 10))}.` : "";
+  return `<section><h4>Your LinkedIn network here</h4>
+    ${rows || `<div class="hint">${checked ? checked + " No 2nd or 3rd degree connections work here." : "I'll search LinkedIn in the server browser (sign in there first) for 2nd and 3rd degree connections who work here. Read-only: nothing is sent."}</div>`}
+    ${rows && checked ? `<div class="hint">${checked} A 2nd degree person's mutual connection can introduce you.</div>` : ""}
+    <div class="actions"><button class="btn ${l.network_checked_at ? "" : "primary"}" id="network">${l.network_checked_at ? "Check again" : "Check my network"}</button></div>
+  </section>`;
+}
 // What happened on the last submit, with the employer's confirmation page as proof.
 function resultCard(l, app) {
   const s = app.submission_status;
@@ -935,6 +949,7 @@ function renderDetail() {
     ${inboxSection(l)}
     ${notes.length ? `<section><h4>Your notes</h4><ul class="note-list">${notes.map(n => `<li><time>${esc(n.at.slice(0, 10))}</time>${esc(n.text)}</li>`).join("")}</ul></section>` : ""}
     ${peopleSection(l)}
+    ${networkSection(l)}
     ${l.kind === "posting" ? applicationSection(l) : ""}
     ${emailSection}
     ${d ? `<div class="actions" style="margin-top:18px"><button class="btn" data-draft="1">Rewrite drafts</button></div>` : ""}
@@ -1176,6 +1191,11 @@ $("detail").addEventListener("click", async e => {
       b.disabled = true; b.textContent = "Searching… (up to a minute)";
       const n = (await api("/api/people", { key: l.key })).lead.people.length;
       toast(n >= 3 ? `Found ${n} people.` : `Only ${n} with a source this time. Try again later.`); await load();
+    } else if (b.id === "network") {
+      b.disabled = true; b.textContent = "Searching LinkedIn…";
+      const net = (await api("/api/network", { key: l.key })).lead.network;
+      const second = net.filter(p => p.degree === 2).length;
+      toast(net.length ? `${second} 2nd degree and ${net.length - second} 3rd+ degree connections.` : "No 2nd or 3rd degree connections found."); await load();
     } else if (b.dataset.person !== undefined) {
       const p = l.people[Number(b.dataset.person)], li = $("f-li");
       // The drafted note greets the main contact; greet this person instead.

@@ -26,11 +26,13 @@ from internship_agent.mailer import MailError
 from internship_agent.opportunities import run as opportunity_run
 from internship_agent.opportunities.schemas import Opportunity, OpportunityStatus
 from internship_agent.opportunities.store import OpportunityStore
+from internship_agent.sources.linkedin_network import SignInRequired
 from internship_agent.sources.regions import regions_of
 from internship_agent.workflows import (
     _incompatible_term,
     _record_openai_usage,
     find_more_postings,
+    find_network,
     find_people,
     find_startups,
     handle_note,
@@ -261,6 +263,17 @@ def people(request: KeyRequest) -> dict[str, Any]:
     try:
         lead = find_people(get_settings(), request.key)
     except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"lead": _view(lead)}
+
+
+@app.post("/api/network")
+def network(request: KeyRequest) -> dict[str, Any]:
+    """Your 2nd and 3rd degree LinkedIn connections at the company (the signed-in browser)."""
+    _get(request.key)
+    try:
+        lead = find_network(get_settings(), request.key)
+    except (ValueError, SignInRequired) as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"lead": _view(lead)}
 

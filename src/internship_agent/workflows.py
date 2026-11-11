@@ -40,6 +40,7 @@ from internship_agent.leads.areas import in_area, spread
 from internship_agent.leads.contacts import company_key
 from internship_agent.leads.deadlines import find_deadline
 from internship_agent.leads.emails import guess_email, name_words
+from internship_agent.leads.network import apply_network, companies_due
 from internship_agent.leads.preferences import PreferenceStore, apply_violations
 from internship_agent.leads.refill import (
     DONE,
@@ -77,6 +78,7 @@ from internship_agent.sources import (
     gallery,
     github_lists,
     hn_hiring,
+    linkedin_network,
     simplify,
     site_emails,
     speedrun,
@@ -290,6 +292,57 @@ def find_people(settings: Settings, key: str) -> Lead:
     lead.people = to_people(lead.company, found, skip=lead.contact_name) or lead.people
     store.upsert(lead)
     return lead
+
+
+def _linkedin_cdp(settings: Settings) -> str:
+    url = settings.linkedin_cdp_url or settings.discord_cdp_url
+    if not url:
+        raise ValueError("No browser set: LINKEDIN_CDP_URL (or DISCORD_CDP_URL) is unset")
+    return url
+
+
+def find_network(settings: Settings, key: str) -> Lead:
+    """Look up your 2nd and 3rd degree LinkedIn connections at the lead's company (read-only).
+
+    Stored on every lead at that company, since one search covers them all.
+    """
+    store = lead_store(settings)
+    lead = store.get(key)
+    people = linkedin_network.connections(_linkedin_cdp(settings), lead.company)
+    for changed in apply_network(store.load(), lead.company, people, datetime.now(UTC)):
+        store.upsert(changed)
+    return store.get(key)
+
+
+def find_networks(
+    settings: Settings, limit: int | None = None, log: Callable[[str], None] = lambda _: None
+) -> int:
+    """Check the network at the companies due for it, spaced out; returns how many were read.
+
+    Stops at the first sign-in wall: every later search would hit it too.
+    """
+    cdp = _linkedin_cdp(settings)
+    store = lead_store(settings)
+    due = companies_due(store.load(), datetime.now(UTC), limit or settings.linkedin_network_per_run)
+    checked = 0
+    for i, company in enumerate(due):
+        if i:
+            # Jittered, so the searches do not arrive on a robotic beat.
+            pause = settings.linkedin_network_pause_seconds
+            time.sleep(pause * random.uniform(0.75, 1.5))
+        try:
+            people = linkedin_network.connections(cdp, company)
+        except linkedin_network.SignInRequired:
+            raise
+        except Exception as exc:  # one company's page failing should not end the run
+            log(f"{company}: LinkedIn search failed ({type(exc).__name__})")
+            continue
+        for changed in apply_network(store.load(), company, people, datetime.now(UTC)):
+            store.upsert(changed)
+        checked += 1
+        second = sum(p.degree == 2 for p in people)
+        log(f"{company}: {second} 2nd degree, {len(people) - second} 3rd+ degree")
+    return checked
 
 
 def find_startups(
