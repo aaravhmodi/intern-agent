@@ -39,6 +39,12 @@ class Settings(BaseSettings):
 
     # The server's signed-in Discord browser (compose.yaml sets it); unset = no Discord scrape.
     discord_cdp_url: str | None = None
+    # The same browser, signed in to LinkedIn, for finding your 2nd and 3rd degree connections
+    # at each company. Unset = use discord_cdp_url. Companies checked per `leads network` run,
+    # and the seconds waited between searches so LinkedIn does not see a script hammering it.
+    linkedin_cdp_url: str | None = None
+    linkedin_network_per_run: int = 15
+    linkedin_network_pause_seconds: float = 20.0
 
     # Where to look for startups and postings: canada, usa, europe.
     search_regions: list[str] = ["canada", "usa", "europe"]

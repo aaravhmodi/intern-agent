@@ -498,6 +498,7 @@ internship-agent leads scrape-jobs | form-d | team-contacts | site-emails
 internship-agent leads funding-news --days 30      # TechCrunch / PR Newswire / SiliconANGLE / HN
 internship-agent leads big-tech-teams --company Google  # backend/data eng people at big tech, drafted (you send)
 internship-agent leads contacts "<company>" | contacts-vcf data/contacts.vcf
+internship-agent leads network [--limit 15]        # your 2nd/3rd degree LinkedIn connections per company
 internship-agent leads import data/leads-inbox.json && leads score && leads draft-all
 internship-agent leads guess-send --limit 20 [--area toronto|europe|new-york|sf|others] [--send]
 internship-agent leads inbox-send --limit 20 [--area ...] [--send]
@@ -537,6 +538,7 @@ Settings come from `.env` (see `src/internship_agent/config.py` for all of them)
 | `GMAIL_ADDRESS` · `GMAIL_APP_PASSWORD` | | Main Gmail: sending, codes, inbox tracking |
 | `OUTREACH_GMAIL_ADDRESS` · `OUTREACH_GMAIL_APP_PASSWORD` | | Second Gmail for new outreach |
 | `FOLLOWUPS_ENABLED` · `FOLLOWUP_DAYS` | `false` · `5` | Automatic follow-ups |
+| `LINKEDIN_CDP_URL` · `LINKEDIN_NETWORK_PER_RUN` · `LINKEDIN_NETWORK_PAUSE_SECONDS` | `DISCORD_CDP_URL` · `15` · `20` | The server browser signed in to LinkedIn, for `leads network` (read-only people search), and how gently it searches |
 | `SEARCH_REGIONS` · `EVENT_CITIES` | Canada, USA, Europe · Toronto, Waterloo, Kitchener, Mississauga, Hamilton | Where to look and what counts as nearby |
 | `RESEARCH_AREAS` · `CONFERENCE_TOPICS` | AI, SE, HI, DB, MX · general, python, … | Research and conference feeds |
 | `DAILY_OPPORTUNITY_CHECKS` | `10` | Event checks per morning |

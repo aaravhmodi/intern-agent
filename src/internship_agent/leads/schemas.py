@@ -1,6 +1,8 @@
 import re
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -8,6 +10,7 @@ from internship_agent.leads.limits import LINKEDIN_NOTE_LIMIT, fit_to_limit
 
 _HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
+_PROFILE = re.compile(r"^https://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/in/[^/?#\s]+/?$")
 
 
 class LeadKind(StrEnum):
@@ -172,6 +175,26 @@ class Person(BaseModel):
     source_url: str = ""  # the page that shows they work there
 
 
+class NetworkPerson(BaseModel):
+    """Someone at the company in your 2nd or 3rd+ degree LinkedIn network."""
+
+    name: str = Field(min_length=1)
+    profile_url: str
+    degree: Literal[2, 3]
+    headline: str = ""
+    # LinkedIn's own line about who links you, e.g. "Sam Lee is a mutual connection".
+    mutual: str = ""
+
+    @field_validator("profile_url")
+    @classmethod
+    def _profile_only(cls, value: str) -> str:
+        parts = urlsplit(value.strip())
+        clean = urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+        if not _PROFILE.match(clean):
+            raise ValueError(f"not a LinkedIn profile URL: {value!r}")
+        return clean
+
+
 class Lead(BaseModel):
     kind: LeadKind = LeadKind.FOUNDER
     company: str = Field(min_length=1)
@@ -193,6 +216,9 @@ class Lead(BaseModel):
     email_status: EmailStatus = EmailStatus.NONE
     email_source: str = ""
     people: list[Person] = Field(default_factory=list)
+    # Your 2nd and 3rd+ degree LinkedIn connections at the company, and when that was checked.
+    network: list[NetworkPerson] = Field(default_factory=list)
+    network_checked_at: datetime | None = None
 
     # Founder leads (announced_on is None for a startup found hiring rather than raising)
     round: Round = Round.OTHER
