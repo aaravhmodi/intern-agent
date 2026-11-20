@@ -1,0 +1,8 @@
+[Unit]
+OnFailure=internship-failure@%n.service
+Description=Email a few big tech engineers a coffee-chat note
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-team-send.sh

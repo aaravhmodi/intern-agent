@@ -1,0 +1,11 @@
+[Unit]
+Description=Find big tech people for coffee chats on Mondays at 7:00 AM Toronto
+
+[Timer]
+OnCalendar=Mon *-*-* 07:00:00 America/Toronto
+AccuracySec=1min
+Persistent=true
+Unit=internship-team-search.service
+
+[Install]
+WantedBy=timers.target

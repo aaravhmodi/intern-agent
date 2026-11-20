@@ -47,6 +47,7 @@ from internship_agent.workflows import (
     scrape_discord,
     scrape_jobs,
     submit_application,
+    team_send,
 )
 
 leads_app = typer.Typer(help="Founder and internship-posting leads, scored for fit.")
@@ -613,3 +614,14 @@ def mark_lead(key: str, status: LeadStatus) -> None:
     lead.status = status
     store.upsert(lead)
     console.print(f"{key} -> {status.value}")
+
+
+@leads_app.command("team-send")
+def team_send_cmd(
+    limit: Annotated[int, typer.Option(help="Most people to email in this run.")] = 10,
+    send: Annotated[bool, typer.Option(help="Actually send; without it, only list.")] = False,
+) -> None:
+    """Email big tech people a coffee-chat note about their team, one company at a time."""
+    with busy(get_settings()):  # a deploy waits until this ends
+        done = team_send(get_settings(), limit, send=send, log=console.print)
+    console.print(f"{len(done)} person(s) {'emailed' if send else 'would be emailed'}.")
