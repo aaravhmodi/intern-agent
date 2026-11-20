@@ -746,12 +746,32 @@ BIG_TECH_TEAMS = (
 NO_TEAM = re.compile(
     r"unnamed|unspecified|not specified|didn.t include|learn more|\bintern\b", re.IGNORECASE
 )
-TEAM_SUBJECT = "15 min chat? Waterloo SWE student"
-# Aarav's note of November 7: the team in place of the company, no internship.
+TEAM_SUBJECT = "Coffee chat? Waterloo student curious about backend and data"
+# A coffee chat, not a job ask: no internship, term or posting. {team} follows "how".
 TEAM_BODY = (
-    "Hi {first},\n\n" + _PITCH + "\n\nCould we do a 15-minute call so I can learn more about "
-    "{team}?" + _SIGN_OFF
+    "Hi {first},\n\n" + _PITCH + "\n\nWould you be up for a 15-minute virtual coffee chat? "
+    "I would love to hear how {team} works and what you would tell a student who wants to go "
+    "deep on backend and data engineering." + _SIGN_OFF
 )
+# Meta and Amazon take mail at aliases, so a guessed address there mostly bounces.
+WEAK_FORMAT = {"Meta", "Amazon"}
+# Teams worth a coffee chat: backend, infrastructure and data. A team named anything else
+# (growth, ads UI, design systems) is saved for review but never emailed or newly found.
+ON_TARGET = re.compile(
+    r"back-?end|infra|data|storage|database|distributed|platform|pipeline|streaming|systems|"
+    r"compute|query|reliab|performance|serving|cloud|network|cache|queue|spanner|bigquery|"
+    r"kafka|spark|warehouse|lakehouse|s3",
+    re.IGNORECASE,
+)
+
+
+def team_draft(lead: Lead) -> OutreachDraft:
+    first = (name_words(lead.contact_name or "") or ["there"])[0]
+    return OutreachDraft(
+        x_dm="",
+        email_subject=TEAM_SUBJECT,
+        email_body=TEAM_BODY.format(first=first, team=lead.team),
+    )
 
 
 def find_big_tech_teams(
@@ -782,7 +802,6 @@ def find_big_tech_teams(
         new: list[Lead] = []
         for person in to_people(company, found):
             title, _, team = person.role.partition("|")
-            first = (name_words(person.name) or ["there"])[0]
             lead = Lead(
                 company=company,
                 company_url=url,
@@ -793,14 +812,11 @@ def find_big_tech_teams(
                 linkedin_url=person.linkedin_url,
                 segment=Segment.BIG,
                 status=LeadStatus.DRAFTED,
-                draft=OutreachDraft(
-                    x_dm="",
-                    email_subject=TEAM_SUBJECT,
-                    email_body=TEAM_BODY.format(first=first, team=team.strip()),
-                ),
             )
+            lead.draft = team_draft(lead)
             unnamed = NO_TEAM.search(f"{person.name} {person.role}") or "’s" in person.name
-            if lead.team and not unnamed and lead.key not in known:
+            on_target = ON_TARGET.search(lead.team)
+            if lead.team and on_target and not unnamed and lead.key not in known:
                 team_email(lead)
                 new.append(lead)
         store.save(merge(store.load(), new)[0])  # saved company by company
@@ -810,6 +826,62 @@ def find_big_tech_teams(
             + (", ".join(f"{x.contact_name} ({x.team})" for x in new) or "nobody new")
         )
     return added
+
+
+def team_send(
+    settings: Settings,
+    limit: int,
+    *,
+    send: bool = False,
+    log: Callable[[str], None] = lambda _: None,
+    pause_seconds: float = 20,
+) -> list[Lead]:
+    """Coffee-chat emails to drafted big tech people, a few a day, one company at a time.
+
+    Companies take turns so a day is not all one team. Each person is emailed once, from the
+    outreach Gmail, with the current wording (old drafts are refreshed). Dry run unless `send`.
+    """
+    store = lead_store(settings)
+    queues: dict[str, list[Lead]] = {}
+    for lead in store.load():
+        if (
+            lead.team
+            and lead.status is LeadStatus.DRAFTED
+            and lead.email
+            and lead.sent_at is None
+            and lead.replied_at is None
+            and lead.company not in WEAK_FORMAT
+            and ON_TARGET.search(lead.team)
+        ):
+            queues.setdefault(lead.company, []).append(lead)
+    picked: list[Lead] = []
+    while len(picked) < limit and any(queues.values()):
+        for queue in queues.values():
+            if queue and len(picked) < limit:
+                picked.append(queue.pop(0))
+    sent: list[Lead] = []
+    for lead in picked:
+        log(f"{lead.company} {lead.contact_name} ({lead.team}): {lead.email}")
+        if not send:
+            continue
+        lead.draft = team_draft(lead)
+        store.upsert(lead)
+        try:
+            send_email(
+                settings,
+                lead.key,
+                lead.email or "",
+                lead.draft.email_subject,
+                lead.draft.email_body,
+                attach_resume=True,
+                confirm_unverified=True,  # the address is a guess, by design
+            )
+        except Exception as error:  # one refused send must not stop the rest
+            log(f"{lead.company}: not sent ({type(error).__name__}: {error})")
+            continue
+        sent.append(lead)
+        time.sleep(pause_seconds)  # spread the sends out so Gmail does not flag them
+    return sent if send else picked
 
 
 def find_site_emails(

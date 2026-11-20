@@ -1,0 +1,8 @@
+[Unit]
+OnFailure=internship-failure@%n.service
+Description=Find backend and data engineers at big tech to invite to a coffee chat
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/bin/bash /home/aaravmodi/projects/intern-agent/scripts/run-team-search.sh

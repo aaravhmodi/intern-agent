@@ -6,7 +6,14 @@ import pytest
 from internship_agent import workflows
 from internship_agent.ai import PeopleFindings, PersonFinding, search_people
 from internship_agent.config import Settings
-from internship_agent.leads.schemas import Lead, Person, Segment
+from internship_agent.leads.schemas import (
+    EmailStatus,
+    Lead,
+    LeadStatus,
+    OutreachDraft,
+    Person,
+    Segment,
+)
 from internship_agent.leads.store import LeadStore
 from internship_agent.sources import people as people_source
 from internship_agent.sources.people import source_names, to_people
@@ -120,11 +127,11 @@ def test_big_tech_teams_drafts_a_note_about_their_team_and_the_batches_skip_them
         ("Ana Ruiz", "Senior Software Engineer", "the BigQuery data engineering team")
     ]
     body = added[0].draft.email_body if added[0].draft else ""
-    assert (
-        body.startswith("Hi Ana,")
-        and "learn more about the BigQuery data engineering team?" in body
-    )
+    assert body.startswith("Hi Ana,") and "how the BigQuery data engineering team works" in body
     assert "Winter 2027" not in body and "Google" not in body
+    assert "coffee chat" in body and "intern" not in body.lower().replace(
+        "internships completed", ""
+    )
     assert not wants_email(added[0], retries=True)
     assert "internship" not in followup_body(added[0])
     # Google's usual format; a guess, so the dashboard asks you to confirm before sending.
@@ -133,3 +140,44 @@ def test_big_tech_teams_drafts_a_note_about_their_team_and_the_batches_skip_them
     workflows.team_email(initial_only)
     assert initial_only.email is None  # no last name to build one from
     assert workflows.find_big_tech_teams(settings, ["Google"]) == []  # already saved
+
+
+def test_team_send_takes_companies_in_turn_skips_weak_formats_and_refreshes_the_wording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = Settings(data_dir=tmp_path, openai_api_key="test", _env_file=None)  # type: ignore[call-arg]
+    store = workflows.lead_store(settings)
+    rows = [
+        ("Google", "Ana Ruiz", "the storage team"),
+        ("Google", "Bo Lin", "the storage team"),
+        ("Stripe", "Cy Park", "the data platform team"),
+        ("Meta", "Di Wu", "the storage team"),  # weak address format
+        ("Shopify", "Ed Fox", "the Growth products team"),  # not backend or data
+    ]
+    for company, name, team in rows:
+        lead = Lead(
+            company=company,
+            contact_name=name,
+            source_url="https://x.com",
+            team=team,
+            email=f"{name.split()[0].lower()}@{company.lower()}.com",
+            email_status=EmailStatus.PATTERN,
+            status=LeadStatus.DRAFTED,
+        )
+        lead.draft = OutreachDraft(x_dm="", email_subject="old", email_body="old body")
+        store.upsert(lead)
+    sent: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        workflows,
+        "send_email",
+        lambda s, key, to, subject, body, **k: sent.append((to, subject, body)),
+    )
+    assert [x.contact_name for x in workflows.team_send(settings, 3)] == [
+        "Ana Ruiz",
+        "Cy Park",
+        "Bo Lin",
+    ]
+    assert sent == []  # a dry run sends nothing
+    workflows.team_send(settings, 3, send=True, pause_seconds=0)
+    assert [to for to, _, _ in sent] == ["ana@google.com", "cy@stripe.com", "bo@google.com"]
+    assert all("Coffee chat" in subject and "coffee chat" in body for _, subject, body in sent)

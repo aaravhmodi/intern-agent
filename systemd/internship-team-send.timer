@@ -1,0 +1,10 @@
+[Unit]
+Description=Coffee-chat emails to big tech engineers, weekdays at 10:00 AM Toronto
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:00:00 America/Toronto
+AccuracySec=1min
+Unit=internship-team-send.service
+
+[Install]
+WantedBy=timers.target
