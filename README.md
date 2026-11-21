@@ -48,7 +48,7 @@ Each lead gets a fit score, the reasons for it, and what to lead with.
 
 **Drafts, sent for you**
 
-Scheduled batches send the drafts on their own. You can also edit one and send it by hand (a second confirming click).
+In the dashboard, Send needs a second confirming click. Connect Gmail and the scheduled batches send the drafts on their own.
 
 <img src="docs/images/draft.png" alt="An email draft and LinkedIn connection note for a founder">
 
@@ -78,9 +78,23 @@ later lead is scored against it.
 
 ## Automatic emails and follow-ups
 
-**This agent sends email by itself.** Nobody has to click Send. Systemd timers on the home server
-run the email batches and follow-ups on a schedule, from Gmail (the outreach inbox when
-`OUTREACH_GMAIL_ADDRESS` is set), and the replies come back into the [job pipeline](#job-pipeline).
+**This agent can send email by itself once Gmail is connected.** There are two ways mail goes out:
+
+| Mode | Needs a click? | How |
+|---|---|---|
+| **Dashboard** | Yes: **Send email**, then a second confirming click | You open a lead, edit the draft and send that one email |
+| **Agent (automatic)** | No | Connect a Gmail account and the scheduled batches and follow-ups send on their own |
+
+**Connecting Gmail:** turn on 2-Step Verification, create an
+[app password](https://myaccount.google.com/apppasswords), and set `GMAIL_ADDRESS` and
+`GMAIL_APP_PASSWORD` in `.env` (optionally `OUTREACH_GMAIL_ADDRESS` and
+`OUTREACH_GMAIL_APP_PASSWORD` for a separate outreach inbox, so bounces stay off your main one).
+Without them the agent can still find leads and write drafts, but only you can send, one at a
+time from the dashboard. Follow-ups additionally need `FOLLOWUPS_ENABLED=true`.
+
+With Gmail connected, systemd timers on the home server run the email batches and follow-ups on
+a schedule, from the outreach inbox when set, and the replies come back into the
+[job pipeline](#job-pipeline).
 
 ```mermaid
 flowchart LR
@@ -312,9 +326,9 @@ never prompt content, are logged to `openai_usage`.
 
 ### Outreach
 
-- **Automatic sending.** The scheduled batches send the drafts without a click; see
+- **Automatic sending** (needs Gmail connected). The scheduled batches send the drafts without a click; see
   [Automatic emails and follow-ups](#automatic-emails-and-follow-ups) for the schedule and limits.
-- **Send email** in the dashboard sends one draft by hand after a second confirming click. A
+- **Send email** in the dashboard always needs a click: it sends one draft after a second confirming click. A
   guessed address needs "I've checked this address" ticked, and a lead is never emailed twice
   unless you choose "Send again".
 - **Addresses.** `leads site-emails` reads each startup's own pages for addresses at its domain;
@@ -536,7 +550,8 @@ interview-like events. `.mcp.json` registers the same server for Claude Code ses
 
 ## Safety and privacy
 
-- **Email is sent automatically.** The five daily email batches run `guess-send --send` /
+- **Email is sent automatically once Gmail is connected** (`GMAIL_ADDRESS` + app password); the
+  dashboard's own Send always needs a click. The five daily email batches run `guess-send --send` /
   `inbox-send --send` on their own (100 a day at most), the coffee-chat batch sends 10 a day, and
   follow-ups go out after 5 days of silence, at most twice, never after a reply or bounce, and only
   with `FOLLOWUPS_ENABLED=true`. You can still send one draft by hand from the dashboard (a second
