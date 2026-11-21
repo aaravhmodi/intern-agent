@@ -35,8 +35,15 @@ bun install && bun run build:mcp-app
 node node_modules/next/dist/bin/next dev -p 3000
 
 cd ../intern-agent/docs/videos/make/films
-python make.py film_explainer landscape vertical     # -> out/film_explainer-*.mp4
+python make.py film_explainer landscape vertical     # -> out/film_explainer-lavender-*.mp4
+GITDIAGRAM_DIR=../../../../../gitdiagram python make.py film_explainer landscape --theme clay
 ```
+
+Themes (`make/gitdiagram/theme.py`) recolour the whole engine, stylesheet and scene code
+together, before a render: `lavender` (GitDiagram's own), `clay` (warm ivory and terracotta,
+in the spirit of Claude's look), `clay-dark` (the same on charcoal) and `ocean` (pale sky and
+strong blue). Each is a map from GitDiagram's palette roles to new colours, so adding one is a
+dozen lines.
 
 No API keys are used: `local-film-route.ts` lays out the hand-written shots with GitDiagram's
 own `normalizeShots`, times the captions at a natural reading pace over a silent track, and

@@ -46,4 +46,7 @@ entries at the bottom.
   connected, documents the job pipeline end to end, the 200+ a day figure and the 350+ record.
 - 2026-11-21: Four demo videos added (two explainers, a vertical short, a dashboard
   walkthrough) with the tooling to make them again.
-- 2026-11-21: Started video themes beyond GitDiagram's lavender.
+- 2026-11-21: Video themes: `theme.py` maps GitDiagram's palette roles (paper, card, ink,
+  accent, code colours, rgba glows) to clay, clay-dark and ocean, applied to the engine
+  before each render; `make.py --theme <name>`. Dark themes need lighter secondary text
+  (`ink_2`) or sub-labels on filled accent boxes disappear.
