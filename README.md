@@ -78,7 +78,14 @@ later lead is scored against it.
 
 ## Automatic emails and follow-ups
 
-**This agent can send email by itself once Gmail is connected.** There are two ways mail goes out:
+**This agent can send email by itself once Gmail is connected.** With Gmail connected it sends
+**200+ emails a day autonomously, without you lifting a finger**: up to 100 first emails, 10
+coffee-chat asks, and up to 150 follow-ups (25 a run, six runs a day). It then reads the
+responses back into the [job pipeline](#job-pipeline). **From the first reply on, it's all
+manual:** the agent stops emailing that person, and answering, scheduling and interviewing are
+up to you.
+
+There are two ways mail goes out:
 
 | Mode | Needs a click? | How |
 |---|---|---|
@@ -122,6 +129,9 @@ How it decides:
   nobody reviews it first). They go out only with `FOLLOWUPS_ENABLED=true`, and never to someone
   who replied or whose address bounced. Replies and bounces are checked in both inboxes first.
 - **What stops it:** a reply, a bounce, the second follow-up, or switching the timer off.
+- **After a reply it's all manual.** The agent records the reply, moves the company on the
+  pipeline board and pushes it to your phone, but it never answers anyone. You take the
+  conversation from there.
 
 **Turning it off**
 
@@ -153,7 +163,10 @@ flowchart LR
   STORE --> AI[Fit, drafts, answers,<br/>event checks, strategies]
   AI --> STORE
   STORE --> BROWSER[Saved browser<br/>applies & RSVPs]
-  GMAIL[Both Gmail inboxes<br/>read-only] --> PIPE[Job pipeline]
+  STORE --> SEND[Gmail SMTP<br/>200+ emails/day sent automatically<br/>outreach + follow-ups]
+  SEND --> GMAIL
+  GMAIL[Both Gmail inboxes<br/>replies read read-only] --> PIPE[Job pipeline]
+  PIPE --> YOU2([You reply by hand])
   PIPE --> STORE
   STORE --> DASH[Dashboard<br/>FastAPI · :8765]
   BROWSER & PIPE --> NTFY[ntfy push to phone]
@@ -392,6 +405,7 @@ offer or a no. Most of it runs without you.
 4. **Posting?** The daily 2:00 AM run applies to eligible Greenhouse, Ashby and Lever forms, lowest
    fit first.
 5. **Anything comes back** is picked up by the inbox scan below and moves the card across the board.
+   From here on it's all manual: the agent stops emailing that person and never replies for you.
 
 **3. Inbox stages** (what each email is classified as): `applied` (receipt), `reply`,
 `assessment`, `interview`, `offer`, `rejected`, `bounced`. The board shows the furthest a company
