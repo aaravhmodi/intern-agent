@@ -2,17 +2,19 @@
 
 # Winter 2027 Internship & Opportunity Agent
 
-**Finds the internships worth my time, scores each against my resume, drafts the outreach and applies,<br>
-then finds the hackathons, conferences and events worth going to, and tracks what comes back.**
+**Finds the internships worth my time, scores each against my resume, emails the people behind them on its own,<br>
+follows up when nobody replies, applies, and tracks every reply through a job pipeline. It also finds the<br>
+hackathons, conferences and events worth going to.**
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-web_search_+_structured_output-412991?style=flat-square)
 ![Postgres](https://img.shields.io/badge/Postgres-shared_projects_db-336791?style=flat-square&logo=postgresql&logoColor=white)
-![Gmail & Outlook: read-only](https://img.shields.io/badge/Gmail_%26_Outlook-read--only-0078D4?style=flat-square)
+![Sends email automatically](https://img.shields.io/badge/outreach_%2B_follow--ups-sent_automatically-b3261e?style=flat-square)
+![Inbox tracking: read-only](https://img.shields.io/badge/inbox_tracking-read--only-0078D4?style=flat-square)
 ![Local-first](https://img.shields.io/badge/local--first-1f4d35?style=flat-square)
 
-[What it does](#what-it-does) · [How it fits together](#how-it-fits-together) · [Dashboard](#the-dashboard) · [Internship agent](#internship-agent) · [Opportunity agent](#opportunity-agent) · [Safety](#safety-and-privacy) · [Setup](#setup) · [Commands](#commands)
+[What it does](#what-it-does) · [Automatic emails](#automatic-emails-and-follow-ups) · [How it fits together](#how-it-fits-together) · [Dashboard](#the-dashboard) · [Internship agent](#internship-agent) · [Job pipeline](#job-pipeline) · [Opportunity agent](#opportunity-agent) · [Safety](#safety-and-privacy) · [Setup](#setup) · [Commands](#commands)
 
 <img src="docs/images/demo.gif" width="900" alt="Opening a startup to see its fit score and email draft, then a posting's prepared application answers, then the learned rules">
 
@@ -27,7 +29,7 @@ search. It runs on a home server with one dashboard and two agents.
 
 | | What it does |
 |---|---|
-| **Internship agent** | Finds recently funded startups and open postings, scores each against the resume, finds the right people, drafts outreach, applies to complete Greenhouse / Ashby / Lever forms daily, and tracks every reply, bounce, interview and rejection from both Gmail inboxes. |
+| **Internship agent** | Finds recently funded startups and open postings, scores each against the resume, finds the right people, **emails them automatically and follows up automatically**, applies to complete Greenhouse / Ashby / Lever forms daily, and tracks every reply, bounce, interview and rejection from both Gmail inboxes in the [job pipeline](#job-pipeline). |
 | **Opportunity agent** | Finds hackathons, tech conferences, research venues and networking events. It checks each for location, travel paid, effort and fit, picks sponsored hackathons you can realistically enter, applies or RSVPs where the site allows, and plans research and talk submissions from your real work. |
 | **Shared** | A calendar of every deadline, event and follow-up, and **Ask**, a chat that knows your resume, website and GitHub. |
 
@@ -44,9 +46,9 @@ Each lead gets a fit score, the reasons for it, and what to lead with.
 </td>
 <td width="33%" valign="top">
 
-**Drafts you edit, then send**
+**Drafts, sent for you**
 
-Sending takes a second confirming click, and a guessed address has to be checked first.
+Scheduled batches send the drafts on their own. You can also edit one and send it by hand (a second confirming click).
 
 <img src="docs/images/draft.png" alt="An email draft and LinkedIn connection note for a founder">
 
@@ -73,6 +75,51 @@ company and the founder.
 later lead is scored against it.
 
 <p align="center"><img src="docs/images/rules.png" width="720" alt="Rules learned from notes: two skip rules and one boost rule"></p>
+
+## Automatic emails and follow-ups
+
+**This agent sends email by itself.** Nobody has to click Send. Systemd timers on the home server
+run the email batches and follow-ups on a schedule, from Gmail (the outreach inbox when
+`OUTREACH_GMAIL_ADDRESS` is set), and the replies come back into the [job pipeline](#job-pipeline).
+
+```mermaid
+flowchart LR
+  FIND[Find leads<br/>and people] --> SCORE[Score fit<br/>and draft]
+  SCORE --> BATCH[Scheduled email batch<br/>sends automatically]
+  BATCH --> WAIT{Reply within<br/>5 days?}
+  WAIT -->|no| FU[Automatic follow-up<br/>same thread, max 2]
+  FU --> WAIT
+  WAIT -->|yes| PIPE[Job pipeline<br/>reply · interview · offer]
+  BATCH -.->|bounce| RETRY[Retry next address<br/>format]
+  RETRY --> BATCH
+```
+
+| What goes out on its own | When (Toronto) | Limits |
+|---|---|---|
+| **First outreach**: founders and people at startups, best-guess address format, then published shared inboxes (careers@, jobs@) as a top-up | 3:30 AM Europe · 9:00 AM Toronto · 10:30 AM New York · 1:00 PM San Francisco · 3:30 PM others | 20 per batch, **100 a day at most**; up to 3 people per company; bounced guesses retry with the next format |
+| **Coffee-chat asks** to big tech people about their team (no internship) | Weekdays 10:00 AM | 10 a day, one company at a time, each person once; Meta and Amazon skipped |
+| **Follow-ups** | Weekdays 9:30 AM (n8n) and 11 AM · 1 · 3 · 5 · 7 PM (systemd) | After 5 days with no reply, **at most twice** per person, up to `FOLLOWUP_DAILY_LIMIT` (25) a run |
+
+How it decides:
+
+- **Who gets emailed:** leads that have a drafted email and were never emailed. A lead is never
+  emailed twice by a batch, and a company where someone already replied is skipped.
+- **Follow-ups:** sent as a reply in the same thread with fixed wording (not written by AI, because
+  nobody reviews it first). They go out only with `FOLLOWUPS_ENABLED=true`, and never to someone
+  who replied or whose address bounced. Replies and bounces are checked in both inboxes first.
+- **What stops it:** a reply, a bounce, the second follow-up, or switching the timer off.
+
+**Turning it off**
+
+```text
+systemctl --user disable --now internship-email-batch-<area>.timer   # one outreach batch
+systemctl --user disable --now internship-team-send.timer            # coffee-chat asks
+systemctl --user disable --now internship-followups.timer            # systemd follow-ups
+# and remove FOLLOWUPS_ENABLED=true from .env to stop follow-ups from n8n too
+```
+
+Without `--send`, `leads guess-send`, `inbox-send`, `team-send` and `followups` only list who
+would be emailed.
 
 ## How it fits together
 
@@ -105,14 +152,14 @@ flowchart LR
 | Storage | `db.py`, `leads/store.py`, `opportunities/store.py` | One `(id, key, data jsonb)` table per kind in the shared `projects` Postgres database (`DATABASE_URL`); files in `data/` without it |
 | AI | `ai.py`, `opportunities/ai.py`, `chat.py` | OpenAI structured output, validated by Pydantic: fit, drafts, application answers, event checks, submission strategies, the Ask chat |
 | Browser | `applications/browser.py`, `opportunities/apply.py`, `opportunities/browser.py` | Playwright in a saved profile: job forms, event registrations and RSVPs, sign-ins |
-| Mail | `mailer.py`, `mailbox.py`, `followup_run.py`, `pipeline.py` | Sends after a click, follow-ups, and read-only inbox tracking |
+| Mail | `mailer.py`, `mailbox.py`, `followup_run.py`, `pipeline.py` | Automatic sending and follow-ups, manual sends, and read-only inbox tracking |
 | Dashboard | `dashboard/app.py`, `dashboard/index.html`, `dashboard/dashboard.css` | Every view below; local or Tailscale only |
 | Calendar | `agenda.py` | Deadlines, event dates and follow-ups from both agents, and the `.ics` export |
 
 ### System architecture
 
 Where each piece runs, and what talks to what. Everything on the server is reachable only over
-Tailscale; the agent reads your inboxes but sends mail only when you click Send.
+Tailscale; the agent reads your inboxes, and sends outreach and follow-ups itself on a schedule.
 
 ```mermaid
 flowchart TB
@@ -265,9 +312,11 @@ never prompt content, are logged to `openai_usage`.
 
 ### Outreach
 
-- **Send email** sends from Gmail after a second confirming click. A guessed address needs
-  "I've checked this address" ticked, and a lead is never emailed twice unless you choose
-  "Send again".
+- **Automatic sending.** The scheduled batches send the drafts without a click; see
+  [Automatic emails and follow-ups](#automatic-emails-and-follow-ups) for the schedule and limits.
+- **Send email** in the dashboard sends one draft by hand after a second confirming click. A
+  guessed address needs "I've checked this address" ticked, and a lead is never emailed twice
+  unless you choose "Send again".
 - **Addresses.** `leads site-emails` reads each startup's own pages for addresses at its domain;
   a published address with the person's name replaces a guess. `leads guess-send --limit 20`
   lists the format most likely to reach each founder (`first@`, `first.last@`, …), learned
@@ -280,9 +329,9 @@ never prompt content, are logged to `openai_usage`.
   skipping companies where someone already replied. It also only lists without `--send`.
 - **Two inboxes.** New outreach goes from `OUTREACH_GMAIL_ADDRESS` when set, so bounces stay off
   the main Gmail.
-- **Follow-ups** go out after 5 days without a reply, at most twice, as a reply in the same
-  thread with fixed wording, only with `FOLLOWUPS_ENABLED=true`. They never go to someone who
-  replied or whose address bounced.
+- **Follow-ups are automatic.** They go out after 5 days without a reply, at most twice, as a
+  reply in the same thread with fixed wording, only with `FOLLOWUPS_ENABLED=true`. They never go
+  to someone who replied or whose address bounced.
 - **LinkedIn and X:** the dashboard copies the connection note or DM and opens the profile; you
   send it.
 
@@ -305,6 +354,41 @@ to sign in to the job sites you use.
   answers, and anything needing a transcript.
 
 ### Job pipeline
+
+The job pipeline is the whole path a company takes through the agent, from first discovery to an
+offer or a no. Most of it runs without you.
+
+**1. Lead stages** (the status stored on each lead):
+
+| Status | Meaning | Who moves it |
+|---|---|---|
+| `new` | Found from a source (startup news, X, SEC Form D, a job board, the SimplifyJobs list) with its source URL | Agent |
+| `scored` | Fit 0–100 against the resume, with reasons, concerns and talking points; your rules applied | Agent |
+| `drafted` | Email draft, LinkedIn note and, for postings, application answers and a cover letter are ready | Agent |
+| `contacted` | An email went out: **automatically** by a scheduled batch, or by hand from the dashboard | Agent, or you |
+| `applied` | A Greenhouse, Ashby or Lever form was submitted and confirmed, or you marked it applied | Agent, or you |
+| `skipped` | A rule auto-skipped it, the posting expired, or you skipped it | Agent, or you |
+
+**2. Automatic actions on each lead**
+
+1. **Email** goes out in a scheduled batch ([schedule and limits](#automatic-emails-and-follow-ups)).
+2. **Bounce?** The next address format is tried (up to 3 people per company); a shared careers
+   inbox is the fallback after two bounces.
+3. **No reply after 5 days?** An automatic follow-up goes in the same thread, at most twice.
+4. **Posting?** The daily 2:00 AM run applies to eligible Greenhouse, Ashby and Lever forms, lowest
+   fit first.
+5. **Anything comes back** is picked up by the inbox scan below and moves the card across the board.
+
+**3. Inbox stages** (what each email is classified as): `applied` (receipt), `reply`,
+`assessment`, `interview`, `offer`, `rejected`, `bounced`. The board shows the furthest a company
+got, and a rejection ends it.
+
+**4. Notifications.** New replies, assessments, interviews and offers are pushed to your phone
+through ntfy, each linking to that company in the dashboard; a failed job pushes "Failed: <job>".
+
+**5. What you still do:** reply to people who answer, schedule interviews, finish applications the
+agent can't (Workday, CAPTCHA pages, forms needing a transcript), and send LinkedIn and X
+messages, which are never automated.
 
 The **Job pipeline** view reads both Gmail inboxes every 30 minutes and shows how the search is
 converting:
@@ -452,12 +536,13 @@ interview-like events. `.mcp.json` registers the same server for Claude Code ses
 
 ## Safety and privacy
 
-- **Email** goes out only when you send it: the dashboard's Send after a second confirming
-  click, or `guess-send --send` / `inbox-send --send`, which the five daily email batches run
-  (at the times above; stop one with `systemctl --user disable --now
-  internship-email-batch-<area>.timer`). Follow-ups are automatic only with `FOLLOWUPS_ENABLED=true`, at
-  most twice, never after a reply or bounce.
-- **Inboxes are read-only.** Gmail is read over IMAP with folders opened read-only, so nothing
+- **Email is sent automatically.** The five daily email batches run `guess-send --send` /
+  `inbox-send --send` on their own (100 a day at most), the coffee-chat batch sends 10 a day, and
+  follow-ups go out after 5 days of silence, at most twice, never after a reply or bounce, and only
+  with `FOLLOWUPS_ENABLED=true`. You can still send one draft by hand from the dashboard (a second
+  confirming click). Stop any of it with the commands in
+  [Automatic emails and follow-ups](#automatic-emails-and-follow-ups).
+- **Inbox tracking is read-only.** Gmail is read over IMAP with folders opened read-only, so nothing
   is marked read, moved or deleted. Outlook goes through a read-only MCP server.
 - **Browser rules, in code:**
   - three checks before acting: the event's own site or a known platform, the page names the
