@@ -80,7 +80,8 @@ later lead is scored against it.
 
 **This agent can send email by itself once Gmail is connected.** With Gmail connected it sends
 **200+ emails a day autonomously, without you lifting a finger**: up to 100 first emails, 10
-coffee-chat asks, and up to 150 follow-ups (25 a run, six runs a day). It then reads the
+coffee-chat asks, and up to 150 follow-ups (25 a run, six runs a day). With extra runs on top
+of the schedule it has sent **350+ in a single day**. It then reads the
 responses back into the [job pipeline](#job-pipeline). **From the first reply on, it's all
 manual:** the agent stops emailing that person, and answering, scheduling and interviewing are
 up to you.
@@ -111,6 +112,7 @@ flowchart LR
   WAIT -->|no| FU[Automatic follow-up<br/>same thread, max 2]
   FU --> WAIT
   WAIT -->|yes| PIPE[Job pipeline<br/>reply · interview · offer]
+  PIPE --> MANUAL([All manual from here:<br/>you reply and schedule])
   BATCH -.->|bounce| RETRY[Retry next address<br/>format]
   RETRY --> BATCH
 ```
@@ -165,7 +167,7 @@ flowchart LR
   STORE --> BROWSER[Saved browser<br/>applies & RSVPs]
   STORE --> SEND[Gmail SMTP<br/>200+ emails/day sent automatically<br/>outreach + follow-ups]
   SEND --> GMAIL
-  GMAIL[Both Gmail inboxes<br/>replies read read-only] --> PIPE[Job pipeline]
+  GMAIL[Both Gmail inboxes<br/>replies read, read-only] --> PIPE[Job pipeline]
   PIPE --> YOU2([You reply by hand])
   PIPE --> STORE
   STORE --> DASH[Dashboard<br/>FastAPI · :8765]
@@ -196,7 +198,7 @@ flowchart TB
       DASH[dashboard container<br/>FastAPI :8765 + CLI<br/>internship-agent]
       PG[(Postgres<br/>projects db<br/>intern_agent_* tables)]
       N8N[n8n<br/>reply alerts · follow-ups]
-      SYSD[systemd timers<br/>2:00 apply · 7:30/12:00 lead search · 5 email batches<br/>9:30 PM scrape · 30 min inbox check]
+      SYSD[systemd timers<br/>2:00 apply · 7:30/12:00 lead search · 5 auto-send email batches<br/>9:30 PM scrape · 30 min inbox check]
       BROWSER[Playwright<br/>saved browser profile]
     end
   end
