@@ -53,3 +53,6 @@ entries at the bottom.
 - 2026-11-21: Fixed the explainer's follow-up scene: "Follow-up ×2 max" overflowed its box;
   the box keeps its label and a "max 2" stamp sits under it. Replacing a box label with
   longer text is the usual cause of overflow.
+- 2026-11-21: Theme renders committed under `docs/videos/themes/<theme>/` (explainer + one-day,
+  landscape, ~5 MB a theme) with a poster each; README shows them in a "In other themes"
+  table. Lavender stays the default at `docs/videos/*.mp4`.

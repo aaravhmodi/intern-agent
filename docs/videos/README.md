@@ -7,6 +7,10 @@
 | [One day, 200+ emails](one-day-vertical.mp4) | 0:49 | Vertical (9:16) cut of a day on the server, from the 2 AM applications to the 9:30 PM scrape |
 | [Dashboard walkthrough](dashboard-walkthrough.mp4) | 1:08 | The real dashboard with made-up demo data: home, job pipeline, a card's inbox timeline, all leads, a lead's fit and draft, Today and the calendar |
 
+`themes/` holds the explainer and the one-day video in three more colourways: **Clay**
+(ivory and terracotta, in the spirit of Claude's look), **Clay Dark** (the same on charcoal)
+and **Ocean** (pale sky and blue). The videos above use GitDiagram's own **Lavender**.
+
 The three explainers are drawn by the motion engine of
 [GitDiagram](https://github.com/ahmedkhaleel2004/gitdiagram) (MIT), the same one behind its
 one-minute repository videos. The scripts and shots in `make/films/` were written by hand
@@ -36,7 +40,7 @@ node node_modules/next/dist/bin/next dev -p 3000
 
 cd ../intern-agent/docs/videos/make/films
 python make.py film_explainer landscape vertical     # -> out/film_explainer-lavender-*.mp4
-GITDIAGRAM_DIR=../../../../../gitdiagram python make.py film_explainer landscape --theme clay
+python make.py film_explainer landscape --theme clay   # GITDIAGRAM_DIR if it isn't beside this repo
 ```
 
 Themes (`make/gitdiagram/theme.py`) recolour the whole engine, stylesheet and scene code

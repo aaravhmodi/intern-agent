@@ -123,6 +123,13 @@ A day on the server, 2 AM applications to the 9:30 PM scrape, cut for phones.
 </tr>
 </table>
 
+**In other themes.** The same explainer and one-day video, recoloured:
+
+| Clay | Clay Dark | Ocean |
+|---|---|---|
+| <a href="docs/videos/themes/clay/intern-agent-explained.mp4"><img src="docs/videos/themes/clay/poster.jpg" alt="The explainer in the Clay theme: ivory and terracotta"></a> | <a href="docs/videos/themes/clay-dark/intern-agent-explained.mp4"><img src="docs/videos/themes/clay-dark/poster.jpg" alt="The explainer in the Clay Dark theme: charcoal and terracotta"></a> | <a href="docs/videos/themes/ocean/intern-agent-explained.mp4"><img src="docs/videos/themes/ocean/poster.jpg" alt="The explainer in the Ocean theme: pale sky and blue"></a> |
+| [Explainer](docs/videos/themes/clay/intern-agent-explained.mp4) · [One day](docs/videos/themes/clay/one-day.mp4) | [Explainer](docs/videos/themes/clay-dark/intern-agent-explained.mp4) · [One day](docs/videos/themes/clay-dark/one-day.mp4) | [Explainer](docs/videos/themes/ocean/intern-agent-explained.mp4) · [One day](docs/videos/themes/ocean/one-day.mp4) |
+
 The explainers use [GitDiagram](https://github.com/ahmedkhaleel2004/gitdiagram)'s video engine
 with hand-written scripts and captions; every company and person shown is made up. How they
 were made, and how to make them again: [`docs/videos`](docs/videos/README.md).
