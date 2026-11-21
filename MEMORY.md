@@ -24,9 +24,15 @@ entries at the bottom.
 ## Environment notes
 
 - Cloud sessions are not on Tailscale and cannot reach the home server (`100.76.57.23`).
-- A personal cloud environment "intern-agent video (GitDiagram)" holds OpenAI and OpenRouter
-  keys as network secrets; requests with them returned 401, so the videos have no voice.
-  Anthropic keys cannot be saved as network secrets.
+- Cloud environment "intern-agent video (GitDiagram)": its saved network secrets for
+  api.openai.com and openrouter.ai stripped the Authorization header and sent nothing (401
+  "missing bearer" even with a real key sent directly), so they were deleted and the hosts
+  allowed instead. Saving that environment in Settings can overwrite allowed-host changes made
+  from a session; re-check with get_environment afterwards. Anthropic keys cannot be saved as
+  network secrets.
+- Voice for the videos: both keys work, but the OpenAI account has no credits (429) and the
+  OpenRouter account never bought any (402). Any narration (GitDiagram's Gemini voice through
+  OpenRouter, or OpenAI's gpt-4o-mini-tts / tts-1 with Whisper timings) needs credit first.
 
 ## Demo videos (`docs/videos`)
 
@@ -56,3 +62,5 @@ entries at the bottom.
 - 2026-11-21: Theme renders committed under `docs/videos/themes/<theme>/` (explainer + one-day,
   landscape, ~5 MB a theme) with a poster each; README shows them in a "In other themes"
   table. Lavender stays the default at `docs/videos/*.mp4`.
+- 2026-11-21: Tried to add narration: keys reach both APIs now, both accounts are out of
+  credit. Videos stay captioned until one has credit.
