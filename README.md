@@ -14,7 +14,7 @@ hackathons, conferences and events worth going to.**
 ![Inbox tracking: read-only](https://img.shields.io/badge/inbox_tracking-read--only-0078D4?style=flat-square)
 ![Local-first](https://img.shields.io/badge/local--first-1f4d35?style=flat-square)
 
-[What it does](#what-it-does) · [Automatic emails](#automatic-emails-and-follow-ups) · [How it fits together](#how-it-fits-together) · [Dashboard](#the-dashboard) · [Internship agent](#internship-agent) · [Job pipeline](#job-pipeline) · [Opportunity agent](#opportunity-agent) · [Safety](#safety-and-privacy) · [Setup](#setup) · [Commands](#commands)
+[What it does](#what-it-does) · [Demo videos](#demo-videos) · [Automatic emails](#automatic-emails-and-follow-ups) · [How it fits together](#how-it-fits-together) · [Dashboard](#the-dashboard) · [Internship agent](#internship-agent) · [Job pipeline](#job-pipeline) · [Opportunity agent](#opportunity-agent) · [Safety](#safety-and-privacy) · [Setup](#setup) · [Commands](#commands)
 
 <img src="docs/images/demo.gif" width="900" alt="Opening a startup to see its fit score and email draft, then a posting's prepared application answers, then the learned rules">
 
@@ -75,6 +75,57 @@ company and the founder.
 later lead is scored against it.
 
 <p align="center"><img src="docs/images/rules.png" width="720" alt="Rules learned from notes: two skip rules and one boost rule"></p>
+
+## Demo videos
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**[intern-agent, explained](docs/videos/intern-agent-explained.mp4)** · 1:31
+
+<a href="docs/videos/intern-agent-explained.mp4"><img src="docs/videos/intern-agent-explained.jpg" alt="The five email batches as systemd timers, next to 200+ emails a day"></a>
+
+Finds startups, emails 200+ people a day on its own, follows up, applies, and goes quiet the
+moment someone replies.
+
+</td>
+<td width="50%" valign="top">
+
+**[The job pipeline](docs/videos/job-pipeline-explained.mp4)** · 1:31
+
+<a href="docs/videos/job-pipeline-explained.mp4"><img src="docs/videos/job-pipeline-explained.jpg" alt="A reply matched to its lead by address, then domain, then company name, and read as an interview"></a>
+
+One email, from the Toronto batch to an interview: guessed addresses, follow-ups, read-only
+inbox scans, and the board.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**[Dashboard walkthrough](docs/videos/dashboard-walkthrough.mp4)** · 1:08
+
+<a href="docs/videos/dashboard-walkthrough.mp4"><img src="docs/videos/dashboard-walkthrough.jpg" alt="The job pipeline board with a company's inbox timeline open"></a>
+
+The real dashboard on made-up data: the pipeline, a lead's fit and draft, Today, the calendar.
+
+</td>
+<td width="50%" valign="top">
+
+**[One day, 200+ emails](docs/videos/one-day-vertical.mp4)** · 0:49 · vertical
+
+<a href="docs/videos/one-day-vertical.mp4"><img src="docs/videos/one-day-vertical.jpg" width="200" alt="200+ emails a day, 0 clicks"></a>
+
+A day on the server, 2 AM applications to the 9:30 PM scrape, cut for phones.
+
+</td>
+</tr>
+</table>
+
+The explainers use [GitDiagram](https://github.com/ahmedkhaleel2004/gitdiagram)'s video engine
+with hand-written scripts and captions; every company and person shown is made up. How they
+were made, and how to make them again: [`docs/videos`](docs/videos/README.md).
 
 ## Automatic emails and follow-ups
 

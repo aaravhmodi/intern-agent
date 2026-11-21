@@ -16,3 +16,6 @@ data/answer-bank.json
 data/application-browser/
 data/xai-usage.jsonl
 data/*.pdf
+
+# Demo video renders (docs/videos/make)
+docs/videos/make/films/out/
