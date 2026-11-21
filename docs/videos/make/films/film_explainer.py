@@ -221,7 +221,7 @@ SCENES = [
         ],
     },
     {  # follow up
-        "layout": {"row": ["sent", "wait", "fu"]},
+        "layout": {"row": ["sent", "wait", {"col": ["fu", "max"]}]},
         "shots": [
             {
                 "beat": 8,
@@ -280,9 +280,11 @@ SCENES = [
             },
             {
                 "beat": 10,
-                "elements": [],
+                "elements": [
+                    {"id": "max", "kind": "stamp", "text": "max 2", "tone": "bad", "at": "most"},
+                ],
                 "actions": [
-                    {"at": "twice", "do": "replace", "target": "fu", "text": "Follow-up ×2 max"},
+                    {"at": "twice", "do": "pulse", "target": "fu"},
                     {"at": "answers", "do": "check", "target": "fu"},
                 ],
             },

@@ -50,3 +50,6 @@ entries at the bottom.
   accent, code colours, rgba glows) to clay, clay-dark and ocean, applied to the engine
   before each render; `make.py --theme <name>`. Dark themes need lighter secondary text
   (`ink_2`) or sub-labels on filled accent boxes disappear.
+- 2026-11-21: Fixed the explainer's follow-up scene: "Follow-up ×2 max" overflowed its box;
+  the box keeps its label and a "max 2" stamp sits under it. Replacing a box label with
+  longer text is the usual cause of overflow.
